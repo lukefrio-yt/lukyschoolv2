@@ -202,6 +202,8 @@ function tKlasifikace() {
   const cid = activeClsId();
   const cls = classOf(cid);
   const sts = studentsOfClass(cid);
+  const subjParam = (location.hash.split('|')[1] || '').toUpperCase();
+  if (SUBJ_KEYS.includes(subjParam)) GB.subj = subjParam;
   if (!SUBJ_KEYS.includes(GB.subj)) GB.subj = 'M';
   const subj = GB.subj;
   const cols = (db.columns || []).filter(c => c.cls === cid && c.subj === subj)
@@ -1775,4 +1777,116 @@ onAct('ann-del:', el => {
   toast('Oznámení smazáno', 'bad');
   route();
 });
+/* ================= PRŮBĚŽNÁ KLASIFIKACE (známky za pololetí + pochvaly / opatření) ================= */
+function recChip(type) {
+  const t = REC_BY_ID[type];
+  const tone = (t || {}).tone || '';
+  return '<span class="chip chip-' + tone + '">' + escapeHtml((t || { label: type }).label) + '</span>';
+}
+function prModalFor(sid) {
+  const st = studentOf(sid);
+  if (!st) return;
+  const recs = recordsOf(sid).slice().sort((a, z) => (a.date === z.date ? 0 : a.date < z.date ? 1 : -1));
+  openModal('<h3>Pochvaly a výchovná opatření – ' + escapeHtml(st.first + ' ' + st.last) + '</h3>' +
+    (recs.length ? '<div style="display:grid;gap:6px;margin-bottom:14px">' + recs.map(r =>
+      '<div style="display:flex;align-items:center;gap:8px;background:var(--surface-2);border-radius:10px;padding:7px 10px">' + recChip(r.type) +
+      '<div class="grow" style="font-size:13px">' + escapeHtml(r.reason || '') + '<div class="small-note" style="margin:2px 0 0">' + semLabel(r.sem || semOfDate(r.date)) + ' · ' + fmtDate(r.date) + '</div></div>' +
+      '<button class="icon-btn sm" data-act="rec-del:' + r.id + '" style="color:var(--bad)" title="Smazat záznam">' + ic('trash', 14) + '</button></div>').join('') + '</div>' : '<div class="small-note" style="margin-bottom:12px">Žádné záznamy – přidejte první níže.</div>') +
+    '<form data-form="rec-add" style="margin-top:4px">' +
+      '<input type="hidden" name="sid" value="' + escapeHtml(sid) + '">' +
+      '<div class="field"><label>Typ</label><select name="type">' + REC_TYPES.map(t => '<option value="' + t.id + '">' + escapeHtml(t.label) + '</option>').join('') + '</select></div>' +
+      '<div class="field"><label>Důvod / text</label><textarea name="reason" rows="2" required placeholder="Např. Pomohl spolužákovi s učivem; opakovaně vyrušuje…"></textarea></div>' +
+      '<div class="field-row"><div class="field"><label>Datum</label><input type="date" name="date" value="' + todayISO() + '"></div>' +
+      '<div class="field"><label>Pololetí</label><select name="sem"><option value="1">1. pololetí</option><option value="2">2. pololetí</option></select></div></div>' +
+      '<button class="btn btn-primary">' + ic('plus', 14) + ' Přidat záznam</button>' +
+    '</form>');
+}
+function tPrubezna() {
+  clearTick();
+  if (!myClasses().length) return noClassPrompt();
+  const cid = activeClsId();
+  const cls = classOf(cid);
+  const sts = studentsOfClass(cid);
+  const subjects = classSubjects(cid);
+  const b = schoolYearBounds();
+  const allRecs = (db.records || []).filter(r => sts.some(s => s.id === r.sid)).sort((a, z) => (a.date === z.date ? 0 : a.date < z.date ? 1 : -1));
+  const perStudent = (sid) => {
+    const recs = allRecs.filter(r => r.sid === sid);
+    return recs.slice(0, 4).map(r =>
+      '<div style="display:flex;align-items:center;gap:7px;margin-top:5px">' + recChip(r.type) +
+      '<span class="small-note" style="margin:0;flex:1">' + escapeHtml(r.reason || '') + (r.date ? ' · ' + fmtDate(r.date) : '') + '</span></div>').join('') +
+      (recs.length > 4 ? '<div class="small-note" style="margin-top:5px">a dalších ' + (recs.length - 4) + ' záznamů…</div>' : '');
+  };
+  const gradeTxt = (sid, sub) => {
+    let out = '<div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:center">';
+    [1, 2].forEach(sem => {
+      const cols = semesterColumnGradesOf(sid, sub, sem);
+      out += '<div style="display:flex;flex-direction:column;gap:3px;align-items:center">';
+      out += '<div class="sem-col" style="border-left:2px solid ' + (sem === 1 ? 'rgba(59,130,246,.5)' : 'rgba(16,185,129,.5)') + ';padding-left:6px;margin-left:4px;display:flex;gap:4px;flex-wrap:wrap;min-height:22px;align-items:center">';
+      if (cols.length) {
+        cols.forEach(col => {
+          const v = col.cells[sid];
+          const counted = tokenCounted(v);
+          out += '<a class="g-cell' + (counted ? ' ' + gradeColor(v) : '') + '" style="text-decoration:none;cursor:pointer" data-act="goto:#/ucitel/klasifikace|' + sub + '" title="' + escapeHtml((SUBJECTS[sub] || {}).name || sub) + ' · ' + fmtDate(col.date) + '">' + escapeHtml(v === '?' ? '?' : v) + '</a>';
+        });
+        const a = semesterAvgOf(sid, sub, sem);
+        out += a.avg !== null ? '<span class="small-note" style="margin:0;align-self:center">Ø ' + a.avg.toFixed(2) + '</span>' : '';
+      } else out += '<span style="opacity:.35;font-size:11px">—</span>';
+      out += '</div></div>';
+    });
+    return out + '</div>';
+  };
+  return '' +
+    '<div class="page-head"><div><h1>Průběžná klasifikace</h1>' +
+    '<div class="sub">' + escapeHtml(cls.name) + ' · průběžné známky rozdělené na 1. a 2. pololetí, pochvaly a výchovná opatření</div></div></div>' +
+    clsScopePills() +
+    (sts.length && subjects.length
+      ? '<div class="card"><div class="card-title">' + ic('list', 16) + ' Známky za pololetí</div>' +
+        '<div class="tbl-wrap" style="max-height:520px;overflow:auto"><table class="tbl" style="min-width:760px"><thead><tr>' +
+        '<th style="position:sticky;left:0;background:var(--surface);z-index:2;min-width:190px">Žák</th>' +
+        subjects.map(s => '<th style="min-width:130px"><div style="font-size:10.5px;color:var(--muted)">' + escapeHtml(SUBJECTS[s].name) + '</div><div style="display:flex;gap:8px;font-size:10px;color:var(--muted)"><span style="color:#93C5FD">1. pol</span><span style="color:#6EE7B7">2. pol</span></div></th>').join('') +
+        '<th style="min-width:180px">Pochvaly a opatření</th></tr></thead><tbody>' +
+        sts.map(st => '<tr>' +
+          '<td style="position:sticky;left:0;background:var(--surface);z-index:1"><div style="display:flex;align-items:center;gap:8px">' + teacherAva(st, 28) + '<b>' + escapeHtml(st.last + ' ' + st.first) + '</b></div></td>' +
+          subjects.map(s => '<td>' + gradeTxt(st.id, s) + '</td>').join('') +
+          '<td>' + perStudent(st.id) +
+            '<button class="btn btn-ghost btn-sm" style="margin-top:8px" data-act="pr-edit:' + st.id + '">' + ic('plus', 13) + ' Pochvala / opatření</button></td></tr>').join('') +
+        '</tbody></table></div>' +
+        '<div class="small-note" style="margin-top:8px">Klepnutím na známku přejdete do Známkování. 1. pol = známky do 31. 1., 2. pol = od 1. 2. Pochvaly a opatření se promítnou do vysvědčení (Pololetní klasifikace).</div>' +
+        '</div>'
+      : '<div class="card"><div class="empty"><b>' + (!sts.length ? 'Ve třídě zatím nejsou žáci' : 'Třída zatím nemá předměty se známkami') + '</b>Zapište nejdřív známky v Známkování.</div></div>');
+}
+onAct('pr-edit:', el => { prModalFor(el.getAttribute('data-act').slice(8)); });
+onAct('form:rec-add', f => {
+  const fd = new FormData(f);
+  const sid = String(fd.get('sid'));
+  const type = String(fd.get('type'));
+  const reason = String(fd.get('reason') || '').trim();
+  const date = String(fd.get('date')) || todayISO();
+  if (!REC_BY_ID[type] || !reason) { toast('Vyberte typ a napište důvod', 'bad'); return; }
+  db.records = db.records || [];
+  db.records.push({ id: uid(), sid, type, reason, date, sem: Number(fd.get('sem')) || semOfDate(date), by: currentUser().id, ts: nowISO() });
+  saveDB();
+  const st = studentOf(sid);
+  if (st) {
+    (db.users || []).forEach(uu => {
+      if ((uu.role === 'student' && uu.studentId === sid) || (uu.role === 'rodic' && (uu.children || []).includes(sid))) {
+        db.notifs.push({ userId: uu.id, type: 'grade', text: 'Nový zápis v průběžné klasifikaci – ' + st.first + ': ' + REC_BY_ID[type].label, ts: nowISO(), route: 'prubezna' });
+      }
+    });
+    saveDB();
+  }
+  toast('Záznam přidán ✓', 'ok');
+  prModalFor(sid);
+});
+onAct('rec-del:', el => {
+  const id = el.getAttribute('data-act').slice(8);
+  const rec = (db.records || []).find(x => x.id === id);
+  if (!rec) return;
+  db.records = (db.records || []).filter(x => x.id !== id);
+  saveDB();
+  toast('Záznam smazán', 'bad');
+  prModalFor(rec.sid);
+});
 registerView('ucitel', 'oznameni', tOznameni);
+registerView('ucitel', 'prubezna', tPrubezna);

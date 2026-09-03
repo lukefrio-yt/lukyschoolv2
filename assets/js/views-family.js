@@ -1064,8 +1064,75 @@ function sOznameni() {
         }).join('') + '</div>'
       : '<div class="card"><div class="empty"><b>Zatím žádná oznámení</b>Když učitel třídě něco vzkáže (písemka, akce…), objeví se to tady.</div></div>');
 }
+/* ================= PRŮBĚŽNÁ KLASIFIKACE (žák i rodič) ================= */
+function prubeznaView() {
+  clearTick();
+  const u = currentUser();
+  if (!u) return '';
+  const isRod = u.role === 'rodic';
+  let sid = null;
+  if (u.role === 'student') sid = u.studentId;
+  else {
+    const kids = parentChildren();
+    if (!kids.length) return '<div class="card"><div class="empty"><b>Nemáte propojené žádné dítě</b>Kontaktujte správce školy.</div></div>';
+    sid = parentCurChild();
+  }
+  const st = studentOf(sid);
+  if (!st) return '';
+  const subjects = classSubjects(st.cls);
+  const cls = classOf(st.cls);
+  const myRecs = (db.records || []).filter(r => r.sid === sid).sort((a, z) => (a.date === z.date ? 0 : a.date < z.date ? 1 : -1));
+  const cell = sub => {
+    let out = '';
+    [1, 2].forEach(sem => {
+      const cols = semesterColumnGradesOf(sid, sub, sem);
+      const a = semesterAvgOf(sid, sub, sem);
+      out += '<td style="border-left:2px solid ' + (sem === 1 ? 'rgba(59,130,246,.5)' : 'rgba(16,185,129,.5)') + ';text-align:center">' +
+        (cols.length
+          ? '<div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:center">' + cols.map(col => {
+              const v = col.cells[sid];
+              const counted = tokenCounted(v);
+              return '<span class="g-cell' + (counted ? ' ' + gradeColor(v) : '') + '" title="' + escapeHtml(col.title || '') + ' · ' + fmtDate(col.date) + '">' + escapeHtml(v === '?' ? '?' : v) + '</span>';
+            }).join('') + '</div>'
+          : '<span style="opacity:.3">—</span>') +
+        (a.avg !== null ? '<div class="small-note" style="margin:4px 0 0;font-weight:700;color:' + avgColor(a.avg) + '">Ø ' + a.avg.toFixed(2) + '</div>' : '') +
+        '</td>';
+    });
+    return out;
+  };
+  const headRow = (isRod ? (parentChildren().length > 1
+    ? '<div class="rcpt-row">' + parentChildren().map(k =>
+        '<button class="rcpt-pill' + (k.id === sid ? ' active' : '') + '" data-act="p-child:' + k.id + '">' +
+        '<span class="ava" style="width:24px;height:24px;font-size:11px">' + escapeHtml(k.first.charAt(0)) + '</span>' +
+        k.first + ' ' + k.last + '</button>').join('') + '</div>'
+    : '') : '');
+  return '<div class="page-head"><div><h1>Průběžná klasifikace</h1>' +
+    '<div class="sub">' + (isRod ? 'Průběžné hodnocení vašeho dítěte' : 'Tvoje průběžné hodnocení') + ' · ' + escapeHtml(cls ? cls.name : st.cls) + '</div></div></div>' +
+    headRow +
+    '<div class="card"><div class="card-title">' + ic('list', 16) + ' Známky za pololetí' +
+      '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">1. pol do 31. 1. · 2. pol od 1. 2.</span></div>' +
+    (subjects.length
+      ? '<div class="tbl-wrap" style="max-height:560px;overflow:auto"><table class="tbl" style="min-width:640px"><thead><tr>' +
+        '<th style="position:sticky;left:0;background:var(--surface);z-index:2;min-width:170px;text-align:left">Předmět</th>' +
+        '<th style="min-width:160px">1. pololetí</th><th style="min-width:160px">2. pololetí</th></tr></thead><tbody>' +
+        subjects.map(sub => '<tr><td style="position:sticky;left:0;background:var(--surface);z-index:1"><div style="display:flex;align-items:center;gap:8px">' + subjBadge(sub, 26) + '<b>' + escapeHtml(SUBJECTS[sub].name) + '</b></div></td>' + cell(sub) + '</tr>').join('') +
+        '</tbody></table></div>'
+      : '<div class="empty">Zatím žádné předměty – známky se tu objeví, jakmile učitel začne zapisovat.</div>') +
+    '</div>' +
+    '<div class="card" style="margin-top:16px"><div class="card-title">' + ic('check', 16) + ' Pochvaly a výchovná opatření' +
+      '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">' + myRecs.length + ' záznamů</span></div>' +
+    (myRecs.length
+      ? '<div class="list">' + myRecs.map(r =>
+          '<div class="list-row"><span class="ava" style="background:' + ({ ok: 'linear-gradient(135deg,#10B981,#059669)', acc: 'linear-gradient(135deg,#3B82F6,#2563EB)', warn: 'linear-gradient(135deg,#F59E0B,#D97706)', bad: 'linear-gradient(135deg,#EF4444,#DC2626)' }[REC_BY_ID[r.type] && REC_BY_ID[r.type].tone] || 'linear-gradient(135deg,#64748B,#475569)') + '">' + ic({ ok: 'check', acc: 'check', warn: 'alert', bad: 'x' }[REC_BY_ID[r.type] && REC_BY_ID[r.type].tone] || 'flag', 16) + '</span>' +
+          '<div class="grow"><div class="row-title">' + recChip(r.type) + '</div>' +
+          '<div style="margin-top:3px">' + escapeHtml(r.reason || '') + '</div>' +
+          '<div class="row-sub">' + semLabel(r.sem || semOfDate(r.date)) + ' · ' + fmtDate(r.date) + '</div></div></div>').join('') + '</div>'
+      : '<div class="empty"><b>Zatím žádné záznamy</b>Pochvaly a výchovná opatření tu zapisuje třídní učitel.</div>') +
+    '</div>';
+}
 registerView('student', 'prehled', sPrehled);
 registerView('student', 'znamky', sZnamky);
+registerView('student', 'prubezna', prubeznaView);
 registerView('student', 'pololetka', vysvedceniView);
 registerView('student', 'dochazka', sDochazka);
 registerView('student', 'rozvrh', sRozvrh);
@@ -1073,6 +1140,7 @@ registerView('student', 'ukoly', sUkoly);
 registerView('student', 'zpravy', sZpravy);
 registerView('student', 'oznameni', sOznameni);
 registerView('rodic', 'prehled', pPrehled);
+registerView('rodic', 'prubezna', prubeznaView);
 registerView('rodic', 'pololetka', vysvedceniView);
 registerView('rodic', 'dochazka', pDochazka);
 registerView('rodic', 'omluvenky', pOmluvenky);
