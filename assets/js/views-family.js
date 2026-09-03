@@ -1,0 +1,840 @@
+/* ============================================================
+   LukySchool — pohledy ŽÁKA a RODIČE (v5, sloupcový známkovač)
+   ============================================================ */
+'use strict';
+
+let TICKER = null;
+function clearTick() { if (TICKER) { clearInterval(TICKER); TICKER = null; } }
+function setTick(fn, ms) { clearTick(); TICKER = setInterval(fn, ms); }
+
+function mySid() { return currentStudentId(); }
+function myCls() { const s = studentOf(mySid()); return s ? s.cls : null; }
+function mySubjKeys() { const sid = mySid(); return sid ? subjectKeysOf(sid) : []; }
+
+/* ================= ŽÁK ================= */
+function sPrehled() {
+  clearTick();
+  const sid = mySid();
+  const st = studentOf(sid);
+  const avg = overallAvgOf(sid);
+  const worst = worstSubjectOf(sid);
+  const tasks = tasksFor(sid);
+  const undone = tasks.filter(t => !t.done[sid]);
+  const myTasks = undone.filter(t => dueWithin(t.due, 4));
+  const recent = db.columns
+    .filter(c => c.cls === st.cls && c.cells && c.cells[sid] !== undefined && c.cells[sid] !== '')
+    .sort((a, b) => (a.date === b.date ? 0 : a.date < b.date ? 1 : -1))
+    .slice(0, 6);
+  const state = dayStateHtml(st.cls);
+  const cnt = db.columns.filter(c => c.cls === st.cls && c.cells && c.cells[sid] !== undefined && c.cells[sid] !== '' && tokenCounted(c.cells[sid])).length;
+
+  return '' +
+  '<div class="page-head"><div><h1>Ahoj, ' + escapeHtml(st.first) + '! 👋</h1>' +
+    '<div class="sub">' + todayLabel() + ' · ' + escapeHtml(st.cls) + '</div></div>' +
+    '<div class="page-acts"><button class="btn btn-ghost btn-sm" data-act="goto:#/student/znamky">' + ic('calc', 15) + ' Předvídač průměru</button></div></div>' +
+  '<div class="warn-line" data-cd>' + state.icon + ' <span data-cd-txt>' + state.txt + '</span></div>' +
+  '<div class="grid grid-3">' +
+    '<div class="card" style="grid-column:span 2">' +
+      '<div class="card-title">' + ic('zap', 17) + ' Tvůj průměr</div>' +
+      '<div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">' +
+        '<span class="avg-big" style="color:' + avgColor(avg) + '">' + avgTxt(avg) + '</span>' +
+        (worst && worst.avg > 3
+          ? '<span class="chip chip-bad">pozor na ' + escapeHtml(SUBJECTS[worst.subj].name) + ' (' + worst.avg.toFixed(2) + ')</span>'
+          : '<span class="chip chip-ok">' + (avg === null ? 'zatím žádné známky' : 'držíš to pěkně') + '</span>') +
+        '<span class="small-note" style="margin-left:auto">' + cnt + ' započítaných známek</span>' +
+      '</div>' +
+      '<div style="margin-top:14px;display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(160px,1fr))">' +
+        mySubjKeys().map(sub => {
+          const a = weightedAvgOf(sid, sub);
+          return '<div class="list-row" style="padding:9px 11px;cursor:pointer" data-act="goto:#/student/znamky|' + sub + '">' +
+            subjBadge(sub, 30) + '<div class="grow"><div class="row-title" style="font-size:13px">' + SUBJECTS[sub].name + '</div></div>' +
+            '<b style="color:' + avgColor(a.avg) + '">' + avgTxt(a.avg) + '</b></div>';
+        }).join('') +
+      '</div>' +
+    '</div>' +
+    '<div class="card">' +
+      '<div class="card-title">' + ic('list', 17) + ' Na dnešek/týden</div>' +
+      (myTasks.length
+        ? '<div class="list">' + myTasks.map(t => taskRow(t, sid, false)).join('') + '</div>'
+        : '<div class="empty"><b>Úkoly splněny</b>Máš klid 🙂</div>') +
+      '<button class="btn btn-soft btn-sm" style="width:100%;margin-top:12px" data-act="goto:#/student/ukoly">Všechny úkoly</button>' +
+    '</div>' +
+  '</div>' +
+  '<div class="card" style="margin-top:16px"><div class="card-title">' + ic('book', 17) + ' Poslední záznamy</div>' +
+    (recent.length
+      ? '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Datum</th><th>Předmět</th><th>Test / sloupec</th><th class="num">Známka</th><th class="num">Váha</th></tr></thead><tbody>' +
+        recent.map(g => '<tr><td style="white-space:nowrap">' + fmtDate(g.date) + '</td><td>' + escapeHtml(SUBJECTS[g.subj].name) + '</td><td>' +
+          escapeHtml(g.title) + (g.cells[sid] === '?' ? ' <span class="chip chip-info" style="padding:0 6px;font-size:10px">plánováno</span>' : '') + '</td>' +
+          '<td class="num">' + gradeCellHtml(g.cells[sid], g.title) + '</td><td class="num">' + (g.weight || 1) + '×</td></tr>').join('') +
+        '</tbody></table></div>'
+      : '<div class="empty"><b>Zatím žádné známky</b>Učitel teprve zakládá první sloupce 🙂</div>') +
+  '</div>';
+}
+function dueWithin(due, days) { return addDaysISO(todayISO(), days) >= due; }
+
+function dayStateHtml(cls) {
+  const info = currentLessonInfo(cls, todayISO());
+  const today = todayISO();
+  const subToday = (db.subs || []).filter(x => x.date === today && x.cls === cls);
+  let icon = ic('calendar', 16), txt = '';
+  if (info.state === 'now') {
+    txt = 'Právě probíhá <b>' + escapeHtml(SUBJECTS[info.lesson.subj].name) + '</b> · do konce <b data-cd-remain style="color:var(--accent)">—</b>';
+  } else if (info.state === 'next') {
+    txt = 'Další hodina: <b>' + escapeHtml(SUBJECTS[info.lesson.subj].name) + '</b> za ' + info.inMin + ' min';
+  } else if (info.state === 'done') {
+    txt = 'Dnešní vyučování skončilo. Užívej zbytek dne! 🎉';
+  } else {
+    const nx = nextSchoolDayISO(todayISO(), 0);
+    const subj = subjOf(cls, nx, 0);
+    txt = 'Dnes není škola · příští hodina ' + WD_CS[weekdayOf(nx) - 1] + ' „' + escapeHtml(subj ? SUBJECTS[subj].name : '—') + '“';
+  }
+  if (subToday.length) txt += ' &nbsp;·&nbsp; <span class="chip chip-warn" style="padding:1px 8px">suplování</span>';
+  return { icon, txt };
+}
+
+/* --- známky + předvídač --- */
+function sZnamky() {
+  clearTick();
+  const sid = mySid();
+  const q = location.hash.split('|')[1];
+  const sel = mySubjKeys().includes(q) ? q : (mySubjKeys()[0] || 'M');
+  const list = gradesOf(sid, sel).filter(g => !g.planned);
+  const planned = gradesOf(sid, sel).filter(g => g.planned);
+  const a = weightedAvgOf(sid, sel);
+  const hasData = hasGradeData(sid);  return '' +
+  '<div class="page-head"><div><h1>Známky</h1><div class="sub">Přehled známek, průměr a co udělá nová známka s průměrem</div></div>' +
+    '<button class="btn btn-soft btn-sm" data-act="theme-toggle">' + ic('moon', 15) + ' Tmavý / světlý režim</button></div>' +
+  (mySubjKeys().length
+    ? '<div class="rcpt-row">' + mySubjKeys().map(sub =>
+        '<button class="rcpt-pill' + (sub === sel ? ' active' : '') + '" data-act="goto:#/student/znamky|' + sub + '">' + SUBJECTS[sub].name + '</button>').join('') + '</div>'
+    : '') +
+  '<div class="card">' +
+    '<div class="card-title">' + ic('book', 16) + ' ' + escapeHtml(SUBJECTS[sel].name) + '</div>' +
+      '<div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">' +
+        '<span class="avg-big" style="color:' + avgColor(a.avg) + '">' + avgTxt(a.avg) + '</span>' +
+        '<span class="chip chip-accent">' + a.count + ' známek v průměru · vážený průměr</span>' +
+      '</div>' +
+      '<div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">' +
+        (list.length ? list.slice(0, 12).map(g => gradeCellHtml(g.v, g.title)).join('') : '<span class="small-note">zatím žádné známky</span>') +
+        (planned.length ? '<span class="chip chip-info">' + planned.length + '× plánováno (?)</span>' : '') +
+      '</div>' +
+  '</div>' +
+  '<div class="card" style="margin-top:16px">' +
+    '<div class="card-title">' + ic('list', 16) + ' Seznam známek – ' + escapeHtml(SUBJECTS[sel].name) + '</div>' +
+    (list.length || planned.length
+      ? '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Datum</th><th>Test / sloupec</th><th class="num">Známka</th><th class="num">Váha</th><th>Poznámka učitele</th></tr></thead><tbody>' +
+        gradesOf(sid, sel).slice().reverse().map(g =>
+          '<tr><td style="white-space:nowrap">' + fmtDate(g.date) + '</td><td>' + escapeHtml(g.title) + '</td>' +
+          '<td class="num">' + (g.planned
+            ? '<span class="chip chip-info">? plánováno</span>'
+            : '<span class="g-cell ' + gradeColor(g.v) + '">' + escapeHtml(g.v) + '</span>') + '</td>' +
+          '<td class="num">' + (g.planned ? '—' : g.w + '×') + '</td>' +
+          '<td style="color:var(--muted)">' + (g.note ? escapeHtml(g.note) : '') + '</td></tr>').join('') +
+        '</tbody></table></div>'
+      : '<div class="empty"><b>' + (hasData ? 'V tomto předmětu zatím nic' : 'Škola je zatím prázdná') + '</b>' + (hasData ? 'Až učitel založí první sloupec, objeví se tady.' : 'Zeptej se učitele, kdy začnete.') + '</div>') +
+  '</div>' +
+  '<div class="card" style="margin-top:16px">' +
+    '<div class="card-title" style="color:var(--accent)">' + ic('zap', 17) + ' Předvídač průměru</div>' +
+      '<div style="display:grid;grid-template-columns:auto 1fr;gap:6px 16px;align-items:center;font-size:14.5px">' +
+        '<b>Co kdybych dostal</b><div class="seg" id="pred-grade">' +
+          GRADE_TOKENS.slice(0, 9).map(v => '<button data-act="pred-g:' + v + '" class="' + (v === '2' ? 'on' : '') + '">' + v + '</button>').join('') +
+          '<button data-act="pred-g:N">N</button><button data-act="pred-g:A">A</button></div>' +
+        '<b>Váha známky</b><div style="display:flex;gap:10px;align-items:center">' +
+          '<input type="range" min="1" max="10" value="1" style="flex:1" data-chg="pred-w" id="pred-w"><b id="pred-wv" style="color:var(--accent);min-width:2em">1</b></div>' +
+      '</div>' +
+      '<div id="pred-out" style="margin-top:16px">' + predOutputHtml(sid, sel) + '</div>' +
+      '<div class="small-note">N = nepsal(a) – dopíšeš · A = absence u testu · obojí (a „?“, plánované testy) se do průměru nepočítá. Mínusy: 1- = 1,5 … 4- = 4,5.</div>' +
+  '</div>';
+}
+let PRED = { g: '2', w: 1 };
+function predOutputHtml(sid, sel) {
+  const a = weightedAvgOf(sid, sel);
+  const num = numericGradesOf(sid, sel);
+  const sw = num.reduce((s, g) => s + (g.w || 1), 0);
+  const sv = num.reduce((s, g) => s + g.v * (g.w || 1), 0);
+  if (tokenCounted(PRED.g)) {
+    const hv = tokenVal(PRED.g);
+    const newAvg = (sv + hv * PRED.w) / (sw + PRED.w);
+    const diff = newAvg - a.avg;
+    return '<div class="list-row" style="background:var(--surface-2)">' +
+      '<span class="avg-big" style="color:' + avgColor(a.avg) + '">' + avgTxt(a.avg) + '</span>' + ic('arrowR', 18) +
+      '<span class="avg-big" style="color:' + avgColor(newAvg) + '">' + newAvg.toFixed(2) + '</span>' +
+      '<span class="chip ' + (diff <= 0 ? 'chip-ok' : 'chip-bad') + '">' + (diff <= 0 ? '▲ lepší o ' : '▼ horší o ') + Math.abs(diff).toFixed(2) + '</span>' +
+      '<div class="small-note" style="margin-left:auto">průměr z ' + num.length + ' známek → ' + (num.length + 1) + '</div></div>';
+  }
+  return '<div class="warn-line">' + ic('eye', 15) + ' <span>Známka <b>' + PRED.g + '</b> se do průměru nepočítá – průměr zůstává <b style="color:' + avgColor(a.avg) + '">' + avgTxt(a.avg) + '</b>.</span></div>';
+}
+function predRender() {
+  const sid = mySid();
+  const sel = mySubjKeys().includes(location.hash.split('|')[1]) ? location.hash.split('|')[1] : (mySubjKeys()[0] || 'M');
+  const out = document.getElementById('pred-out');
+  if (out) out.innerHTML = predOutputHtml(sid, sel);
+}
+GRADE_TOKENS.slice(0, 9).forEach(v => onAct('pred-g:' + v, () => { PRED.g = v; rebuildPred(); }));
+['N', 'A'].forEach(v => onAct('pred-g:' + v, () => { PRED.g = v; rebuildPred(); }));
+onAct('pred-w', el => {
+  PRED.w = Number(el.value);
+  const wv = document.getElementById('pred-wv');
+  if (wv) wv.textContent = el.value;
+  predRender();
+});
+function rebuildPred() {
+  document.querySelectorAll('#pred-grade button').forEach(b => {
+    b.classList.toggle('on', b.getAttribute('data-act') === 'pred-g:' + PRED.g);
+  });
+  predRender();
+}
+onAct('theme-toggle', () => {
+  const cur = document.documentElement.getAttribute('data-theme');
+  document.documentElement.setAttribute('data-theme', cur === 'dark' ? 'light' : 'dark');
+  localStorage.setItem(THEME_KEY, cur === 'dark' ? 'light' : 'dark');
+  route();
+});
+
+/* --- rozvrh žáka --- */
+function sRozvrh() {
+  clearTick();
+  const cls = myCls();
+  const base = isSchoolDay(todayISO()) ? todayISO() : nextSchoolDayISO(todayISO(), 0);
+  const cur = localStorage.getItem('ls_rozvrh_den') || base;
+  const wd = weekdayOf(cur);
+  const isToday = cur === todayISO();
+  const info = currentLessonInfo(cls, todayISO());
+
+  function lessonRows(dayISO) {
+    const sc = scheduleOf(cls);
+    const nowInfo = currentLessonInfo(cls, dayISO);
+    return sc.slots.map((slot, i) => {
+      const en = sc.days[weekdayOf(dayISO)] ? sc.days[weekdayOf(dayISO)][i] : null;
+      const subEv = (db.subs || []).find(x => x.date === dayISO && x.period === i && x.cls === cls);
+      const isNow = nowInfo.state === 'now' && nowInfo.lesson && nowInfo.lesson.period === i;
+      const subj = en ? en.subj : (subEv ? subEv.subj : null);
+      if (!subj) return '';
+      const rm = en && en.room ? roomName(en.room) : '';
+      return '<div class="lesson' + (isNow ? ' now' : '') + (subEv ? ' sub' : '') + '">' +
+        '<span class="time">' + slot.s + '<br>' + slot.e + '</span>' + subjBadge(subj, 42) +
+        '<div class="grow"><div class="row-title">' + escapeHtml(SUBJECTS[subj].name) + '</div>' +
+        '<div class="row-sub">' + (subEv
+          ? '<span class="chip chip-warn">suplování · ' + escapeHtml(subEv.note || '') + '</span>'
+          : escapeHtml([rm, cls, (i + 1) + '. hodina'].filter(Boolean).join(' · '))) + '</div></div>' +
+        (isNow ? '<div class="prog" style="width:' + nowInfo.prog + '%"></div>' : '') + '</div>';
+    }).join('');
+  }
+
+  const monday = addDaysISO(cur, -(wd === 0 ? 6 : wd - 1));
+  const weekDates = [0, 1, 2, 3, 4].map(i => addDaysISO(monday, i));
+  const sc = scheduleOf(cls);
+  const dayEntries = weekdayOf(cur) >= 1 && weekdayOf(cur) <= 5 ? (sc.days[weekdayOf(cur)] || []) : [];
+  const hasAnyLesson = dayEntries.some(x => x && x.subj);
+  const lessonsToday = lessonsOfDay(cls, cur);
+
+  const noSchedule = !sc.days || Object.keys(sc.days).length === 0 || [1, 2, 3, 4, 5].every(d => !(sc.days[d] || []).some(en => en && en.subj));
+  if (noSchedule) {
+    return '' +
+      '<div class="page-head"><div><h1>Rozvrh</h1><div class="sub">' + escapeHtml(cls) + ' · suplování zvýrazněné, odpočet naživo</div></div></div>' +
+      '<div class="empty" style="padding:60px 16px"><b>Rozvrh ještě není nastavený</b>Učitel ho teprve vyplní v záložce „Nastavit rozvrh“. Až bude hotový, uvidíš tady každý den i učebnu.</div>';
+  }
+
+  return '' +
+  '<div class="page-head"><div><h1>Rozvrh</h1><div class="sub">' + escapeHtml(cls) + ' · suplování zvýrazněné, odpočet naživo</div></div></div>' +
+  '<div class="rcpt-row">' + weekDates.map(d =>
+    '<button class="rcpt-pill' + (d === cur ? ' active' : '') + '" data-act="roz-den:' + d + '">' + WD_CS[weekdayOf(d) - 1] + ' ' + d.slice(8) + (d === todayISO() ? ' · dnes' : '') + '</button>'
+  ).join('') + '</div>' +
+  (isToday && info.state === 'now'
+    ? '<div class="card" style="margin-bottom:16px"><div class="card-title">' + ic('zap', 16) + ' Právě probíhá: ' + escapeHtml(SUBJECTS[info.lesson.subj].name) + '</div>' +
+      '<div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">' +
+        '<span class="avg-big" style="color:var(--accent)" id="cd-now">—</span><span class="small-note">do konce hodiny</span>' +
+        '<div style="flex:1;min-width:180px;height:10px;border-radius:99px;background:var(--surface-2);overflow:hidden"><div id="cd-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#3B82F6,#8B5CF6)"></div></div>' +
+      '</div></div>'
+    : '') +
+  '<div class="day-grid">' + lessonRows(cur) + '</div>' +
+  (weekdayOf(cur) >= 1 && weekdayOf(cur) <= 5 && !hasAnyLesson && lessonsToday.length === 0
+    ? '<div class="empty"><b>Volný den</b>V tento den podle rozvrhu není žádné vyučování 🎈</div>'
+    : (weekdayOf(cur) < 1 || weekdayOf(cur) > 5 ? '<div class="empty"><b>Víkend</b>Žádné vyučování 🎈</div>' : '')) +
+  '<div class="card" style="margin-top:18px"><div class="card-title">' + ic('bell', 16) + ' Změny rozvrhu (suplování)</div>' +
+    ((db.subs || []).length
+      ? '<div class="list">' + db.subs.filter(x => x.cls === cls).map(s =>
+          '<div class="list-row">' + subjBadge(s.subj, 34) + '<div class="grow"><div class="row-title">' + fmtDate(s.date) + ' · ' + (s.period + 1) + '. hodina · ' + escapeHtml(SUBJECTS[s.subj].name) + '</div>' +
+          '<div class="row-sub">' + escapeHtml(s.note || '') + '</div></div><span class="chip chip-warn">změna</span></div>'
+        ).join('') + '</div>'
+      : '<div class="empty">Žádné změny</div>') +
+  '</div>';
+}
+onAct('roz-den:', el => { localStorage.setItem('ls_rozvrh_den', el.getAttribute('data-act').slice(8)); route(); });
+
+function cdTick() {
+  const cls = myCls();
+  const info = currentLessonInfo(cls, todayISO());
+  if (info.state === 'now') {
+    const min = Math.floor(info.remainSec / 60), sec = info.remainSec % 60;
+    const txt = String(min).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
+    const n1 = document.querySelector('[data-cd-remain]');
+    const n2 = document.getElementById('cd-now');
+    const bar = document.getElementById('cd-bar');
+    if (n1) n1.textContent = txt;
+    if (n2) n2.textContent = txt;
+    if (bar) bar.style.width = info.prog + '%';
+  } else if (info.state === 'next') {
+    const n1 = document.querySelector('[data-cd-remain]');
+    if (n1) n1.textContent = 'za ' + info.inMin + ' min';
+  }
+}
+
+/* --- úkoly --- */
+function tasksFor(sid) {
+  const st = studentOf(sid);
+  return (db.tasks || []).filter(t => (t.sid === sid) || (t.sid === null && t.cls === st.cls))
+    .sort((a, b) => (a.due < b.due ? -1 : 1));
+}
+function taskRow(t, sid) {
+  const d = !!t.done[sid];
+  const late = !d && addDaysISO(todayISO(), 0) > t.due;
+  const subjName = (t.subj && SUBJECTS[t.subj] ? SUBJECTS[t.subj].name : 'úkol');
+  return '<div class="list-row" style="cursor:pointer;opacity:' + (d ? 0.55 : 1) + '" data-act="s-task:' + t.id + '">' +
+    '<span class="g-cell" style="border-color:' + (d ? 'var(--ok)' : 'var(--border)') + ';color:' + (d ? 'var(--ok)' : 'var(--muted)') + '">' + (d ? ic('check', 15) : '') + '</span>' +
+    subjBadge(t.subj || 'CJ', 34) +
+    '<div class="grow"><div class="row-title" style="' + (d ? 'text-decoration:line-through' : '') + '">' + escapeHtml(t.title) + '</div>' +
+    '<div class="row-sub">' + escapeHtml(subjName) + (t.note ? ' · ' + escapeHtml(t.note) : '') + '</div></div>' +
+    '<span class="chip ' + (d ? 'chip-ok' : late ? 'chip-bad' : 'chip-accent') + '">' + (d ? 'hotovo' : late ? 'po termínu' : (t.due === todayISO() ? 'na dnes' : 'do ' + fmtDate(t.due))) + '</span>' +
+    '<button type="button" class="btn btn-ghost btn-sm" style="flex:0 0 auto" data-act="s-task-msg:' + t.id + '" title="Napsat učiteli ohledně tohoto úkolu">' + ic('chat', 13) + ' Napsat učiteli</button>' +
+  '</div>';
+}
+function sUkoly() {
+  const sid = mySid();
+  const tasks = tasksFor(sid);
+  const undone = tasks.filter(t => !t.done[sid]);
+  const done = tasks.filter(t => t.done[sid]);
+  return '' +
+  '<div class="page-head"><div><h1>Moje úkoly</h1><div class="sub">Odškrtni, co je hotové – učitel uvidí splněno</div></div>' +
+    '<div style="display:flex;gap:8px;align-items:center">' + ic('zap', 16) +
+    '<div style="width:130px;height:9px;border-radius:99px;background:var(--surface-2);overflow:hidden"><div style="height:100%;width:' + (tasks.length ? Math.round(done.length / tasks.length * 100) : 0) + '%;background:var(--ok)"></div></div>' +
+    '<b style="color:var(--ok)">' + done.length + '/' + tasks.length + '</b></div></div>' +
+  '<div class="card"><div class="card-title">' + ic('list', 16) + ' K vyřešení (' + undone.length + ')</div>' +
+    (undone.length ? '<div class="list">' + undone.map(t => taskRow(t, sid)).join('') + '</div>'
+      : '<div class="empty"><b>Vše hotovo! 🎉</b>Žádné úkoly na obzoru.</div>') +
+  '</div>' +
+  (done.length ? '<div class="card" style="margin-top:16px"><div class="card-title">' + ic('check', 16) + ' Splněno</div><div class="list">' + done.map(t => taskRow(t, sid)).join('') + '</div></div>' : '');
+}
+onAct('s-task:', el => {
+  const sid = mySid();
+  const t = (db.tasks || []).find(x => x.id === el.getAttribute('data-act').slice(7));
+  if (!t) return;
+  if (!t.done) t.done = {};
+  t.done[sid] = !t.done[sid];
+  saveDB();
+  if (t.done[sid]) { toast('Úkol splněn! ✓', 'ok'); navigator.vibrate && navigator.vibrate(60); }
+  route();
+});
+onAct('s-task-msg:', el => {
+  const u = currentUser();
+  const sid = mySid();
+  if (!sid) return;
+  const t = (db.tasks || []).find(x => x.id === el.getAttribute('data-act').slice(11));
+  if (!t) return;
+  const st = studentOf(sid);
+  let teachU = (db.users || []).find(x => x.id === t.teacherId && x.role === 'ucitel');
+  if (!teachU && st) teachU = classTeacherUsers(st.cls)[0] || null;
+  if (!teachU) { toast('K tomuto úkolu není přiřazený žádný učitel', 'warn'); return; }
+  /* najdi otevřené vlákno k tomuto úkolu, jinak založ nové */
+  let th = Object.values(db.threads || {}).find(x => x.childId === sid && (x.recipientType || 'rodic') === 'student'
+    && x.taskId === t.id && threadOpen(x));
+  if (!th) {
+    th = { id: uid(), childId: sid, recipientType: 'student', parent: null, teacherId: teachU.id,
+      subject: 'Úkol: ' + t.title, taskId: t.id, taskTitle: t.title, status: 'open', createdAt: nowISO(), msgs: [] };
+    db.threads[th.id] = th;
+  }
+  if (!th.msgs.length) {
+    th.msgs.push({ id: uid(), from: u.id,
+      text: (st ? st.first + ' ' + st.last : 'Žák') + ' otevřel(a) konverzaci ohledně úkolu „' + t.title + '“ (termín ' + fmtDate(t.due) + ').',
+      ts: nowISO(), readAt: null });
+    db.notifs.push({ userId: teachU.id, type: 'msg', text: (st ? st.first : 'Žák') + ' se ptá na úkol „' + t.title + '“', ts: nowISO(), route: 'zpravy' });
+    saveDB();
+  }
+  S_MSG.thread = th.id;
+  toast('Konverzace otevřena – napište učiteli, na co se chcete zeptat', 'ok');
+  gotoHash('#/student/zpravy');
+});
+
+/* ================= DOCHÁZKA – detail žáka (žák i rodič) ================= */
+function absEventChip(stts) {
+  return {
+    A: ['omluveno', 'chip-ok'],
+    C: ['čeká', 'chip-warn'],
+    N: ['neomluveno', 'chip-bad'],
+    D: ['dočasně', 'chip']
+  }[stts] || [stts, 'chip'];
+}
+function dochazkaBodyHtml(sid) {
+  const st = studentOf(sid);
+  if (!st) return '<div class="card"><div class="empty"><b>Žák nenalezen</b></div></div>';
+  const ov = absenceOverview(sid);
+  const t = ov.total;
+  const subs = subjectsOfClass(st.cls);
+  const ev = absenceEvents(sid);
+  const over = t.unexPct > 25;
+  return '' +
+  '<div class="grid grid-4">' +
+    statMini('Zameškáno', t.missing + '/' + t.lessons, 'var(--bad)') +
+    statMini('Omluveno', t.A, 'var(--ok)') +
+    statMini('Čeká', t.C, 'var(--warn)') +
+    statMini('Neomluveno', t.N, 'var(--bad)') +
+    (t.D ? statMini('Dočasně (byl jen chvíli)', t.D, 'var(--accent)') : '') +
+  '</div>' +
+  (over
+    ? '<div class="warn-line" style="margin-top:14px">' + ic('alert', 15) + ' <span>Neomluvená absence přesáhla <b>25 %</b> zapsaných hodin (' + t.unexPct + ' %). Učitel to vidí mezi ohroženými žáky.</span></div>'
+    : '') +
+  '<div class="card" style="margin-top:16px">' +
+    '<div class="card-title">' + ic('calendar', 16) + ' Zameškané hodiny po předmětech' +
+      '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">x / y = zameškáno z hodin zapsaných učitelem do třídní knihy</span></div>' +
+    '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Předmět</th><th class="num">Zameškáno</th><th class="num">Z hodin</th><th>Detail</th></tr></thead><tbody>' +
+    subs.map(sub => {
+      const b = ov.bySubj[sub];
+      if (!b || !b.lessons) {
+        return '<tr><td>' + subjBadge(sub, 26) + ' <b>' + escapeHtml(SUBJECTS[sub].name) + '</b></td>' +
+          '<td class="num abs-cell" style="color:var(--muted)">—</td><td class="num abs-cell" style="color:var(--muted)">—</td><td></td></tr>';
+      }
+      const col = b.N ? 'var(--bad)' : b.missing ? 'var(--warn)' : 'var(--muted)';
+      const detail = (b.missing
+        ? 'omluveno <b style="color:var(--ok)">' + b.A + '</b> · čeká <b style="color:var(--warn)">' + b.C + '</b> · neomluveno <b style="color:var(--bad)">' + b.N + '</b>'
+        : 'bez absence') + (b.D ? ' · dočasně <b style="color:var(--accent)">' + b.D + '</b>' : '');
+      return '<tr><td>' + subjBadge(sub, 26) + ' <b>' + escapeHtml(SUBJECTS[sub].name) + '</b></td>' +
+        '<td class="num abs-cell" style="color:' + col + '">' + b.missing + '</td>' +
+        '<td class="num abs-cell">' + b.lessons + '</td>' +
+        '<td style="font-size:11.5px;color:var(--muted)">' + detail + '</td></tr>';
+    }).join('') + '</tbody></table></div>' +
+    (t.lessons === 0 ? '<div class="small-note" style="margin:10px 2px 0">Učitel ještě nezapsal žádnou hodinu – čísla se začnou počítat, jakmile začne zapisovat docházku do třídní knihy (✓ přítomen, ✗ nepřítomen, D dočasně – dočasné hodiny se do zameškaných nepočítají).</div>' : '') +
+  '</div>' +
+  '<div class="card" style="margin-top:16px">' +
+    '<div class="card-title">' + ic('list', 16) + ' Záznamy docházky (události)</div>' +
+    (ev.length
+      ? '<div class="list">' + ev.slice().reverse().slice(0, 10).map(e => {
+          const [txt, chipCls] = absEventChip(e.stts);
+          return '<div class="list-row">' + subjBadge(e.subj, 34) +
+            '<div class="grow"><div class="row-title">' + fmtDate(e.date) + ' · ' + (e.period + 1) + '. hod. · ' + escapeHtml(SUBJECTS[e.subj].name) + '</div>' +
+            (e.note ? '<div class="row-sub">' + escapeHtml(e.note) + '</div>' : '<div class="row-sub">dle třídní knihy</div>') + '</div>' +
+            '<span class="chip ' + chipCls + '">' + txt + '</span></div>';
+        }).join('') + '</div>'
+      : '<div class="empty"><b>Žádná zameškaná hodina</b>Skvělá docházka! 🎉</div>') +
+  '</div>';
+}
+function sDochazka() {
+  clearTick();
+  const sid = mySid();
+  if (!sid) return '<div class="card"><div class="empty"><b>Nemáte přiřazený žákovský účet</b></div></div>';
+  return '' +
+  '<div class="page-head"><div><h1>Docházka</h1><div class="sub">Zameškané hodiny podle třídní knihy – učitel zapisuje stav u každé hodiny</div></div>' +
+    '<button class="btn btn-soft btn-sm" data-act="theme-toggle">' + ic('moon', 15) + ' Tmavý / světlý režim</button></div>' +
+  dochazkaBodyHtml(sid);
+}
+
+/* ================= RODIČ ================= */
+function parentChildren() {
+  const u = currentUser();
+  return (u.children || []).map(id => studentOf(id)).filter(Boolean);
+}
+function parentCurChild() {
+  const list = parentChildren();
+  const saved = localStorage.getItem('ls_child');
+  return list.some(k => k.id === saved) ? saved : (list[0] ? list[0].id : null);
+}
+function statMini(label, val, color) {
+  return '<div style="background:var(--surface-2);border-radius:12px;padding:10px 12px;text-align:center"><b style="color:' + color + ';font-size:22px;display:block">' + val + '</b><span style="font-size:11px;color:var(--muted);font-weight:700">' + label + '</span></div>';
+}
+function pPrehled() {
+  clearTick();
+  const u = currentUser();
+  const kids = parentChildren();
+  if (!kids.length) {
+    return '<div class="card"><div class="empty"><b>Nemáte propojené žádné dítě</b>Kontaktujte správce školy.</div></div>';
+  }
+  const cid = parentCurChild();
+  const st = studentOf(cid);
+  const avg = overallAvgOf(cid);
+  const abs = absenceStats(cid);
+  const unread = userUnreadMsgs(u.id);
+  const sks = subjectKeysOf(cid);
+  const recent = columnsFor(cid)
+    .filter(c => c.cells && c.cells[cid] !== undefined && c.cells[cid] !== '')
+    .sort((a, b) => (a.date === b.date ? 0 : a.date < b.date ? 1 : -1)).slice(0, 8);
+  return '' +
+  '<div class="page-head"><div><h1>Vítejte zpět, ' + escapeHtml(u.name) + '</h1><div class="sub">' + todayLabel() + ' · přehled vašich dětí</div></div>' +
+    (unread ? '<div class="page-acts"><button class="btn btn-ghost btn-sm" data-act="goto:#/rodic/zpravy">' + ic('chat', 15) + ' Nepřečtené zprávy (' + unread + ')</button></div>' : '') + '</div>' +
+  (kids.length > 1
+    ? '<div class="rcpt-row">' + kids.map(k =>
+        '<button class="rcpt-pill' + (k.id === cid ? ' active' : '') + '" data-act="p-child:' + k.id + '">' +
+        '<span class="ava" style="width:24px;height:24px;font-size:11px">' + escapeHtml(k.first.charAt(0)) + '</span>' +
+        k.first + ' ' + k.last + '</button>').join('') + '</div>'
+    : '') +
+  '<div class="grid grid-3">' +
+    '<div class="card"><div class="card-title">' + ic('book', 16) + ' ' + escapeHtml(st.first) + ' – celkový průměr</div>' +
+      '<span class="avg-big" style="color:' + avgColor(avg) + '">' + avgTxt(avg) + '</span>' +
+      '<div style="margin-top:10px"><span class="chip ' + (avg === null ? '' : (avg > 3 ? 'chip-bad' : 'chip-ok')) + '">' + (avg === null ? 'zatím bez známek' : (avg > 3 ? 'potřeba podpořit' : 'vše v pořádku')) + '</span></div>' +
+      '<div style="margin-top:16px" class="tbl-wrap"><table class="tbl" style="min-width:0"><tbody>' +
+        sks.map(sub => {
+          const a = weightedAvgOf(cid, sub);
+          return '<tr><td>' + subjBadge(sub, 26) + '&nbsp; ' + escapeHtml(SUBJECTS[sub].name) + '</td><td style="text-align:right"><b style="color:' + avgColor(a.avg) + '">' + avgTxt(a.avg) + '</b></td></tr>';
+        }).join('') + '</tbody></table></div>' +
+    '</div>' +
+    '<div class="card">' +
+      '<div class="card-title">' + ic('calendar', 16) + ' Docházka – ' + escapeHtml(st.first) +
+        '<button class="btn btn-ghost btn-sm" style="margin-left:auto" data-act="goto:#/rodic/dochazka">Detail</button></div>' +
+      '<div class="grid grid-4" style="gap:8px">' +
+        statMini('Zameškáno', abs.missing, 'var(--bad)') + statMini('Omluveno', abs.A, 'var(--ok)') +
+        statMini('Čeká', abs.C, 'var(--warn)') + statMini('Neomluveno', abs.N, 'var(--bad)') +
+        (abs.D ? statMini('Dočasně', abs.D, 'var(--accent)') : '') + '</div>' +
+      (abs.lessons
+        ? '<div class="small-note" style="margin-top:10px">z ' + abs.lessons + ' hodin zapsaných v třídní knize' + (abs.N ? ' · <b style="color:var(--bad)">' + abs.pct + ' % neomluvených (limit 25 %)</b>' : '') + '</div>'
+        : '<div class="small-note" style="margin-top:10px">učitel zatím nezapsal žádnou hodinu do třídní knihy</div>') +
+      '<div class="card-title" style="margin-top:18px">' + ic('book', 16) + ' Poslední záznamy</div>' +
+      (recent.length
+        ? '<div class="list">' + recent.map(g =>
+            '<div class="list-row" style="padding:9px 11px">' + gradeCellHtml(g.cells[cid], g.title) +
+            '<div class="grow"><div class="row-sub">' + escapeHtml(SUBJECTS[g.subj].name) + ' · ' + escapeHtml(g.title) + '</div>' +
+            '<div style="font-size:11px;color:var(--muted)">' + fmtDate(g.date) + (g.cells[cid] === '?' ? ' · plánováno' : '') + '</div></div></div>'
+          ).join('') + '</div>'
+        : '<div class="empty">Zatím žádné známky</div>') +
+    '</div>' +
+    '<div class="card">' +
+      '<div class="card-title">' + ic('chat', 16) + ' Zprávy od učitele</div>' +
+      '<div class="list">' +
+        (Object.values(db.threads || {}).filter(t => t.childId === cid).length
+          ? Object.values(db.threads).filter(t => t.childId === cid).flatMap(t =>
+              t.msgs.filter(m => m.from !== u.id).slice(-2).map(m =>
+                '<div class="list-row" style="padding:9px 11px;cursor:pointer" data-act="goto:#/rodic/zpravy"><span class="chip ' + (m.readAt ? '' : 'chip-accent') + '">' + (m.readAt ? 'přečteno' : 'nové') + '</span>' +
+                '<div class="grow"><div class="row-sub">' + escapeHtml(m.text.length > 90 ? m.text.slice(0, 90) + '…' : m.text) + '</div>' +
+                '<div style="font-size:11px;color:var(--muted)">' + tsLabel(m.ts) + '</div></div></div>'
+              )
+            ).join('')
+          : '<div class="empty">Zatím žádné zprávy</div>') +
+      '</div>' +
+      '<div class="card-title" style="margin-top:16px">' + ic('shield', 16) + ' Omluvenky</div>' +
+      '<button class="btn btn-soft btn-sm" style="width:100%;margin-top:10px" data-act="goto:#/rodic/omluvenky">Nová omluvenka / historie</button>' +
+      '<div class="ok-line" style="margin-top:14px">' + ic('lock', 15) + ' <span>Data jsou zabezpečená – vy vidíte jen údaje svých dětí.</span></div>' +
+    '</div>' +
+  '</div>';
+}
+onAct('p-child:', el => { localStorage.setItem('ls_child', el.getAttribute('data-act').slice(8)); route(); });
+
+/* stav formuláře omluvenky (aby přežil přebarvení při změně data/dítěte) */
+const EXC = { child: null, date: null, selKey: '', note: '' };
+function pOmluvenky() {
+  clearTick();
+  const u = currentUser();
+  const kids = parentChildren();
+  const mine = (db.excuses || []).filter(x => (u.children || []).includes(x.childId))
+    .sort((a, b) => (a.submitted < b.submitted ? 1 : -1));
+  const head = '<div class="page-head"><div><h1>Omluvenky</h1><div class="sub">Vyberte datum a hodiny – učitel uvidí omluvenku i v třídní knize a schválí ji jedním ťuknutím</div></div></div>';
+  if (kids.length === 0) return head + '<div class="card"><div class="empty"><b>Nemáte propojené žádné dítě</b>Kontaktujte správce školy.</div></div>';
+  const cid = parentCurChild();
+  if (!EXC.child || !kids.some(k => k.id === EXC.child)) EXC.child = cid;
+  const st = studentOf(EXC.child);
+  const cls = st.cls;
+  if (!EXC.date) EXC.date = isSchoolDay(todayISO()) ? todayISO() : nextSchoolDayISO(todayISO(), 0);
+  const selKey = EXC.child + '|' + EXC.date;
+  if (EXC.selKey !== selKey) {
+    EXC.selKey = selKey;
+    EXC.sel = excusablePeriods(cls, EXC.date); // předvoleno vše
+  }
+  const per = excusablePeriods(cls, EXC.date);
+  const today = todayISO();
+  return head +
+  '<div class="grid grid-2">' +
+    '<div class="card"><div class="card-title">' + ic('plus', 16) + ' Nová omluvenka – ' + escapeHtml(st.first + ' ' + st.last) + '</div>' +
+      '<form data-form="excuse">' +
+        '<div class="field-row">' +
+          '<div class="field"><label>Dítě</label><select name="child" data-chg="p-exc-child">' +
+            kids.map(k => '<option value="' + k.id + '"' + (k.id === EXC.child ? ' selected' : '') + '>' + escapeHtml(k.first + ' ' + k.last) + '</option>').join('') + '</select></div>' +
+          '<div class="field"><label>Datum</label><input type="date" name="date" data-chg="p-exc-date" value="' + EXC.date + '" min="' + addDaysISO(today, -14) + '" max="' + addDaysISO(today, 30) + '" required></div>' +
+          '<div class="field"><label>Důvod</label><select name="reason"><option>Nemoc</option><option>Návštěva lékaře</option><option>Rodinná událost</option><option>Sportovní akce</option><option>Jiné</option></select></div>' +
+        '</div>' +
+        (per.length
+          ? '<div class="field"><label>Které hodiny dítě zameškalo? <span class="small-note" style="margin:0 0 0 4px">(dle rozvrhu – škrtněte ty, kdy přišel/šla)</span></label>' +
+            '<div class="exc-hrs">' + per.map(p => {
+              const t = slotOf(cls, p);
+              const s = subjOf(cls, EXC.date, p);
+              const checked = (EXC.sel || []).includes(p);
+              return '<label><input type="checkbox" class="exc-per" name="per" value="' + p + '"' + (checked ? ' checked' : '') + '> ' + (p + 1) + '. hod. (' + t.s + (s ? ' · ' + SUBJECTS[s].name : '') + ')</label>';
+            }).join('') + '</div></div>'
+          : '<div class="warn-line">' + ic('alert', 15) + ' <span>Ve zvolený den není podle rozvrhu vyučování (víkend / prázdniny?).</span></div>') +
+        '<div class="field"><label>Poznámka (volitelné)</label><textarea id="exc-note" name="note" rows="2" placeholder="Např. teplota od rána, u doktora v 9 hodin…">' + escapeHtml(EXC.note) + '</textarea></div>' +
+        '<button class="btn btn-primary">' + ic('send', 15) + ' Odeslat omluvenku</button>' +
+      '</form>' +
+      '<div class="small-note">Učitel u hodiny hned vidí, jestli je omluvená: do schválení <b>Č</b> (čeká), po schválení <b>A</b> (omluveno). Nedorazí-li omluvenka do 3 dnů, hodina se počítá jako neomluvená (<b>N</b>) – pozdější omluvenka ji ale stále změní na omluvenou.</div>' +
+    '</div>' +
+    '<div class="card"><div class="card-title">' + ic('shield', 16) + ' Historie omluvenek</div>' +
+      (mine.length
+        ? '<div class="list">' + mine.map(x => {
+            const st2 = studentOf(x.childId);
+            return '<div class="list-row"><span class="chip ' + (x.status === 'schvaleno' ? 'chip-ok' : x.status === 'zamitnuto' ? 'chip-bad' : 'chip-warn') + '">' + { schvaleno: 'schváleno', zamitnuto: 'zamítnuto', ceka: 'čeká na schválení' }[x.status] + '</span>' +
+            '<div class="grow"><div class="row-title">' + escapeHtml(st2 ? st2.first + ' ' + st2.last : '') + '</div>' +
+            '<div class="row-sub">' + fmtDate(x.date) + ' · ' + escapeHtml(excuseHoursLabel(st2 ? st2.cls : '', x.date, x.periods) || 'celý den') + (x.reason ? ' · ' + escapeHtml(x.reason) : '') + (x.note ? ' · ' + escapeHtml(x.note) : '') + '</div></div>' +
+            (x.decidedAt ? '<div style="font-size:11px;color:var(--muted);text-align:right">rozhodnuto<br>' + tsLabel(x.decidedAt) + '</div>' : '') + '</div>';
+          }).join('') + '</div>'
+        : '<div class="empty"><b>Zatím žádné omluvenky</b>Když bude potřeba, je to na pár kliknutí.</div>') +
+    '</div></div>';
+}
+onAct('p-exc-child', el => { excPersist(); EXC.child = el.value; EXC.selKey = ''; route(); });
+onAct('p-exc-date', el => { excPersist(); EXC.date = el.value; EXC.selKey = ''; route(); });
+function excPersist() {
+  const ta = document.getElementById('exc-note');
+  if (ta) EXC.note = ta.value;
+}
+/* průběžně si pamatuj zaškrtnuté hodiny */
+document.addEventListener('change', e => {
+  if (e.target && e.target.classList && e.target.classList.contains('exc-per')) {
+    EXC.sel = Array.from(document.querySelectorAll('.exc-per:checked')).map(cb => Number(cb.value));
+  }
+});
+onAct('form:excuse', f => {
+  const fd = new FormData(f);
+  const child = String(fd.get('child'));
+  const date = String(fd.get('date'));
+  const periods = fd.getAll('per').map(Number).sort((a, b) => a - b);
+  const reason = String(fd.get('reason'));
+  const note = String(fd.get('note')).trim();
+  const st = studentOf(child);
+  if (!st) return;
+  if (!periods.length) { toast('Vyberte alespoň jednu hodinu', 'bad'); return; }
+  const dup = (db.excuses || []).find(x => x.childId === child && x.date === date && (x.status === 'ceka' || x.status === 'doplnit') && (x.periods || []).some(p => periods.includes(p)));
+  if (dup) { toast('Pro toto datum a hodiny už omluvenka čeká na schválení', 'warn'); return; }
+  db.excuses.push({ id: uid(), childId: child, date, periods, reason, note, status: 'ceka', submitted: nowISO(), decidedAt: null });
+  notifyClassTeachers(st.cls, 'Nová omluvenka: ' + st.first + ' ' + st.last + ' (' + fmtDate(date) + ' · ' + (excuseHoursLabel(st.cls, date, periods) || periods.length + ' hodin') + ') – ' + reason, 'omluvenky');
+  saveDB();
+  EXC.selKey = '';
+  EXC.note = '';
+  toast('Omluvenka odeslána – učitel ji uvidí mezi omluvenkami i v třídní knize ✓', 'ok');
+  route();
+});
+
+/* ================= ZPRÁVY S UČITELI =================
+   Rodič: jedna obecná konverzace se třídním učitelem.
+   Žák: více konverzací – novou založí sám (předmět + výběr učitele)
+   nebo ji otevře z úkolu. Učitel může konverzaci uzavřít křížkem
+   (status: 'closed'); do uzavřené se psát nedá.
+   Vlákno: { id, childId, recipientType, parent?, teacherId?, subject?,
+   taskId?, taskTitle?, status, msgs[] } */
+let S_MSG = { thread: null };
+function threadOpen(th) { return (th.status || 'open') === 'open'; }
+function threadLastTs(th) { return th.msgs.length ? th.msgs[th.msgs.length - 1].ts : (th.createdAt || ''); }
+/* učitelé, kterým může žák psát: třídní učitelé + učitelé z rozvrhu třídy */
+function teachersForStudent(sid) {
+  const st = studentOf(sid);
+  if (!st) return [];
+  const ids = new Set();
+  const cls = classOf(st.cls);
+  (cls && cls.teacherIds || []).forEach(id => ids.add(id));
+  (db.schedule || {})[st.cls] && Object.keys((db.schedule || {})[st.cls].days || {}).forEach(d =>
+    ((db.schedule || {})[st.cls].days[d] || []).forEach(en => { if (en && en.teacherId) ids.add(en.teacherId); }));
+  let out = (db.users || []).filter(x => x.role === 'ucitel' && !x.isAdmin && ids.has(x.id));
+  if (!out.length) out = (db.users || []).filter(x => x.role === 'ucitel' && !x.isAdmin);
+  return out;
+}
+/* rodičovská konverzace (jedna obecná na dítě) */
+function convBodyHtml(u, cid, myType, heading, sub) {
+  const thread = Object.values(db.threads || {}).find(t => t.childId === cid && (t.recipientType || 'rodic') === myType) || null;
+  /* Přečtení: potvrzuje se JEN zpráva, kterou mi poslal učitel (readAt = „učitel viděl moji zprávu“). */
+  let changed = false;
+  if (thread) {
+    const teacherIds = new Set((db.users || []).filter(x => x.role === 'ucitel').map(x => x.id));
+    thread.msgs.forEach(m => { if (m.from !== u.id && teacherIds.has(m.from) && !m.readAt) { m.readAt = nowISO(); changed = true; } });
+  }
+  if (changed) saveDB();
+  const st = studentOf(cid);
+  const tName = st ? (classTeacherUsers(st.cls)[0] || {}) : {};
+  const closed = thread && !threadOpen(thread);
+  return '<div class="card" style="max-width:760px">' +
+    '<div class="card-title">' + ic('chat', 16) + ' ' + escapeHtml(heading) +
+      ' <span class="chip chip-accent" style="padding:0 8px;font-size:10.5px">' + escapeHtml(sub) + '</span>' +
+      (closed ? ' <span class="chip chip-bad" style="padding:0 8px;font-size:10.5px">uzavřeno učitelem</span>' : '') +
+      '<span style="margin-left:auto;font-weight:700">třídní učitel: ' + escapeHtml(tName.name || '—') + '</span></div>' +
+    (thread && thread.msgs.length
+      ? '<div class="thread">' + thread.msgs.map(m => {
+          const me = m.from === u.id;
+          return '<div class="msg ' + (me ? 'me' : 'them') + '">' + escapeHtml(m.text) +
+            '<div class="meta">' + fmtTime(m.ts) + (me ? (m.readAt ? '<span class="read-tick">✓✓ přečteno ' + fmtTime(m.readAt) + '</span>' : '<span class="read-tick">✓ odesláno</span>') : (m.readAt ? 'přečteno ' + fmtTime(m.readAt) : 'doručeno')) + '</div></div>';
+        }).join('') + '</div>'
+      : '<div class="empty">' + (closed ? 'Konverzaci uzavřel učitel.' : 'Zatím žádná zpráva – napište třídnímu učiteli.') + '</div>') +
+    (closed
+      ? '<div class="warn-line" style="margin-top:12px">' + ic('lock', 15) + ' <span>Učitel tuto konverzaci uzavřel – novou zprávu mu pošlete v nové konverzaci.</span></div>'
+      : '<form data-form="pmsg"><div class="compose">' +
+        '<textarea name="text" rows="1" placeholder="Napište zprávu učiteli…" required style="min-height:44px"></textarea>' +
+        '<button class="btn btn-primary">' + ic('send', 16) + '</button></div></form>' +
+        '<div class="rcpt-row" style="margin:12px 0 0">' +
+          ['Omlouvám, dnes nepřijde…', 'Můžete mi prosím zavolat?', 'Děkujeme za zprávu!'].map(t2 =>
+            '<button class="rcpt-pill" data-act="p-tpl:' + escapeHtml(t2) + '" style="font-size:12px">' + escapeHtml(t2) + '</button>').join('') + '</div>') +
+  '</div>';
+}
+function pZpravy() {
+  const u = currentUser();
+  const kids = parentChildren();
+  if (!kids.length) return '<div class="card"><div class="empty"><b>Nemáte propojené žádné dítě</b>Kontaktujte správce školy.</div></div>';
+  const cid = parentCurChild();
+  return '' +
+  '<div class="page-head"><div><h1>Zprávy s učiteli</h1><div class="sub">Rychlá komunikace jako v chatu</div></div></div>' +
+  (kids.length > 1
+    ? '<div class="rcpt-row">' + kids.map(k =>
+        '<button class="rcpt-pill' + (k.id === cid ? ' active' : '') + '" data-act="p-child:' + k.id + '">' + escapeHtml(k.first + ' ' + k.last) + '</button>').join('') + '</div>'
+    : '') +
+  convBodyHtml(u, cid, 'rodic', 'Rozhovor o ' + escapeHtml((studentOf(cid) || {}).first || 'dítěti'), 'rodič');
+}
+/* detail jedné žákovské konverzace */
+function stuConvDetailHtml(u, th) {
+  const st = studentOf(th.childId);
+  const teach = (db.users || []).find(x => x.id === th.teacherId) || {};
+  const closed = !threadOpen(th);
+  /* přečtení zpráv od učitele */
+  let changed = false;
+  const teacherIds = new Set((db.users || []).filter(x => x.role === 'ucitel').map(x => x.id));
+  th.msgs.forEach(m => { if (m.from !== u.id && teacherIds.has(m.from) && !m.readAt) { m.readAt = nowISO(); changed = true; } });
+  if (changed) saveDB();
+  const title = th.subject || 'Rozhovor se třídním učitelem';
+  return '<div class="card">' +
+    '<div class="card-title">' + ic('chat', 16) + ' ' + escapeHtml(title) +
+      (th.taskId ? ' <span class="chip chip-warn" style="padding:0 8px;font-size:10.5px">k úkolu</span>' : '') +
+      (closed ? ' <span class="chip chip-bad" style="padding:0 8px;font-size:10.5px">uzavřeno učitelem</span>' : '') +
+      '<span style="margin-left:auto;font-weight:700">' + escapeHtml(teach.name || (st ? 'třídní učitel' : '')) + '</span></div>' +
+    (th.msgs.length
+      ? '<div class="thread">' + th.msgs.map(m => {
+          const me = m.from === u.id;
+          return '<div class="msg ' + (me ? 'me' : 'them') + '">' + escapeHtml(m.text) +
+            '<div class="meta">' + fmtTime(m.ts) + (me ? (m.readAt ? '<span class="read-tick">✓✓ přečteno ' + fmtTime(m.readAt) + '</span>' : '<span class="read-tick">✓ odesláno</span>') : (m.readAt ? 'přečteno ' + fmtTime(m.readAt) : 'doručeno')) + '</div></div>';
+        }).join('') + '</div>'
+      : '<div class="empty">Konverzace je založená – napište první zprávu.</div>') +
+    (closed
+      ? '<div class="warn-line" style="margin-top:12px">' + ic('lock', 15) + ' <span>Učitel konverzaci uzavřel. Pokud potřebujete něco vyřešit, založte novou konverzaci.</span></div>'
+      : '<form data-form="smsg"><div class="compose">' +
+        '<textarea name="text" rows="1" placeholder="Napište zprávu…" required style="min-height:44px"></textarea>' +
+        '<button class="btn btn-primary">' + ic('send', 16) + '</button></div></form>') +
+  '</div>';
+}
+function sZpravy() {
+  const u = currentUser();
+  const sid = currentStudentId();
+  if (!sid) return '<div class="card"><div class="empty"><b>Nemáte přiřazený žákovský účet</b></div></div>';
+  const st = studentOf(sid);
+  const convs = Object.values(db.threads || {}).filter(t => t.childId === sid && (t.recipientType || 'rodic') === 'student')
+    .sort((a, b) => (threadLastTs(a) < threadLastTs(b) ? 1 : -1));
+  const openTh = convs.find(t => t.id === S_MSG.thread) || (convs.length ? convs[0] : null);
+  if (openTh && openTh.id !== S_MSG.thread) S_MSG.thread = openTh.id;
+  const teachers = teachersForStudent(sid);
+  return '' +
+  '<div class="page-head"><div><h1>Zprávy s učiteli</h1><div class="sub">Konverzaci založíte vy – napište předmět a vyberte učitele</div></div></div>' +
+  '<div class="grid grid-2">' +
+    '<div>' +
+      '<div class="card"><div class="card-title">' + ic('plus', 16) + ' Nová konverzace</div>' +
+        (teachers.length
+          ? '<div class="field"><label>Předmět zprávy</label><input id="s-new-subj" placeholder="Např. Otázka k písemce, omluvenka, úkol…"></div>' +
+            '<div class="field"><label>Učitel</label><select id="s-new-teach">' +
+              teachers.map(t => '<option value="' + t.id + '">' + escapeHtml(t.name) + '</option>').join('') + '</select></div>' +
+            '<button class="btn btn-primary" data-act="s-new-conv">' + ic('chat', 15) + ' Založit konverzaci</button>'
+          : '<div class="empty"><b>Žádní učitelé</b>Nejdřív musí správce vytvořit učitele pro vaši třídu.</div>') +
+      '</div>' +
+      '<div class="card"><div class="card-title">' + ic('list', 16) + ' Konverzace (' + convs.length + ')</div>' +
+        (convs.length
+          ? '<div style="display:flex;flex-direction:column;gap:8px;max-height:360px;overflow:auto">' + convs.map(t => {
+              const last = t.msgs.length ? t.msgs[t.msgs.length - 1] : null;
+              const un = threadUnreadFor(t, u.id);
+              const closed = !threadOpen(t);
+              const teach = (db.users || []).find(x => x.id === t.teacherId);
+              const title = t.subject || 'Rozhovor se třídním učitelem';
+              return '<button class="list-row" style="text-align:left;width:100%;cursor:pointer;opacity:' + (closed ? 0.6 : 1) + ';border-color:' + (openTh && t.id === openTh.id ? 'var(--accent)' : '') + '" data-act="s-open:' + t.id + '">' +
+                '<span class="ava" style="width:34px;height:34px;font-size:13px;flex:0 0 auto">' + escapeHtml((teach ? teach.name : 'U').charAt(0)) + '</span>' +
+                '<div class="grow" style="min-width:0"><div class="row-title" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(title) +
+                  (un ? ' <span class="chip chip-bad" style="padding:0 6px;font-size:9.5px">' + un + ' nové</span>' : '') + '</div>' +
+                  '<div class="row-sub" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (last ? escapeHtml(last.text) : (closed ? 'uzavřeno' : 'zatím prázdné')) + '</div></div>' +
+                (t.taskId ? '<span class="chip chip-warn" style="padding:0 7px;font-size:10px;flex:0 0 auto">úkol</span>' : '') +
+                (closed ? '<span class="chip chip-bad" style="padding:0 7px;font-size:10px;flex:0 0 auto">uzavřeno</span>' : '') +
+                '<div style="font-size:10.5px;color:var(--muted);white-space:nowrap;flex:0 0 auto">' + (last ? tsLabel(last.ts) : '') + '</div></button>';
+            }).join('') + '</div>'
+          : '<div class="empty"><b>Žádné konverzace</b>Založte první – nebo ji otevřete u některého úkolu v „Moje úkoly“.</div>') +
+      '</div>' +
+    '</div>' +
+    '<div>' + (openTh ? stuConvDetailHtml(u, openTh) : '<div class="card"><div class="empty">Vyberte konverzaci vlevo.</div></div>') + '</div>' +
+  '</div>';
+}
+onAct('p-tpl:', el => {
+  const ta = document.querySelector('.compose textarea');
+  if (ta) { ta.value = el.getAttribute('data-act').slice(6); ta.focus(); }
+});
+onAct('s-open:', el => {
+  S_MSG.thread = el.getAttribute('data-act').slice(7);
+  route();
+});
+onAct('s-new-conv', () => {
+  const sid = currentStudentId();
+  if (!sid) { toast('Nemáte žákovský účet', 'bad'); return; }
+  const subj = String(document.getElementById('s-new-subj').value || '').trim();
+  const teachSel = document.getElementById('s-new-teach');
+  const teacherId = teachSel ? teachSel.value : null;
+  if (!subj) { toast('Napište předmět zprávy', 'warn'); return; }
+  if (!teacherId) { toast('Vyberte učitele', 'warn'); return; }
+  let th = Object.values(db.threads || {}).find(t => t.childId === sid && (t.recipientType || 'rodic') === 'student'
+    && threadOpen(t) && t.teacherId === teacherId && (t.subject || '').toLowerCase() === subj.toLowerCase());
+  if (!th) {
+    th = { id: uid(), childId: sid, recipientType: 'student', parent: null, teacherId, subject: subj, taskId: null, taskTitle: null, status: 'open', createdAt: nowISO(), msgs: [] };
+    db.threads[th.id] = th;
+  }
+  const st = studentOf(sid);
+  const teachU = (db.users || []).find(x => x.id === teacherId);
+  if (teachU) db.notifs.push({ userId: teachU.id, type: 'msg', text: 'Žák ' + (st ? st.first + ' ' + st.last : '') + ' založil konverzaci: ' + subj, ts: nowISO(), route: 'zpravy' });
+  saveDB();
+  S_MSG.thread = th.id;
+  toast('Konverzace založena – napište první zprávu ✓', 'ok');
+  route();
+});
+/* pošle zprávu žáka do vlákna S_MSG.thread (odpověď v detailu) */
+function studentNotifyTeachers(th, text) {
+  const st = studentOf(th.childId);
+  const txt2 = text || '';
+  if (th.teacherId) {
+    const tu = (db.users || []).find(x => x.id === th.teacherId);
+    if (tu) db.notifs.push({ userId: tu.id, type: 'msg', text: txt2, ts: nowISO(), route: 'zpravy' });
+    return;
+  }
+  const teachers = st ? classTeacherUsers(st.cls) : [];
+  teachers.forEach(t2 => db.notifs.push({ userId: t2.id, type: 'msg', text: txt2, ts: nowISO(), route: 'zpravy' }));
+}
+onAct('form:smsg', f => {
+  const u = currentUser();
+  const txt = String(new FormData(f).get('text')).trim();
+  if (!txt) return;
+  const th = Object.values(db.threads || {}).find(t => t.id === S_MSG.thread);
+  if (!th) { toast('Vyberte konverzaci', 'warn'); return; }
+  if (!threadOpen(th)) { toast('Konverzace byla učitelem uzavřena – založte novou', 'warn'); return; }
+  th.msgs.push({ id: uid(), from: u.id, text: txt, ts: nowISO(), readAt: null });
+  studentNotifyTeachers(th, 'Zpráva od žáka (' + ((studentOf(th.childId) || {}).first || '') + ')');
+  saveDB();
+  toast('Zpráva odeslána ✓', 'ok');
+  route();
+});
+
+function pDochazka() {
+  clearTick();
+  const kids = parentChildren();
+  if (!kids.length) return '<div class="card"><div class="empty"><b>Nemáte propojené žádné dítě</b>Kontaktujte správce školy.</div></div>';
+  const cid = parentCurChild();
+  return '' +
+  '<div class="page-head"><div><h1>Docházka</h1><div class="sub">Zameškané hodiny podle třídní knihy – omluvenku pošlete v záložce Omluvenky</div></div></div>' +
+  (kids.length > 1
+    ? '<div class="rcpt-row">' + kids.map(k =>
+        '<button class="rcpt-pill' + (k.id === cid ? ' active' : '') + '" data-act="p-child:' + k.id + '">' +
+        '<span class="ava" style="width:24px;height:24px;font-size:11px">' + escapeHtml(k.first.charAt(0)) + '</span>' +
+        k.first + ' ' + k.last + '</button>').join('') + '</div>'
+    : '') +
+  dochazkaBodyHtml(cid);
+}
+registerView('student', 'prehled', sPrehled);
+registerView('student', 'znamky', sZnamky);
+registerView('student', 'dochazka', sDochazka);
+registerView('student', 'rozvrh', sRozvrh);
+registerView('student', 'ukoly', sUkoly);
+registerView('student', 'zpravy', sZpravy);
+registerView('rodic', 'prehled', pPrehled);
+registerView('rodic', 'dochazka', pDochazka);
+registerView('rodic', 'omluvenky', pOmluvenky);
+registerView('rodic', 'zpravy', pZpravy);
+
+function tickLoop() {
+  if (document.getElementById('cd-now') || document.querySelector('[data-cd-remain]')) cdTick();
+}
+setTick(tickLoop, 1000);
