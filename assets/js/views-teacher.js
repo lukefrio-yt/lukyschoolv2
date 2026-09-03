@@ -973,7 +973,7 @@ function sendTeacherMsg(text, who, mode, subject) {
     if (recipUser) db.notifs.push({ userId: recipUser.id, type: 'msg', text: 'Nová zpráva od učitele' + (st ? ' (' + st.first + ')' : ''), ts: nowISO(), route: 'zpravy' });
   });
   saveDB();
-  toast('Zpráva odeslána ' + targets.length + ' příjemcům ✓', 'ok');
+  toast('Zpráva odeslána ' + targets.length + ' ' + csPlural(targets.length, 'příjemci', 'příjemcům', 'příjemcům') + ' ✓', 'ok');
 }
 onAct('t-msg-send', () => {
   const ta = document.getElementById('tmsg-text');
@@ -1576,7 +1576,7 @@ function tUkoly() {
         '<div class="row-sub">' + escapeHtml(SUBJECTS[t.subj] ? SUBJECTS[t.subj].name : '') +
           (t.note ? ' · ' + escapeHtml(t.note) : '') + '</div></div>' +
       '<div style="text-align:right"><span class="chip ' + (doneN === cnt ? 'chip-ok' : late ? 'chip-bad' : 'chip-warn') + '">' + (doneN === cnt ? 'splněno' : late ? 'po termínu' : 'do ' + fmtDate(t.due)) + '</span>' +
-      '<div style="font-size:11px;color:var(--muted);margin-top:4px">' + doneN + '/' + cnt + ' žáků</div></div>' +
+      '<div style="font-size:11px;color:var(--muted);margin-top:4px">' + doneN + '/' + cnt + ' ' + csPlural(cnt, 'žák', 'žáci', 'žáků') + '</div></div>' +
       '<button class="icon-btn sm" data-act="tk-del:' + t.id + '" style="color:var(--bad)" title="Smazat úkol">' + ic('trash', 15) + '</button></div>' +
       '<div class="tbl-wrap"><table class="tbl" style="min-width:420px"><thead><tr><th>Žák</th><th>Stav – klepnutím přepnete</th></tr></thead><tbody>' +
         taskStudents(t).map(s => {

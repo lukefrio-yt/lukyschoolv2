@@ -41,7 +41,7 @@ function sPrehled() {
         (worst && worst.avg > 3
           ? '<span class="chip chip-bad">pozor na ' + escapeHtml(SUBJECTS[worst.subj].name) + ' (' + worst.avg.toFixed(2) + ')</span>'
           : '<span class="chip chip-ok">' + (avg === null ? 'zatím žádné známky' : 'držíš to pěkně') + '</span>') +
-        '<span class="small-note" style="margin-left:auto">' + cnt + ' započítaných známek</span>' +
+        '<span class="small-note" style="margin-left:auto">' + cnt + ' ' + csPlural(cnt, 'započítaná známka', 'započítané známky', 'započítaných známek') + '</span>' +
       '</div>' +
       '<div style="margin-top:14px;display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(160px,1fr))">' +
         mySubjKeys().map(sub => {
@@ -112,7 +112,7 @@ function sZnamky() {
     '<div class="card-title">' + ic('book', 16) + ' ' + escapeHtml(SUBJECTS[sel].name) + '</div>' +
       '<div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">' +
         '<span class="avg-big" style="color:' + avgColor(a.avg) + '">' + avgTxt(a.avg) + '</span>' +
-        '<span class="chip chip-accent">' + a.count + ' známek v průměru · vážený průměr</span>' +
+        '<span class="chip chip-accent">' + a.count + ' ' + csPlural(a.count, 'známka v průměru', 'známky v průměru', 'známek v průměru') + ' · vážený průměr</span>' +
       '</div>' +
       '<div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">' +
         (list.length ? list.slice(0, 12).map(g => gradeCellHtml(g.v, g.title)).join('') : '<span class="small-note">zatím žádné známky</span>') +
@@ -160,7 +160,7 @@ function predOutputHtml(sid, sel) {
       '<span class="avg-big" style="color:' + avgColor(a.avg) + '">' + avgTxt(a.avg) + '</span>' + ic('arrowR', 18) +
       '<span class="avg-big" style="color:' + avgColor(newAvg) + '">' + newAvg.toFixed(2) + '</span>' +
       '<span class="chip ' + (diff <= 0 ? 'chip-ok' : 'chip-bad') + '">' + (diff <= 0 ? '▲ lepší o ' : '▼ horší o ') + Math.abs(diff).toFixed(2) + '</span>' +
-      '<div class="small-note" style="margin-left:auto">průměr z ' + num.length + ' známek → ' + (num.length + 1) + '</div></div>';
+      '<div class="small-note" style="margin-left:auto">průměr z ' + num.length + ' ' + csPlural(num.length, 'známky', 'známek', 'známek') + ' → ' + (num.length + 1) + '</div></div>';
   }
   return '<div class="warn-line">' + ic('eye', 15) + ' <span>Známka <b>' + PRED.g + '</b> se do průměru nepočítá – průměr zůstává <b style="color:' + avgColor(a.avg) + '">' + avgTxt(a.avg) + '</b>.</span></div>';
 }
@@ -1123,7 +1123,7 @@ function prubeznaView() {
       '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">' + myRecs.length + ' záznamů</span></div>' +
     (myRecs.length
       ? '<div class="list">' + myRecs.map(r =>
-          '<div class="list-row"><span class="ava" style="background:' + ({ ok: 'linear-gradient(135deg,#10B981,#059669)', acc: 'linear-gradient(135deg,#3B82F6,#2563EB)', warn: 'linear-gradient(135deg,#F59E0B,#D97706)', bad: 'linear-gradient(135deg,#EF4444,#DC2626)' }[REC_BY_ID[r.type] && REC_BY_ID[r.type].tone] || 'linear-gradient(135deg,#64748B,#475569)') + '">' + ic({ ok: 'check', acc: 'check', warn: 'alert', bad: 'x' }[REC_BY_ID[r.type] && REC_BY_ID[r.type].tone] || 'flag', 16) + '</span>' +
+          '<div class="list-row"><span class="ava" style="background:' + ({ ok: 'linear-gradient(135deg,#10B981,#059669)', accent: 'linear-gradient(135deg,#3B82F6,#2563EB)', warn: 'linear-gradient(135deg,#F59E0B,#D97706)', bad: 'linear-gradient(135deg,#EF4444,#DC2626)' }[REC_BY_ID[r.type] && REC_BY_ID[r.type].tone] || 'linear-gradient(135deg,#64748B,#475569)') + '">' + ic({ ok: 'check', accent: 'check', warn: 'alert', bad: 'x' }[REC_BY_ID[r.type] && REC_BY_ID[r.type].tone] || 'flag', 16) + '</span>' +
           '<div class="grow"><div class="row-title">' + recChip(r.type) + '</div>' +
           '<div style="margin-top:3px">' + escapeHtml(r.reason || '') + '</div>' +
           '<div class="row-sub">' + semLabel(r.sem || semOfDate(r.date)) + ' · ' + fmtDate(r.date) + '</div></div></div>').join('') + '</div>'
