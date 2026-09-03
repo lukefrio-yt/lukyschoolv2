@@ -130,6 +130,7 @@ const ROLE_NAV = {
     { key: 'prehled',   icon: 'home', label: 'Přehled' },
     { key: 'dochazka',  icon: 'calendar', label: 'Docházka' },
     { key: 'klasifikace', icon: 'book', label: 'Známkování' },
+    { key: 'prubezna',  icon: 'list', label: 'Průběžná klasifikace' },
     { key: 'pololetka', icon: 'check', label: 'Pololetní klasifikace' },
     { key: 'kniha',     icon: 'clipboard', label: 'Třídní kniha' },
     { key: 'zpravy',    icon: 'chat', label: 'Zprávy' },
@@ -144,6 +145,7 @@ const ROLE_NAV = {
   student: [
     { key: 'prehled', icon: 'home', label: 'Přehled' },
     { key: 'znamky',  icon: 'book', label: 'Známky' },
+    { key: 'prubezna', icon: 'list', label: 'Průběžná klasifikace' },
     { key: 'pololetka', icon: 'check', label: 'Vysvědčení' },
     { key: 'dochazka', icon: 'calendar', label: 'Docházka' },
     { key: 'rozvrh',  icon: 'clock', label: 'Rozvrh' },
@@ -153,6 +155,7 @@ const ROLE_NAV = {
   ],
   rodic: [
     { key: 'prehled',   icon: 'home', label: 'Přehled' },
+    { key: 'prubezna',  icon: 'list', label: 'Průběžná klasifikace' },
     { key: 'pololetka', icon: 'check', label: 'Vysvědčení' },
     { key: 'dochazka',  icon: 'calendar', label: 'Docházka' },
     { key: 'omluvenky', icon: 'shield', label: 'Omluvenky' },

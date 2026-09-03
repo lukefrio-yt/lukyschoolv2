@@ -344,6 +344,7 @@ function buildSeed() {
     notifs: [],
     notifsSeen: {},
     reports: {}, /* pololetní klasifikace: {clsId: {1:{...},2:{...}}} */
+    records: [], /* pochvaly a výchovná opatření: {id,sid,type,reason,date,sem,by,ts} */
     seen: { 'u-admin': null }
   };
 }
@@ -406,6 +407,7 @@ function loadDB() {
         refreshSubjects();
         roomsEnsure(); // starším učebnám doplní zkratku a barvu
         reportsEnsure(); // starší data bez pololetní klasifikace
+        recordsEnsure();
         return db;
       }
     }
@@ -415,6 +417,7 @@ function loadDB() {
   refreshSubjects();
   roomsEnsure();
   reportsEnsure();
+  recordsEnsure();
   return db;
 }
 function saveDB() {
@@ -435,7 +438,7 @@ function wipeSchool() {
     meta: { seededAt: nowISO(), schoolYear: schoolYearLabel() },
     classes: [], users: [JSON.parse(JSON.stringify(ADMIN_USER))],
     students: [], rooms: JSON.parse(JSON.stringify(DEFAULT_ROOMS)), subjects: {}, schedule: {}, columns: [], tasks: [], classbook: [],
-    threads: {}, excuses: [], subs: [], reservations: [], absReq: [], notifs: [], reports: {}, seen: { 'u-admin': null }
+    threads: {}, excuses: [], subs: [], reservations: [], absReq: [], notifs: [], reports: {}, records: [], seen: { 'u-admin': null }
   };
   saveDB();
   refreshSubjects();
@@ -664,6 +667,33 @@ function schoolYearBounds() {
 }
 function semLabel(sem) { return sem === 1 ? '1. pololetí' : '2. pololetí'; }
 function semDateLabel(sem) { return sem === 1 ? 'leden' : 'červen'; }
+/* do kterého pololetí spadá datum (1/2); mimo školní rok → 1 */
+function semOfDate(iso) {
+  const b = schoolYearBounds();
+  if (!iso) return 1;
+  if (iso >= b.s2Start && iso <= b.s2End) return 2;
+  return 1;
+}
+/* známky žáka za pololetí vč. zobrazení: sloupec + token (bez „?“ plánovaných) */
+function semesterColumnGradesOf(sid, subj, sem) {
+  const b = schoolYearBounds();
+  const [a, c] = sem === 1 ? [b.s1Start, b.s1End] : [b.s2Start, b.s2End];
+  return columnsFor(sid)
+    .filter(col => col.subj === subj && col.date && col.date >= a && col.date <= c && col.cells && col.cells[sid] !== undefined && col.cells[sid] !== '' && col.cells[sid] !== '?')
+    .sort((x, y) => (x.date === y.date ? 0 : x.date < y.date ? -1 : 1));
+}
+
+/* ---------- pochvaly a výchovná opatření (průběžná klasifikace) ---------- */
+const REC_TYPES = [
+  { id: 'pch-tu', label: 'Pochvala třídního učitele', tone: 'ok' },
+  { id: 'pch-red', label: 'Pochvala ředitele školy', tone: 'acc' },
+  { id: 'nap-tu', label: 'Napomenutí třídního učitele', tone: 'warn' },
+  { id: 'du-tu', label: 'Důtka třídního učitele', tone: 'bad' },
+  { id: 'du-red', label: 'Důtka ředitele školy', tone: 'bad' }
+];
+const REC_BY_ID = {}; REC_TYPES.forEach(r => { REC_BY_ID[r.id] = r; });
+function recordsOf(sid) { return (db.records || []).filter(r => r.sid === sid); }
+function recordsEnsure() { if (!db.records) db.records = []; }
 /* známky žáka z předmětu omezené na pololetí (vč. váhy) */
 function semesterGradesOf(sid, subj, sem) {
   const b = schoolYearBounds();
