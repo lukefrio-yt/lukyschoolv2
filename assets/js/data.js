@@ -399,6 +399,7 @@ function loadDB() {
         db = parsed;
         dbSubjects(); // zaručí klíč v databázi
         refreshSubjects();
+        roomsEnsure(); // starším učebnám doplní zkratku a barvu
         return db;
       }
     }
@@ -406,6 +407,7 @@ function loadDB() {
   db = buildSeed();
   saveDB();
   refreshSubjects();
+  roomsEnsure();
   return db;
 }
 function saveDB() {
@@ -568,14 +570,50 @@ function currentLessonInfo(clsId, iso) {
   return { state: 'done', lesson: null };
 }
 /* ---------- učebny školy ---------- */
+const ROOM_DEF_COLOR = '#64748B';
+const ROOM_PALETTE = ['#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981', '#EF4444', '#06B6D4', '#14B8A6', '#F97316', '#84CC16', '#6366F1', '#F43F5E', '#0EA5E9', '#22C55E', '#EAB308', '#A855F7', '#FB7185', '#2DD4BF', '#60A5FA', '#64748B'];
 function roomsList() { return db.rooms || (db.rooms = []); }
+/* krátká zkratka učebny (např. „A607“); prázdná → první písmena názvu */
+function genRoomShort(name, roomsArr) {
+  const list = roomsArr || roomsList();
+  const used = new Set(list.map(r => (r.short || '').toUpperCase()).filter(Boolean));
+  const base = String(name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
+  let short = base || 'UC';
+  let i = 2;
+  while (used.has(short)) short = (base || 'UC') + (i++);
+  return short;
+}
+function roomShort(roomId) {
+  const r = roomsList().find(x => x.id === roomId);
+  return r ? (r.short || r.name || '') : (roomId || '');
+}
+function roomColor(roomId) {
+  const r = roomsList().find(x => x.id === roomId);
+  return r ? (r.color || ROOM_DEF_COLOR) : ROOM_DEF_COLOR;
+}
+/* starší záznamy učeben bez zkratky/barvy doplní automaticky (uloží jen když je co doplňovat) */
+function roomsEnsure() {
+  let dirty = false;
+  roomsList().forEach(r => {
+    if (!r.short || !r.color) { dirty = true; }
+    if (!r.short) r.short = genRoomShort(r.name, roomsList());
+    if (!r.color) r.color = ROOM_PALETTE[roomsList().indexOf(r) % ROOM_PALETTE.length];
+  });
+  if (dirty) saveDB();
+}
 function roomName(roomId) {
   const r = roomsList().find(x => x.id === roomId);
   return r ? r.name : (roomId || '');
 }
-function addRoom(name) {
+function roomCodeTaken(code) {
+  const c = String(code || '').trim().toUpperCase();
+  return c ? roomsList().some(r => (r.short || '').toUpperCase() === c) : false;
+}
+function addRoom(name, short, color) {
   const id = uid();
-  roomsList().push({ id, name });
+  const s = String(short || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  roomsList().push({ id, name, short: s || genRoomShort(name), color: color || ROOM_DEF_COLOR });
   saveDB();
   return id;
 }
@@ -587,6 +625,16 @@ function removeRoom(roomId) {
     [1, 2, 3, 4, 5].forEach(d => sc.days[d].forEach(en => { if (en && en.room === roomId) en.room = null; }));
   });
   saveDB();
+}
+/* na kolika místech se učebna používá v rozvrhu (pro potvrzení smazání) */
+function roomUsageCount(roomId) {
+  let n = 0;
+  (db.classes || []).forEach(c => {
+    const sc = db.schedule[c.id];
+    if (!sc || !sc.days) return;
+    [1, 2, 3, 4, 5].forEach(d => (sc.days[d] || []).forEach(en => { if (en && en.room === roomId) n++; }));
+  });
+  return n;
 }
 
 /* ---------- známky ze sloupců ---------- */
@@ -918,6 +966,10 @@ function notifyClassTeachers(clsId, text, route) {
 /* ---------- zprávy a notifikace ---------- */
 function threadUnreadFor(thread, userId) {
   return thread.msgs.filter(m => m.from !== userId && !m.readAt).length;
+}
+/* červený kroužek s počtem nepřečtených zpráv konverzace – zmizí po otevření */
+function unreadDot(n) {
+  return n > 0 ? '<span class="unread-dot">' + (n > 99 ? '99+' : n) + '</span>' : '';
 }
 function userUnreadMsgs(userId) {
   let n = 0;

@@ -47,6 +47,14 @@ function subjBadge(key, size) {
   const sz = size || 36;
   return '<span class="subj-badge" style="width:' + sz + 'px;height:' + sz + 'px;background:' + s.color + '" title="' + escapeHtml(s.name) + '">' + short + '</span>';
 }
+/* barevná čipka učebny v rozvrhu (zkratka typu „A607“, celý název v tooltipu) */
+function roomChip(roomId, size) {
+  const r = roomsList().find(x => x.id === roomId);
+  if (!r) return '';
+  const sz = size || 20;
+  const label = (r.short || genRoomShort(r.name, roomsList()) || '?');
+  return '<span class="room-chip" style="background:' + (r.color || ROOM_DEF_COLOR) + ';font-size:' + Math.max(10, sz - 7) + 'px;height:' + sz + 'px;min-width:' + sz + 'px;padding:0 ' + Math.max(4, Math.round(sz / 4)) + 'px" title="' + escapeHtml(r.name) + '">' + escapeHtml(label) + '</span>';
+}
 
 /* ---------- akce (delegace) ---------- */
 const ACT = {};
@@ -127,6 +135,7 @@ const ROLE_NAV = {
     { key: 'omluvenky', icon: 'shield', label: 'Omluvenky' },
     { key: 'rozvrh',    icon: 'clock', label: 'Rozvrh a rezervace' },
     { key: 'predmety',  icon: 'book', label: 'Předměty' },
+    { key: 'ucebny',    icon: 'home', label: 'Učebny' },
     { key: 'ukoly',     icon: 'check', label: 'Úkoly' },
     { key: 'hesla',     icon: 'zap', label: 'Resetování hesel' },
     { key: 'oznameni',  icon: 'bell', label: 'Oznámení' }

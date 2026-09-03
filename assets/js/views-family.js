@@ -210,13 +210,13 @@ function sRozvrh() {
       const isNow = nowInfo.state === 'now' && nowInfo.lesson && nowInfo.lesson.period === i;
       const subj = en ? en.subj : (subEv ? subEv.subj : null);
       if (!subj) return '';
-      const rm = en && en.room ? roomName(en.room) : '';
+      const rmChip = en && en.room ? roomChip(en.room, 22) : '';
       return '<div class="lesson' + (isNow ? ' now' : '') + (subEv ? ' sub' : '') + '">' +
         '<span class="time">' + slot.s + '<br>' + slot.e + '</span>' + subjBadge(subj, 42) +
         '<div class="grow"><div class="row-title">' + escapeHtml(SUBJECTS[subj].name) + '</div>' +
         '<div class="row-sub">' + (subEv
           ? '<span class="chip chip-warn">suplování · ' + escapeHtml(subEv.note || '') + '</span>'
-          : escapeHtml([rm, cls, (i + 1) + '. hodina'].filter(Boolean).join(' · '))) + '</div></div>' +
+          : escapeHtml(cls + ' · ' + (i + 1) + '. hodina') + (rmChip ? '<span style="margin:0 0 0 7px">' + rmChip + '</span>' : '')) + '</div></div>' +
         (isNow ? '<div class="prog" style="width:' + nowInfo.prog + '%"></div>' : '') + '</div>';
     }).join('');
   }
@@ -654,35 +654,62 @@ function teachersForStudent(sid) {
   if (!out.length) out = (db.users || []).filter(x => x.role === 'ucitel' && !x.isAdmin);
   return out;
 }
-/* rodičovská konverzace (jedna obecná na dítě) */
-function convBodyHtml(u, cid, myType, heading, sub) {
-  const thread = Object.values(db.threads || {}).find(t => t.childId === cid && (t.recipientType || 'rodic') === myType) || null;
-  /* Přečtení: potvrzuje se JEN zpráva, kterou mi poslal učitel (readAt = „učitel viděl moji zprávu“). */
-  let changed = false;
-  if (thread) {
-    const teacherIds = new Set((db.users || []).filter(x => x.role === 'ucitel').map(x => x.id));
-    thread.msgs.forEach(m => { if (m.from !== u.id && teacherIds.has(m.from) && !m.readAt) { m.readAt = nowISO(); changed = true; } });
+/* ============ RODIČ: konverzace s učiteli (inbox) ============
+   Seznam konverzací jako řádky (předmět + s kým), u každé červený
+   kroužek s počtem nepřečtených – zmizí po otevření. Rodič může
+   založit novou tematickou konverzaci s předmětem (dítě + učitel). */
+let P_MSG = { thread: null };
+/* vlákna rodiče (jen moje, jen moje děti), seřazená podle poslední zprávy */
+function parentThreads(u) {
+  const kidIds = (u.children || []).slice();
+  return Object.values(db.threads || {})
+    .filter(t => (t.recipientType || 'rodic') === 'rodic' && t.parent === u.id && kidIds.includes(t.childId))
+    .sort((a, b) => (threadLastTs(a) < threadLastTs(b) ? 1 : -1));
+}
+/* učitel konverzace rodiče (uložený nebo třídní učitel dítěte) */
+function teacherOfThread(t) {
+  if (t && t.teacherId) {
+    const x = (db.users || []).find(u2 => u2.id === t.teacherId && u2.role === 'ucitel');
+    if (x) return x;
   }
+  const st = studentOf(t.childId);
+  return st ? (classTeacherUsers(st.cls)[0] || null) : null;
+}
+/* otevřená konverzace = přečteno (zprávy od učitele); volá se PŘED vykreslením seznamu,
+   aby červený kroužek zmizel hned při otevření */
+function markThreadReadFor(u, th) {
+  if (!th) return;
+  let ch = false;
+  const teacherIds = new Set((db.users || []).filter(x => x.role === 'ucitel').map(x => x.id));
+  th.msgs.forEach(m => { if (m.from !== u.id && teacherIds.has(m.from) && !m.readAt) { m.readAt = nowISO(); ch = true; } });
+  if (ch) saveDB();
+}
+/* detail konverzace pro rodiče – otevření zároveň přečte zprávy učitele */
+function pConvDetailHtml(u, th) {
+  const closed = !threadOpen(th);
+  let changed = false;
+  const teacherIds = new Set((db.users || []).filter(x => x.role === 'ucitel').map(x => x.id));
+  th.msgs.forEach(m => { if (m.from !== u.id && teacherIds.has(m.from) && !m.readAt) { m.readAt = nowISO(); changed = true; } });
   if (changed) saveDB();
-  const st = studentOf(cid);
-  const tName = st ? (classTeacherUsers(st.cls)[0] || {}) : {};
-  const closed = thread && !threadOpen(thread);
-  return '<div class="card" style="max-width:760px">' +
-    '<div class="card-title">' + ic('chat', 16) + ' ' + escapeHtml(heading) +
-      ' <span class="chip chip-accent" style="padding:0 8px;font-size:10.5px">' + escapeHtml(sub) + '</span>' +
+  const st = studentOf(th.childId);
+  const teach = teacherOfThread(th);
+  const kidName = st ? st.first + ' ' + st.last : '';
+  const title = th.subject || ('Rozhovor o ' + kidName);
+  return '<div class="card">' +
+    '<div class="card-title">' + ic('chat', 16) + ' ' + escapeHtml(title) +
       (closed ? ' <span class="chip chip-bad" style="padding:0 8px;font-size:10.5px">uzavřeno učitelem</span>' : '') +
-      '<span style="margin-left:auto;font-weight:700">třídní učitel: ' + escapeHtml(tName.name || '—') + '</span></div>' +
-    (thread && thread.msgs.length
-      ? '<div class="thread">' + thread.msgs.map(m => {
+      '<span style="margin-left:auto;font-weight:700">' + escapeHtml((teach ? teach.name : (kidName ? 'třídní učitel' : '—'))) + '</span></div>' +
+    (th.msgs.length
+      ? '<div class="thread" style="max-height:430px;overflow:auto">' + th.msgs.map(m => {
           const me = m.from === u.id;
           return '<div class="msg ' + (me ? 'me' : 'them') + '">' + escapeHtml(m.text) +
-            '<div class="meta">' + fmtTime(m.ts) + (me ? (m.readAt ? '<span class="read-tick">✓✓ přečteno ' + fmtTime(m.readAt) + '</span>' : '<span class="read-tick">✓ odesláno</span>') : (m.readAt ? 'přečteno ' + fmtTime(m.readAt) : 'doručeno')) + '</div></div>';
+            '<div class="meta">' + fmtTime(m.ts) + ' ' + (me ? (m.readAt ? '<span class="read-tick">✓✓ přečteno ' + fmtTime(m.readAt) + '</span>' : '<span class="read-tick">✓ odesláno</span>') : (m.readAt ? 'přečteno ' + fmtTime(m.readAt) : 'doručeno')) + '</div></div>';
         }).join('') + '</div>'
-      : '<div class="empty">' + (closed ? 'Konverzaci uzavřel učitel.' : 'Zatím žádná zpráva – napište třídnímu učiteli.') + '</div>') +
+      : '<div class="empty">' + (closed ? 'Konverzaci uzavřel učitel.' : 'Zatím žádná zpráva – napište první zprávu.') + '</div>') +
     (closed
-      ? '<div class="warn-line" style="margin-top:12px">' + ic('lock', 15) + ' <span>Učitel tuto konverzaci uzavřel – novou zprávu mu pošlete v nové konverzaci.</span></div>'
+      ? '<div class="warn-line" style="margin-top:12px">' + ic('lock', 15) + ' <span>Učitel tuto konverzaci uzavřel – novou mu napište v nové konverzaci.</span></div>'
       : '<form data-form="pmsg"><div class="compose">' +
-        '<textarea name="text" rows="1" placeholder="Napište zprávu učiteli…" required style="min-height:44px"></textarea>' +
+        '<textarea name="text" rows="1" placeholder="Napište zprávu…" required style="min-height:44px"></textarea>' +
         '<button class="btn btn-primary">' + ic('send', 16) + '</button></div></form>' +
         '<div class="rcpt-row" style="margin:12px 0 0">' +
           ['Omlouvám, dnes nepřijde…', 'Můžete mi prosím zavolat?', 'Děkujeme za zprávu!'].map(t2 =>
@@ -693,15 +720,101 @@ function pZpravy() {
   const u = currentUser();
   const kids = parentChildren();
   if (!kids.length) return '<div class="card"><div class="empty"><b>Nemáte propojené žádné dítě</b>Kontaktujte správce školy.</div></div>';
-  const cid = parentCurChild();
+  const convs = parentThreads(u);
+  const openTh = convs.find(t => t.id === P_MSG.thread) || (convs.length ? convs[0] : null);
+  if (openTh && openTh.id !== P_MSG.thread) P_MSG.thread = openTh.id;
+  markThreadReadFor(u, openTh);
+  const curCid = parentCurChild();
+  const curKid = studentOf(curCid);
+  const teachOpts = curKid ? (classTeacherUsers(curKid.cls) || []).filter(x => !x.isAdmin) : [];
   return '' +
-  '<div class="page-head"><div><h1>Zprávy s učiteli</h1><div class="sub">Rychlá komunikace jako v chatu</div></div></div>' +
-  (kids.length > 1
-    ? '<div class="rcpt-row">' + kids.map(k =>
-        '<button class="rcpt-pill' + (k.id === cid ? ' active' : '') + '" data-act="p-child:' + k.id + '">' + escapeHtml(k.first + ' ' + k.last) + '</button>').join('') + '</div>'
-    : '') +
-  convBodyHtml(u, cid, 'rodic', 'Rozhovor o ' + escapeHtml((studentOf(cid) || {}).first || 'dítěti'), 'rodič');
+  '<div class="page-head"><div><h1>Zprávy s učiteli</h1><div class="sub">Konverzace přijaté i odeslané – novou s předmětem založíte vlevo</div></div></div>' +
+  '<div class="grid grid-2">' +
+    '<div>' +
+      '<div class="card"><div class="card-title">' + ic('plus', 16) + ' Nová konverzace</div>' +
+        (kids.length > 1
+          ? '<div class="field"><label>Dítě</label><select id="p-new-child" data-chg="p-new-child">' +
+            kids.map(k => '<option value="' + k.id + '"' + (k.id === curCid ? ' selected' : '') + '>' + escapeHtml(k.first + ' ' + k.last) + '</option>').join('') + '</select></div>'
+          : '<input type="hidden" id="p-new-child" value="' + kids[0].id + '">') +
+        '<div class="field"><label>Předmět</label><input id="p-new-subj" placeholder="Např. Dotaz k písemce, konzultace…"></div>' +
+        '<div class="field"><label>Učitel</label><select id="p-new-teach">' +
+          (teachOpts.length
+            ? teachOpts.map(t2 => '<option value="' + t2.id + '">' + escapeHtml(t2.name) + '</option>').join('')
+            : '<option value="">Žádný učitel není přiřazený</option>') + '</select></div>' +
+        '<button class="btn btn-primary" data-act="p-new-conv">' + ic('chat', 15) + ' Založit konverzaci</button>' +
+      '</div>' +
+      '<div class="card"><div class="card-title">' + ic('list', 16) + ' Konverzace (' + convs.length + ')</div>' +
+        (convs.length
+          ? '<div style="display:flex;flex-direction:column;gap:8px;max-height:430px;overflow:auto">' + convs.map(t => {
+              const last = t.msgs.length ? t.msgs[t.msgs.length - 1] : null;
+              const un = threadUnreadFor(t, u.id);
+              const closed = !threadOpen(t);
+              const st = studentOf(t.childId);
+              const kidName = st ? st.first + ' ' + st.last : '';
+              const teach = teacherOfThread(t);
+              const title = t.subject || ('Rozhovor o ' + kidName);
+              const subTxt = (teach ? teach.name : 'třídní učitel') + (kids.length > 1 && t.subject ? ' · ' + kidName : '');
+              return '<button class="list-row" style="text-align:left;width:100%;cursor:pointer;opacity:' + (closed ? 0.6 : 1) + ';border-color:' + (openTh && t.id === openTh.id ? 'var(--accent)' : '') + '" data-act="p-open:' + t.id + '">' +
+                '<span class="ava" style="width:34px;height:34px;font-size:13px;flex:0 0 auto">' + escapeHtml((teach ? teach.name : 'U').charAt(0)) + '</span>' +
+                '<div class="grow" style="min-width:0">' +
+                  '<div class="row-title" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(title) +
+                    (closed ? ' <span class="chip chip-bad" style="padding:0 6px;font-size:9.5px">uzavřeno</span>' : '') + '</div>' +
+                  '<div class="row-sub" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(subTxt) + '</div>' +
+                '</div>' +
+                '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex:0 0 auto">' + unreadDot(un) +
+                  '<div style="font-size:10.5px;color:var(--muted);white-space:nowrap">' + (last ? tsLabel(last.ts) : '') + '</div></div></button>';
+            }).join('') + '</div>'
+          : '<div class="empty"><b>Zatím žádné konverzace</b>Založte první vlevo – nebo vám napíše učitel.</div>') +
+      '</div>' +
+    '</div>' +
+    '<div>' + (openTh ? pConvDetailHtml(u, openTh) : '<div class="card"><div class="empty">Založte konverzaci vlevo.</div></div>') + '</div>' +
+  '</div>';
 }
+onAct('p-open:', el => {
+  P_MSG.thread = el.getAttribute('data-act').slice(7);
+  route();
+});
+onAct('p-new-child', el => {
+  if (el.value) localStorage.setItem('ls_child', el.value);
+  route();
+});
+onAct('p-new-conv', () => {
+  const u = currentUser();
+  const childId = String(document.getElementById('p-new-child').value || '');
+  const subj = String(document.getElementById('p-new-subj').value || '').trim();
+  const teachId = String(document.getElementById('p-new-teach').value || '');
+  const st = studentOf(childId);
+  if (!st) { toast('Vyberte dítě', 'warn'); return; }
+  if (!teachId) { toast('K vašemu dítěti není přiřazený žádný učitel', 'warn'); return; }
+  let th = Object.values(db.threads || {}).find(t => t.childId === childId && (t.recipientType || 'rodic') === 'rodic'
+    && t.parent === u.id && t.teacherId === teachId && threadOpen(t)
+    && String(t.subject || '').trim().toLowerCase() === subj.toLowerCase());
+  if (!th) {
+    th = { id: uid(), childId, recipientType: 'rodic', parent: u.id, teacherId: teachId, subject: subj, taskId: null, taskTitle: null, status: 'open', createdAt: nowISO(), msgs: [] };
+    db.threads[th.id] = th;
+  }
+  const teachU = (db.users || []).find(x => x.id === teachId);
+  if (teachU) db.notifs.push({ userId: teachU.id, type: 'msg', text: 'Rodič ' + u.name + ' založil konverzaci: ' + (subj || ('Rozhovor o ' + st.first)), ts: nowISO(), route: 'zpravy' });
+  saveDB();
+  P_MSG.thread = th.id;
+  toast('Konverzace založena – napište první zprávu ✓', 'ok');
+  route();
+});
+onAct('form:pmsg', f => {
+  const u = currentUser();
+  const text = String(new FormData(f).get('text')).trim();
+  if (!text) return;
+  const th = Object.values(db.threads || {}).find(t => t.id === P_MSG.thread);
+  if (!th) { toast('Vyberte konverzaci', 'warn'); return; }
+  if (!threadOpen(th)) { toast('Konverzaci uzavřel učitel – založte novou', 'warn'); return; }
+  th.msgs.push({ id: uid(), from: u.id, text, ts: nowISO(), readAt: null });
+  const teach = teacherOfThread(th);
+  const st = studentOf(th.childId);
+  if (teach) db.notifs.push({ userId: teach.id, type: 'msg', text: 'Zpráva od rodiče' + (st ? ' (' + st.first + ')' : ''), ts: nowISO(), route: 'zpravy' });
+  saveDB();
+  toast('Zpráva odeslána ✓', 'ok');
+  route();
+});
 /* detail jedné žákovské konverzace */
 function stuConvDetailHtml(u, th) {
   const st = studentOf(th.childId);
@@ -722,7 +835,7 @@ function stuConvDetailHtml(u, th) {
       ? '<div class="thread">' + th.msgs.map(m => {
           const me = m.from === u.id;
           return '<div class="msg ' + (me ? 'me' : 'them') + '">' + escapeHtml(m.text) +
-            '<div class="meta">' + fmtTime(m.ts) + (me ? (m.readAt ? '<span class="read-tick">✓✓ přečteno ' + fmtTime(m.readAt) + '</span>' : '<span class="read-tick">✓ odesláno</span>') : (m.readAt ? 'přečteno ' + fmtTime(m.readAt) : 'doručeno')) + '</div></div>';
+            '<div class="meta">' + fmtTime(m.ts) + ' ' + (me ? (m.readAt ? '<span class="read-tick">✓✓ přečteno ' + fmtTime(m.readAt) + '</span>' : '<span class="read-tick">✓ odesláno</span>') : (m.readAt ? 'přečteno ' + fmtTime(m.readAt) : 'doručeno')) + '</div></div>';
         }).join('') + '</div>'
       : '<div class="empty">Konverzace je založená – napište první zprávu.</div>') +
     (closed
@@ -741,6 +854,7 @@ function sZpravy() {
     .sort((a, b) => (threadLastTs(a) < threadLastTs(b) ? 1 : -1));
   const openTh = convs.find(t => t.id === S_MSG.thread) || (convs.length ? convs[0] : null);
   if (openTh && openTh.id !== S_MSG.thread) S_MSG.thread = openTh.id;
+  markThreadReadFor(u, openTh);
   const teachers = teachersForStudent(sid);
   return '' +
   '<div class="page-head"><div><h1>Zprávy s učiteli</h1><div class="sub">Konverzaci založíte vy – napište předmět a vyberte učitele</div></div></div>' +
@@ -761,15 +875,18 @@ function sZpravy() {
               const un = threadUnreadFor(t, u.id);
               const closed = !threadOpen(t);
               const teach = (db.users || []).find(x => x.id === t.teacherId);
-              const title = t.subject || 'Rozhovor se třídním učitelem';
+              const title = t.subject || (t.taskTitle ? 'Úkol: ' + t.taskTitle : 'Rozhovor se třídním učitelem');
+              const teachName = teach ? teach.name : 'třídní učitel';
               return '<button class="list-row" style="text-align:left;width:100%;cursor:pointer;opacity:' + (closed ? 0.6 : 1) + ';border-color:' + (openTh && t.id === openTh.id ? 'var(--accent)' : '') + '" data-act="s-open:' + t.id + '">' +
-                '<span class="ava" style="width:34px;height:34px;font-size:13px;flex:0 0 auto">' + escapeHtml((teach ? teach.name : 'U').charAt(0)) + '</span>' +
-                '<div class="grow" style="min-width:0"><div class="row-title" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(title) +
-                  (un ? ' <span class="chip chip-bad" style="padding:0 6px;font-size:9.5px">' + un + ' nové</span>' : '') + '</div>' +
-                  '<div class="row-sub" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (last ? escapeHtml(last.text) : (closed ? 'uzavřeno' : 'zatím prázdné')) + '</div></div>' +
-                (t.taskId ? '<span class="chip chip-warn" style="padding:0 7px;font-size:10px;flex:0 0 auto">úkol</span>' : '') +
-                (closed ? '<span class="chip chip-bad" style="padding:0 7px;font-size:10px;flex:0 0 auto">uzavřeno</span>' : '') +
-                '<div style="font-size:10.5px;color:var(--muted);white-space:nowrap;flex:0 0 auto">' + (last ? tsLabel(last.ts) : '') + '</div></button>';
+                '<span class="ava" style="width:34px;height:34px;font-size:13px;flex:0 0 auto">' + escapeHtml(teachName.charAt(0)) + '</span>' +
+                '<div class="grow" style="min-width:0">' +
+                  '<div class="row-title" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(title) +
+                    (t.taskId ? ' <span class="chip chip-warn" style="padding:0 6px;font-size:9.5px">úkol</span>' : '') +
+                    (closed ? ' <span class="chip chip-bad" style="padding:0 6px;font-size:9.5px">uzavřeno</span>' : '') + '</div>' +
+                  '<div class="row-sub" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(teachName) + ' · učitel</div>' +
+                '</div>' +
+                '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex:0 0 auto">' + unreadDot(un) +
+                  '<div style="font-size:10.5px;color:var(--muted);white-space:nowrap">' + (last ? tsLabel(last.ts) : '') + '</div></div></button>';
             }).join('') + '</div>'
           : '<div class="empty"><b>Žádné konverzace</b>Založte první – nebo ji otevřete u některého úkolu v „Moje úkoly“.</div>') +
       '</div>' +
