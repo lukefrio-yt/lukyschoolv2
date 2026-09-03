@@ -127,7 +127,9 @@ const ROLE_NAV = {
     { key: 'omluvenky', icon: 'shield', label: 'Omluvenky' },
     { key: 'rozvrh',    icon: 'clock', label: 'Rozvrh a rezervace' },
     { key: 'predmety',  icon: 'book', label: 'Předměty' },
-    { key: 'ukoly',     icon: 'check', label: 'Úkoly' }
+    { key: 'ukoly',     icon: 'check', label: 'Úkoly' },
+    { key: 'hesla',     icon: 'zap', label: 'Resetování hesel' },
+    { key: 'oznameni',  icon: 'bell', label: 'Oznámení' }
   ],
   student: [
     { key: 'prehled', icon: 'home', label: 'Přehled' },
@@ -135,13 +137,15 @@ const ROLE_NAV = {
     { key: 'dochazka', icon: 'calendar', label: 'Docházka' },
     { key: 'rozvrh',  icon: 'clock', label: 'Rozvrh' },
     { key: 'ukoly',   icon: 'check', label: 'Moje úkoly' },
-    { key: 'zpravy',  icon: 'chat', label: 'Zprávy' }
+    { key: 'zpravy',  icon: 'chat', label: 'Zprávy' },
+    { key: 'oznameni', icon: 'bell', label: 'Oznámení' }
   ],
   rodic: [
     { key: 'prehled',   icon: 'home', label: 'Přehled' },
     { key: 'dochazka',  icon: 'calendar', label: 'Docházka' },
     { key: 'omluvenky', icon: 'shield', label: 'Omluvenky' },
-    { key: 'zpravy',    icon: 'chat', label: 'Zprávy s učiteli' }
+    { key: 'zpravy',    icon: 'chat', label: 'Zprávy s učiteli' },
+    { key: 'oznameni',  icon: 'bell', label: 'Oznámení' }
   ]
 };
 const DEFAULT_KEY = { ucitel: 'prehled', student: 'prehled', rodic: 'prehled', admin: 'sprava' };
@@ -160,7 +164,7 @@ function defKeyFor(user) {
 /* souhrnný odznáček „Více“ pro učitele na mobilu (čekající omluvenky + zprávy + žádosti) */
 function navBadgeTotal(user) {
   if (!user || user.role !== 'ucitel' || user.isAdmin) return 0;
-  return pendingExcusesFor(user).length + userUnreadMsgs(user.id) + (db.absReq || []).filter(r => r.status === 'ceka').length;
+  return pendingExcusesFor(user).length + userUnreadMsgs(user.id) + (db.absReq || []).filter(r => r.status === 'ceka').length + teacherResetUnread(user.id) + annUnreadCount(user);
 }
 function navBadge(role, key, user) {
   if (role === 'ucitel' && user && user.isAdmin) return '';
@@ -177,10 +181,22 @@ function navBadge(role, key, user) {
       const n = (db.absReq || []).filter(r => r.status === 'ceka').length;
       return n ? '<span class="nav-n badge-dot" data-n="' + n + '">' + ic('clock', 16) + '</span>' : '';
     }
+    if (key === 'hesla') {
+      const n = teacherResetUnread(user.id);
+      return n ? '<span class="nav-n badge-dot" data-n="' + n + '">' + ic('zap', 16) + '</span>' : '';
+    }
+    if (key === 'oznameni') {
+      const n = annUnreadCount(user);
+      return n ? '<span class="nav-n badge-dot" data-n="' + n + '">' + ic('bell', 16) + '</span>' : '';
+    }
   }
   if ((role === 'student' || role === 'rodic') && key === 'zpravy') {
     const n = userUnreadMsgs(user.id);
     return n ? '<span class="nav-n badge-dot" data-n="' + n + '">' + ic('chat', 16) + '</span>' : '';
+  }
+  if ((role === 'student' || role === 'rodic') && key === 'oznameni') {
+    const n = annUnreadCount(user);
+    return n ? '<span class="nav-n badge-dot" data-n="' + n + '">' + ic('bell', 16) + '</span>' : '';
   }
   return '';
 }
@@ -203,6 +219,7 @@ function shellHTML(user, activeKey) {
     '<header class="topbar">' +
       '<span class="brand"><span class="logo">' + ic('home', 15) + '</span>Luky<small>School</small></span>' +
       '<div class="user-pill">' + bell +
+        '<button class="icon-btn" data-act="ch-pass" title="Změnit heslo">' + ic('lock', 17) + '</button>' +
         '<button class="icon-btn" data-act="theme" title="Přepnout tmavý / světlý režim">' + ic(document.documentElement.getAttribute('data-theme') === 'light' ? 'moon' : 'sun', 17) + '</button>' +
         '<div class="user-meta"><b>' + escapeHtml(user.name) + '</b><span>' + escapeHtml(user.note || ROLES_CS[role]) + '</span></div>' +
         '<span class="ava" style="background:linear-gradient(135deg,#3B82F6,' + (role === 'rodic' ? '#10B981' : role === 'ucitel' ? '#8B5CF6' : '#F59E0B') + ')">' + escapeHtml(user.name.charAt(0)) + '</span>' +
@@ -262,6 +279,7 @@ function route() {
 /* ---------- přihlášení ---------- */
 function renderLogin() {
   const app = document.getElementById('app');
+  const remHtml = rememberedLoginHtml();
   app.innerHTML =
     '<div class="login-wrap"><div class="login-card card">' +
       '<div class="login-brand"><span class="brand"><span class="logo" style="width:44px;height:44px;border-radius:13px;font-size:22px">' + ic('home', 20) + '</span><span style="font-size:26px">Luky<small style="color:var(--accent)">School</small></span></span></div>' +
@@ -270,8 +288,11 @@ function renderLogin() {
       '<form data-form="login">' +
         '<div class="field"><label>Uživatelské jméno</label><input name="user" autocomplete="username" placeholder="admin" required></div>' +
         '<div class="field"><label>Heslo</label><input name="pass" type="password" autocomplete="current-password" placeholder="••••••••" required></div>' +
+        '<label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;margin:10px 0 2px"><input type="checkbox" name="remember" style="width:16px;height:16px;accent-color:var(--accent)"> Zapamatovat si účet (rychlé přihlášení)</label>' +
         '<button class="btn btn-primary" style="width:100%;margin-top:6px">' + ic('arrowR', 16) + ' Přihlásit se</button>' +
       '</form>' +
+      '<button type="button" class="btn btn-ghost btn-sm" style="width:100%;margin-top:10px" data-act="forgot-pass">' + ic('zap', 15) + ' Zapomněl jsem heslo</button>' +
+      (remHtml ? remHtml : '') +
       '<div class="demo-logins"><b>Přihlášení správce školy</b>' +
         '<button type="button" class="demo-btn" data-act="demo-login:admin"><span class="who">' + ic('users', 18) + '<span>Ředitel – Správa školy<small>vytváří učitele, třídy a žáky</small></span></span><span class="go">→</span></button>' +
       '</div>' +
@@ -287,9 +308,64 @@ function tryLogin(user, pass) {
   route();
   return true;
 }
+/* ---------- zapamatované účty (rychlé přihlášení pro rodiče a žáky) ---------- */
+const REM_KEY = 'lukySchool.remembered';
+function rememberedAccounts() {
+  try { const a = JSON.parse(localStorage.getItem(REM_KEY)); return Array.isArray(a) ? a : []; } catch (e) { return []; }
+}
+function saveRemembered(list) { try { localStorage.setItem(REM_KEY, JSON.stringify(list)); } catch (e) { /* noop */ } }
+function rememberAccount(username) {
+  const list = rememberedAccounts().filter(x => x.username !== username);
+  list.unshift({ username });
+  saveRemembered(list.slice(0, 8));
+}
+function forgetAccount(username) { saveRemembered(rememberedAccounts().filter(x => x.username !== username)); }
+function rememberedLoginHtml() {
+  const list = rememberedAccounts();
+  if (!list.length) return '';
+  const rows = list.map(a => {
+    const u = (db.users || []).find(x => x.username === a.username);
+    if (!u) return '';
+    const roleCz = u.role === 'rodic' ? 'Rodič' : u.role === 'student' ? 'Žák' : (u.isAdmin ? 'Ředitel' : 'Učitel');
+    const grad = { rodic: '#10B981', student: '#F59E0B', ucitel: '#8B5CF6' }[u.role] || '#64748B';
+    return '<div class="demo-btn" role="button" style="display:flex;align-items:center;gap:10px;cursor:pointer" data-act="quick-login:' + a.username + '">' +
+      '<span class="ava" style="background:linear-gradient(135deg,#3B82F6,' + grad + ')">' + escapeHtml((u.name || a.username).charAt(0)) + '</span>' +
+      '<span class="who" style="flex:1"><span>' + escapeHtml(u.name || a.username) + '<small>' + roleCz + ' · ' + escapeHtml(a.username) + '</small></span></span>' +
+      '<span data-stop><button type="button" class="icon-btn sm" style="color:var(--bad)" data-act="rm-acc:' + a.username + '" title="Odstranit ze seznamu">' + ic('x', 15) + '</button></span>' +
+      '</div>';
+  }).join('');
+  return '<div class="demo-logins" style="margin-top:12px"><b>Vaše účty</b>' + rows + '</div>';
+}
 onAct('form:login', f => {
   const fd = new FormData(f);
-  tryLogin(String(fd.get('user')).trim(), String(fd.get('pass')));
+  const ok = tryLogin(String(fd.get('user')).trim(), String(fd.get('pass')));
+  if (!ok) return;
+  const u = currentUser();
+  if (u && (u.role === 'student' || u.role === 'rodic') && fd.get('remember')) rememberAccount(u.username);
+});
+onAct('quick-login:', el => {
+  const username = el.getAttribute('data-act').slice(12);
+  const u = (db.users || []).find(x => x.username === username);
+  if (!u) { forgetAccount(username); route(); toast('Účet už neexistuje – odebrán ze seznamu', 'bad'); return; }
+  saveSession({ user: u.username });
+  location.hash = '#/' + u.role + '/' + defKeyFor(u);
+  route();
+  toast('Přihlášeno jako ' + escapeHtml(u.name), 'ok');
+});
+onAct('rm-acc:', el => {
+  const username = el.getAttribute('data-act').slice(7);
+  const u = (db.users || []).find(x => x.username === username);
+  openModal(
+    '<h3>Odstranit účet ze seznamu?</h3>' +
+    '<p class="small-note" style="margin-bottom:14px">Jste si jistý/á? Účet <b>' + escapeHtml((u ? u.name : username) + ' (' + username + ')') + '</b> se už nebude nabízet k rychlému přihlášení.</p>' +
+    '<div style="display:flex;gap:10px"><button class="btn btn-bad" data-act="rm-acc-ok:' + username + '">' + ic('x', 14) + ' Ano, odstranit</button>' +
+    '<button class="btn btn-ghost" data-act="close-modal">Zrušit</button></div>');
+});
+onAct('rm-acc-ok:', el => {
+  forgetAccount(el.getAttribute('data-act').slice(10));
+  closeModal();
+  route();
+  toast('Účet odebrán ze seznamu', 'bad');
 });
 onAct('logout', () => { logout(); location.hash = ''; renderLogin(); toast('Byl jste odhlášen'); });
 function dockToggle(open) {
@@ -308,6 +384,65 @@ function demoLogin(username) {
   }
 }
 onAct('demo-login:', el => demoLogin(el.getAttribute('data-act').slice(11)));
+
+/* ---------- hesla: změna vlastního + zapomenuté heslo ---------- */
+function passErr(p) {
+  if (!p || p.length < 8) return 'Heslo musí mít alespoň 8 znaků.';
+  if (!/[0-9]/.test(p)) return 'Heslo musí obsahovat alespoň 1 číslici.';
+  return null;
+}
+function passFieldsHtml(hidden) {
+  return (hidden || '') +
+    '<div class="field"><label>Nové heslo</label><input name="new1" autocomplete="new-password" required placeholder="min. 8 znaků a alespoň 1 číslice"></div>' +
+    '<div class="field"><label>Potvrzení hesla</label><input name="new2" autocomplete="new-password" required placeholder="stejné heslo znovu"></div>';
+}
+function applyPassError(p1, p2) {
+  const err = passErr(p1);
+  if (err) { toast(err, 'bad'); return true; }
+  if (p1 !== p2) { toast('Hesla se neshodují', 'bad'); return true; }
+  return false;
+}
+onAct('ch-pass', () => {
+  const u = currentUser();
+  if (!u) return;
+  openModal(
+    '<h3>Změnit heslo</h3>' +
+    '<p class="small-note" style="margin-bottom:12px">Podmínky: alespoň 8 znaků a minimálně 1 číslice. Přihlašovací jméno se měnit nedá.</p>' +
+    '<form data-form="pass-change">' + passFieldsHtml('') +
+      '<button class="btn btn-primary">Uložit nové heslo</button>' +
+    '</form>');
+});
+onAct('form:pass-change', f => {
+  const fd = new FormData(f);
+  const u = currentUser();
+  if (!u) return;
+  if (applyPassError(String(fd.get('new1') || ''), String(fd.get('new2') || ''))) return;
+  u.pass = String(fd.get('new1'));
+  saveDB();
+  closeModal();
+  toast('Heslo změněno ✓', 'ok');
+});
+onAct('forgot-pass', () => {
+  openModal(
+    '<h3>Zapomněli jste heslo?</h3>' +
+    '<p class="small-note" style="margin-bottom:12px">Zadejte své přihlašovací jméno. Správci přijde žádost a po obnovení vám nové heslo předá třídní učitel.</p>' +
+    '<form data-form="forgot-send">' +
+      '<div class="field"><label>Přihlašovací jméno</label><input name="login" required autocomplete="username" placeholder="např. hana.dostupilova" style="font-family:monospace"></div>' +
+      '<button class="btn btn-primary">' + ic('arrowR', 15) + ' Odeslat žádost</button>' +
+    '</form>');
+});
+onAct('form:forgot-send', f => {
+  const login = String(new FormData(f).get('login') || '').trim();
+  if (!login) { toast('Zadejte přihlašovací jméno', 'bad'); return; }
+  db.resetReq = db.resetReq || [];
+  if (db.resetReq.some(r => r.status === 'ceka' && r.login.toLowerCase() === login.toLowerCase())) {
+    toast('Žádost pro tento účet už čeká na vyřízení', 'bad'); return;
+  }
+  db.resetReq.push({ id: uid(), login, status: 'ceka', ts: nowISO() });
+  saveDB();
+  closeModal();
+  toast('Žádost odeslána správci ✓ – nové heslo vám předá třídní učitel', 'ok');
+});
 
 /* ---------- téma ---------- */
 function themeInit() {

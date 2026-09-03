@@ -15,10 +15,12 @@ function spravaHome() {
   const cls = db.classes || [];
   const teachers = db.users.filter(x => x.role === 'ucitel');
   const students = db.students || [];
+  const pendingResets = (db.resetReq || []).filter(r => r.status === 'ceka').length;
   const tabs = [
     { k: 'classes', label: 'Třídy (' + cls.length + ')' },
     { k: 'teachers', label: 'Učitelé (' + teachers.length + ')' },
     { k: 'students', label: 'Žáci (' + students.length + ')' },
+    { k: 'resets', label: 'Žádosti o reset' + (pendingResets ? ' (' + pendingResets + ')' : '') },
     { k: 'data', label: 'Data a release' }
   ];
   return '' +
@@ -33,7 +35,7 @@ function spravaHome() {
     '<div class="tabs">' + tabs.map(t =>
       '<button class="tab' + (SP_TAB === t.k ? ' active' : '') + '" data-act="sp-tab:' + t.k + '">' + t.label + '</button>').join('') +
     '</div>' +
-    (SP_TAB === 'classes' ? spClasses() : SP_TAB === 'teachers' ? spTeachers() : SP_TAB === 'students' ? spStudents() : spData());
+    (SP_TAB === 'classes' ? spClasses() : SP_TAB === 'teachers' ? spTeachers() : SP_TAB === 'students' ? spStudents() : SP_TAB === 'resets' ? spResets() : spData());
 }
 onAct('sp-tab:', el => { SP_TAB = el.getAttribute('data-act').slice(7); localStorage.setItem('sprava_tab', SP_TAB); route(); });
 
@@ -402,6 +404,103 @@ onAct('sp-wipe-ok', () => {
   location.hash = '#/ucitel/sprava';
   route();
   toast('Škola vyčištěna – začněte přidáním třídy', 'ok');
+});
+
+/* ---------- ŽÁDOSTI O RESET HESLA ---------- */
+function spResets() {
+  const reqs = (db.resetReq || []).slice()
+    .sort((a, b) => (a.status === b.status ? (a.ts < b.ts ? 1 : -1) : (a.status === 'ceka' ? -1 : 1)));
+  return '<div class="page-head"><div><h1>Žádosti o reset hesla</h1>' +
+    '<div class="sub">Klikněte na žádost – ověřte, že účet existuje, a resetujte heslo. Nové heslo pak předá třídní učitel.</div></div></div>' +
+    (reqs.length
+      ? '<div class="list">' + reqs.map(r => {
+          const acc = accByLogin(r.login);
+          return '<div class="list-row">' +
+            '<span class="chip ' + (r.status === 'ceka' ? 'chip-accent' : '') + '">' + (r.status === 'ceka' ? 'čeká' : 'vyřízeno') + '</span>' +
+            '<div class="grow"><div class="row-title"><code class="mono">' + escapeHtml(r.login) + '</code>' + (acc ? ' · ' + escapeHtml(acc.name) : '') + '</div>' +
+            '<div class="row-sub">' + tsLabel(r.ts) + (r.status === 'vyrizeno' && r.newPass ? ' · nové heslo: <code class="mono">' + escapeHtml(r.newPass) + '</code>' : '') + '</div></div>' +
+            '<button class="btn btn-soft btn-sm" data-act="sp-req-open:' + r.id + '">' + ic(r.status === 'ceka' ? 'zap' : 'eye', 14) + ' ' + (r.status === 'ceka' ? 'Vyřídit' : 'Detail') + '</button>' +
+            '</div>';
+        }).join('') + '</div>'
+      : '<div class="empty"><b>Žádné žádosti</b>Když někdo na přihlašování klikne na „Zapomněl jsem heslo“, objeví se žádost tady.</div>');
+}
+function accByLogin(login) {
+  const l = String(login || '').trim().toLowerCase();
+  return (db.users || []).find(u => u.username.toLowerCase() === l) || null;
+}
+function resetWhoText(acc) {
+  if (acc.role === 'student') {
+    const st = studentOf(acc.studentId);
+    return 'Žák ' + (st ? st.first + ' ' + st.last : acc.name);
+  }
+  if (acc.role === 'rodic') {
+    const sid = (acc.children || [])[0];
+    const st = sid ? studentOf(sid) : null;
+    return 'Rodič (' + (st ? st.first + ' ' + st.last : 'dítě?') + ')';
+  }
+  return 'Učitel ' + acc.name;
+}
+function resetTargetTeacher(acc) {
+  if (acc.role === 'student') return classTeacherOf(acc.studentId);
+  if (acc.role === 'rodic') {
+    const sid = (acc.children || [])[0];
+    return sid ? classTeacherOf(sid) : null;
+  }
+  return null;
+}
+onAct('sp-req-open:', el => {
+  const r = (db.resetReq || []).find(x => x.id === el.getAttribute('data-act').slice(12));
+  if (!r) return;
+  const acc = accByLogin(r.login);
+  let body = '<div class="list" style="margin-bottom:14px"><div class="list-row"><span style="min-width:90px;font-weight:800">Login</span><code class="mono grow">' + escapeHtml(r.login) + '</code></div>' +
+    '<div class="list-row"><span style="min-width:90px;font-weight:800">Žádost</span><span class="grow">' + tsLabel(r.ts) + '</span></div></div>';
+  if (acc) {
+    body += '<p class="small-note" style="margin-bottom:14px">Účet <b>' + escapeHtml(acc.username) + '</b> existuje – ' + escapeHtml(resetWhoText(acc)) + '.</p>';
+    if (r.status === 'ceka') {
+      body += '<div style="display:flex;gap:10px;flex-wrap:wrap">' +
+        '<button class="btn btn-primary" data-act="sp-req-reset:' + r.id + '">' + ic('zap', 15) + ' Resetovat heslo (nové vygenerované)</button>' +
+        '<button class="btn btn-ghost" data-act="close-modal">Zrušit</button></div>';
+    } else {
+      body += '<div class="ok-line" style="margin-bottom:14px">' + ic('check', 15) + ' <span>Heslo bylo resetováno' + (r.newPass ? ' na <code class="mono">' + escapeHtml(r.newPass) + '</code>' : '') + (r.teacherId ? ' – zpráva byla odeslána třídnímu učiteli.' : ' – žádný třídní učitel není přiřazen.') + '</span></div>' +
+        '<button class="btn btn-ghost" data-act="sp-req-del:' + r.id + '">Smazat žádost</button>';
+    }
+  } else {
+    body += '<p class="small-note" style="margin-bottom:14px;color:var(--bad)"><b>Účet s loginem „' + escapeHtml(r.login) + '“ neexistuje.</b> Možná byl smazán, nebo je login zapsaný jinak.</p>' +
+      '<button class="btn btn-ghost" data-act="sp-req-del:' + r.id + '">Smazat žádost</button>';
+  }
+  openModal('<h3>Žádost o reset hesla</h3>' + body);
+});
+onAct('sp-req-reset:', el => {
+  const r = (db.resetReq || []).find(x => x.id === el.getAttribute('data-act').slice(13));
+  if (!r) return;
+  const acc = accByLogin(r.login);
+  if (!acc || r.status !== 'ceka') return;
+  const np = genPassword();
+  acc.pass = np;
+  r.status = 'vyrizeno';
+  r.doneTs = nowISO();
+  r.newPass = np;
+  const teacher = resetTargetTeacher(acc);
+  db.resetPass = db.resetPass || [];
+  if (teacher) {
+    db.resetPass.push({ id: uid(), teacherId: teacher.id, login: acc.username, who: resetWhoText(acc), newPass: np, ts: nowISO(), read: false });
+  }
+  r.teacherId = teacher ? teacher.id : null;
+  saveDB();
+  closeModal();
+  showCreds(acc);
+  toast(teacher
+    ? 'Heslo resetováno ✓ – třídní učitel dostal nové heslo k předání'
+    : 'Heslo resetováno ✓ – žádný třídní učitel není přiřazen, nové heslo vidíte výše', 'ok');
+  route();
+});
+onAct('sp-req-del:', el => {
+  const id = el.getAttribute('data-act').slice(11);
+  db.resetReq = (db.resetReq || []).filter(x => x.id !== id);
+  saveDB();
+  closeModal();
+  toast('Žádost smazána', 'bad');
+  route();
 });
 
 registerView('ucitel', 'sprava', spravaHome);

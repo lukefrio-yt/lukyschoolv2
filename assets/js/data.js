@@ -952,6 +952,8 @@ function genPassword() {
   const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
   let p = '';
   for (let i = 0; i < 8; i++) p += chars[Math.floor(Math.random() * chars.length)];
+  /* generovaná hesla taky splňují podmínku „alespoň 1 číslice“ */
+  if (!/[0-9]/.test(p)) p = p.slice(0, 7) + '23456789'[Math.floor(Math.random() * 8)];
   return p;
 }
 function addUserAccount(username, pass, role, extra) {
@@ -966,6 +968,62 @@ function usersLinkedToStudent(sid) {
     (u.role === 'student' && u.studentId === sid) ||
     (u.role === 'rodic' && (u.children || []).includes(sid))
   );
+}
+/* třídní učitel žáka: hlavní třídní, jinak první přiřazený učitel */
+function classTeacherOf(sid) {
+  const st = studentOf(sid);
+  if (!st) return null;
+  const c = classOf(st.cls);
+  if (!c) return null;
+  const ts = db.users.filter(u => u.role === 'ucitel');
+  let t = ts.find(u => u.id === c.mainTeacher) || null;
+  if (!t) t = (c.teacherIds || []).map(id => ts.find(u => u.id === id)).find(Boolean) || null;
+  return t || null;
+}
+/* nepřečtená nová hesla čekající na předání (sekce „Resetování hesel“ učitele) */
+function teacherResetUnread(uid) {
+  return (db.resetPass || []).filter(r => r.teacherId === uid && !r.read).length;
+}
+/* ---------- oznámení učitelů ---------- */
+function annWhoLabel(w) {
+  return ({ both: 'Rodiče i žáci', rodice: 'Pouze rodiče', zaci: 'Pouze žáci' })[w] || '';
+}
+/* oznámení viditelná pro uživatele: učitel vidí oznámení svých tříd,
+   žák/rodič oznámení třídy podle příjemce (who: both/rodice/zaci) */
+function annVisibleFor(user) {
+  if (!user) return [];
+  if (user.role === 'ucitel') {
+    if (user.isAdmin) return (db.ann || []).slice();
+    const mine = myClasses().map(c => c.id);
+    return (db.ann || []).filter(a => mine.includes(a.cls));
+  }
+  if (user.role === 'student' || user.role === 'rodic') {
+    let clsIds = [];
+    if (user.role === 'student') {
+      const s = studentOf(user.studentId);
+      if (s) clsIds = [s.cls];
+    } else {
+      clsIds = (user.children || []).map(id => { const s = studentOf(id); return s ? s.cls : null; }).filter(Boolean);
+    }
+    return (db.ann || []).filter(a => clsIds.includes(a.cls) &&
+      (a.who === 'both' || (user.role === 'student' ? a.who === 'zaci' : a.who === 'rodice')));
+  }
+  return [];
+}
+function annUnreadCount(user) {
+  if (!user) return 0;
+  const read = (db.annRead || {})[user.id] || {};
+  return annVisibleFor(user).filter(a => a.teacherId !== user.id && !read[a.id]).length;
+}
+function annMarkRead(user) {
+  if (!user) return;
+  const vis = annVisibleFor(user);
+  if (!vis.length) return;
+  const read = (db.annRead = db.annRead || {});
+  read[user.id] = read[user.id] || {};
+  let dirty = false;
+  vis.forEach(a => { if (!read[user.id][a.id]) { read[user.id][a.id] = 1; dirty = true; } });
+  if (dirty) saveDB();
 }
 function removeStudentCascade(sid) {
   const st = studentOf(sid);

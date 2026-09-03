@@ -1410,5 +1410,113 @@ registerView('ucitel', 'kniha', tKniha);
 registerView('ucitel', 'zpravy', tZpravy);
 registerView('ucitel', 'omluvenky', tOmluvenky);
 registerView('ucitel', 'rozvrh', tRozvrh);
+/* ---------- RESETOVÁNÍ HESEL (nová hesla k předání žákovi/rodiči) ---------- */
+function tHesla() {
+  const u = currentUser();
+  let dirty = false;
+  const list = (db.resetPass || []).filter(r => r.teacherId === u.id).sort((a, b) => (a.ts < b.ts ? 1 : -1));
+  list.forEach(r => { if (!r.read) { r.read = true; dirty = true; } });
+  if (dirty) saveDB();
+  return '<div class="page-head"><div><h1>Resetování hesel</h1>' +
+    '<div class="sub">Po žádosti o zapomenuté heslo tu najdete nové heslo – předejte ho žákovi / rodiči osobně.</div></div></div>' +
+    (list.length
+      ? '<div class="list">' + list.map(r =>
+          '<div class="list-row">' +
+            '<span class="ava" style="background:linear-gradient(135deg,#F59E0B,#EF4444)">' + ic('zap', 16) + '</span>' +
+            '<div class="grow"><div class="row-title">' + escapeHtml(r.who) + '</div>' +
+              '<div class="row-sub">přihlášení: <code class="mono">' + escapeHtml(r.login) + '</code> · nové heslo: <code class="mono">' + escapeHtml(r.newPass) + '</code></div>' +
+              '<div style="font-size:11px;color:var(--muted)">' + tsLabel(r.ts) + '</div></div>' +
+            '<button class="btn btn-soft btn-sm" data-act="copy:' + escapeHtml(r.newPass) + '">' + ic('check', 13) + ' Kopírovat</button>' +
+            '<button class="icon-btn sm" style="color:var(--bad)" data-act="t-res-hide:' + r.id + '" title="Smazat po předání">' + ic('trash', 15) + '</button>' +
+          '</div>'
+        ).join('') + '</div>'
+      : '<div class="empty"><b>Žádná nová hesla</b>Když správce resetuje zapomenuté heslo žáka nebo rodiče, objeví se nové heslo tady k předání.</div>');
+}
+onAct('t-res-hide:', el => {
+  const id = el.getAttribute('data-act').slice(11);
+  db.resetPass = (db.resetPass || []).filter(r => r.id !== id);
+  saveDB();
+  toast('Smazáno – heslo jste předali', 'bad');
+  route();
+});
+registerView('ucitel', 'prehled', tPrehled);
+registerView('ucitel', 'dochazka', tDochazka);
+registerView('ucitel', 'klasifikace', tKlasifikace);
+registerView('ucitel', 'kniha', tKniha);
+registerView('ucitel', 'zpravy', tZpravy);
+registerView('ucitel', 'omluvenky', tOmluvenky);
+registerView('ucitel', 'rozvrh', tRozvrh);
 registerView('ucitel', 'predmety', tPredmety);
 registerView('ucitel', 'ukoly', tUkoly);
+registerView('ucitel', 'hesla', tHesla);
+
+/* ---------- OZNÁMENÍ (zpráva pro třídu: rodiče / žáci / obojí) ---------- */
+function tOznameni() {
+  const u = currentUser();
+  if (!u) return '';
+  const clsList = myClasses();
+  annMarkRead(u);
+  const list = annVisibleFor(u).slice().sort((a, b) => (a.ts < b.ts ? 1 : -1));
+  const whoOpts = [['both', 'Rodiče i žáci'], ['rodice', 'Pouze rodiče'], ['zaci', 'Pouze žáci']];
+  const compose = clsList.length
+    ? '<div class="card" style="margin-bottom:16px"><div class="card-title">' + ic('send', 15) + ' Nové oznámení</div>' +
+      '<form data-form="ann-new">' +
+        '<div class="field-row">' +
+          '<div class="field"><label>Třída</label><select name="cls">' +
+            clsList.map(c => '<option value="' + c.id + '"' + (c.id === activeClsId() ? ' selected' : '') + '>' + escapeHtml(c.name) + '</option>').join('') +
+          '</select></div>' +
+          '<div class="field"><label>Odeslat</label><select name="who">' +
+            whoOpts.map(o => '<option value="' + o[0] + '"' + (o[0] === 'both' ? ' selected' : '') + '>' + o[1] + '</option>').join('') +
+          '</select></div>' +
+        '</div>' +
+        '<div class="field"><label>Text oznámení</label><textarea name="text" rows="3" required placeholder="např. Ve středu píšeme čtvrtletní písemku z matematiky. Připravte si…"></textarea></div>' +
+        '<button class="btn btn-primary">' + ic('send', 15) + ' Odeslat oznámení</button>' +
+      '</form></div>'
+    : '<div class="card" style="margin-bottom:16px"><div class="empty"><b>Nejste třídním učitelem žádné třídy</b>Oznámení se posílají třídě – nejdřív vám správce přiřadí třídu.</div></div>';
+  return '<div class="page-head"><div><h1>Oznámení</h1>' +
+    '<div class="sub">Pošlete žákům / rodičům třídy zprávu – třeba o písemce nebo třídní schůzce.</div></div></div>' +
+    compose +
+    '<div class="card"><div class="card-title">' + ic('bell', 15) + ' Odeslaná oznámení (' + list.length + ')</div>' +
+    (list.length
+      ? '<div class="list">' + list.map(a => {
+          const teacher = (db.users || []).find(x => x.id === a.teacherId);
+          return '<div class="list-row" style="align-items:flex-start">' +
+            '<span class="chip chip-accent">' + escapeHtml((classOf(a.cls) || {}).name || a.cls) + '</span>' +
+            '<div class="grow">' +
+              '<div class="row-sub">' + escapeHtml((teacher ? teacher.name : 'Učitel') + ' · ' + annWhoLabel(a.who) + ' · ' + tsLabel(a.ts)) + '</div>' +
+              '<div style="white-space:pre-wrap;margin-top:4px">' + escapeHtml(a.text) + '</div>' +
+            '</div>' +
+            (a.teacherId === u.id
+              ? '<button class="icon-btn sm" style="color:var(--bad)" data-act="ann-del:' + a.id + '" title="Smazat oznámení">' + ic('trash', 15) + '</button>'
+              : '') +
+            '</div>';
+        }).join('') + '</div>'
+      : '<div class="empty"><b>Zatím žádná oznámení</b>První oznámení pošlete formulářem nahoře.</div>') +
+    '</div>';
+}
+onAct('form:ann-new', f => {
+  const fd = new FormData(f);
+  const u = currentUser();
+  if (!u || u.role !== 'ucitel') return;
+  const cls = String(fd.get('cls'));
+  const who = String(fd.get('who'));
+  const text = String(fd.get('text') || '').trim();
+  if (!cls || !['both', 'rodice', 'zaci'].includes(who)) { toast('Vyberte třídu a příjemce', 'bad'); return; }
+  if (!text) { toast('Napište text oznámení', 'bad'); return; }
+  db.ann = db.ann || [];
+  db.ann.push({ id: uid(), teacherId: u.id, cls, who, text, ts: nowISO() });
+  saveDB();
+  toast('Oznámení odesláno ✓', 'ok');
+  route();
+});
+onAct('ann-del:', el => {
+  const id = el.getAttribute('data-act').slice(8);
+  const a = (db.ann || []).find(x => x.id === id);
+  const u = currentUser();
+  if (!a || !u || a.teacherId !== u.id) return;
+  db.ann = (db.ann || []).filter(x => x.id !== id);
+  saveDB();
+  toast('Oznámení smazáno', 'bad');
+  route();
+});
+registerView('ucitel', 'oznameni', tOznameni);
