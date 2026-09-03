@@ -230,13 +230,17 @@ function spStudents() {
           const c = classOf(cl);
           return '<div class="card"><div class="card-title">' + ic('home', 16) + ' ' + escapeHtml(c ? c.name : cl) +
             '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:700">' + groups[cl].length + ' žáků</span></div>' +
-            '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Žák</th><th>Přihlašovací jméno</th><th>IVP</th><th style="width:120px"></th></tr></thead><tbody>' +
+            '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Žák</th><th>Přihlašovací jméno</th><th>IVP</th><th style="width:180px"></th></tr></thead><tbody>' +
             groups[cl].map(s => {
               const acc = (db.users || []).find(u => u.role === 'student' && u.studentId === s.id);
+              const par = parentOfStudent(s.id);
               return '<tr><td>' + escapeHtml(s.first + ' ' + s.last) + '</td>' +
-                '<td><code class="mono">' + escapeHtml(acc ? acc.username : '—') + '</code>' + (acc ? ' <button class="btn btn-soft btn-sm" data-act="sp-creds:' + acc.username + '">' + ic('eye', 13) + '</button>' : '') + '</td>' +
+                '<td><code class="mono">' + escapeHtml(acc ? acc.username : '—') + '</code>' + (acc ? ' <button class="btn btn-soft btn-sm" data-act="sp-creds:' + acc.username + '" title="Přihlášení žáka">' + ic('eye', 13) + '</button>' : '') + '</td>' +
                 '<td>' + (s.ivp ? '<span class="chip chip-info">IVP</span>' : '') + '</td>' +
-                '<td style="text-align:right"><button class="icon-btn sm" data-act="sp-stud-del:' + s.id + '" style="color:var(--bad)">' + ic('trash', 15) + '</button></td></tr>';
+                '<td style="text-align:right;white-space:nowrap">' +
+                  '<button class="btn btn-soft btn-sm" data-act="sp-par:' + s.id + '" title="' + (par ? 'Přihlášení rodiče (' + escapeHtml(par.username) + ')' : 'Vytvořit rodičovský účet') + '">' + ic(par ? 'eye' : 'users', 13) + ' <span style="font-size:12px">' + (par ? 'Rodič ✓' : 'Rodič') + '</span></button>' +
+                  ' <button class="icon-btn sm" data-act="sp-stud-del:' + s.id + '" style="color:var(--bad)" title="Smazat žáka">' + ic('trash', 15) + '</button>' +
+                '</td></tr>';
             }).join('') + '</tbody></table></div></div>';
         }).join('')
       : '<div class="empty"><b>Zatím žádní žáci</b>Přidejte žáka – aplikace mu vygeneruje přihlašovací údaje.</div>');
@@ -298,6 +302,57 @@ onAct('sp-stud-del-ok:', el => {
   closeModal();
   toast('Žák smazán', 'bad');
   route();
+});
+
+/* ---------- RODIČOVSKÉ ÚČTY ---------- */
+function parentOfStudent(sid) {
+  return (db.users || []).find(u => u.role === 'rodic' && (u.children || []).includes(sid));
+}
+function parentKidsLabel(u) {
+  return (u.children || []).map(id => {
+    const s = studentOf(id);
+    return s ? escapeHtml(s.first + ' ' + s.last) : '?';
+  }).join(', ');
+}
+onAct('sp-par:', el => {
+  const sid = el.getAttribute('data-act').slice(7);
+  const st = studentOf(sid);
+  if (!st) return;
+  const par = parentOfStudent(sid);
+  if (par) { showCreds(par); return; }
+  const existing = (db.users || []).filter(u => u.role === 'rodic');
+  openModal(
+    '<h3>Rodičovský účet · ' + escapeHtml(st.first + ' ' + st.last) + '</h3>' +
+    '<p class="small-note" style="margin-bottom:12px">Vytvoří se rodičovský účet (přehled známek, omluvenky, zprávy učitelů) – nebo k tomuto žákovi připojte už existující účet rodiče (více dětí = jeden účet).</p>' +
+    '<form data-form="sp-par-create">' +
+      '<input type="hidden" name="sid" value="' + sid + '">' +
+      '<div class="field"><label>Rodičovský účet</label><select name="parent">' +
+        '<option value="">— vytvořit nový účet (přihlášení se vygeneruje) —</option>' +
+        existing.map(u => '<option value="' + u.id + '">' + escapeHtml(u.name) + (u.children && u.children.length ? ' · ' + parentKidsLabel(u) : '') + '</option>').join('') +
+      '</select></div>' +
+      '<button class="btn btn-primary">' + ic('arrowR', 15) + ' Pokračovat</button>' +
+    '</form>');
+});
+onAct('form:sp-par-create', f => {
+  const fd = new FormData(f);
+  const sid = String(fd.get('sid'));
+  const st = studentOf(sid);
+  if (!st) return;
+  const selId = String(fd.get('parent'));
+  let par = null;
+  if (selId) {
+    par = (db.users || []).find(u => u.id === selId && u.role === 'rodic');
+    if (!par) return;
+    if (!(par.children || []).includes(sid)) { (par.children = par.children || []).push(sid); }
+    saveDB(); closeModal(); showCreds(par);
+    toast('Žák připojen k účtu rodiče ✓', 'ok'); route(); return;
+  }
+  const acc = (db.users || []).find(u => u.role === 'student' && u.studentId === sid);
+  par = addUserAccount((acc ? acc.username : genUsername(st.first, st.last)) + '.rodic', genPassword(), 'rodic', {
+    name: 'Rodič · ' + st.first + ' ' + st.last, note: st.cls, isAdmin: false, children: [sid]
+  });
+  saveDB(); closeModal(); showCreds(par);
+  toast('Rodičovský účet vytvořen ✓', 'ok'); route();
 });
 
 /* ---------- přihlašovací údaje ---------- */
