@@ -293,9 +293,6 @@ function renderLogin() {
       '</form>' +
       '<button type="button" class="btn btn-ghost btn-sm" style="width:100%;margin-top:10px" data-act="forgot-pass">' + ic('zap', 15) + ' Zapomněl jsem heslo</button>' +
       (remHtml ? remHtml : '') +
-      '<div class="demo-logins"><b>Přihlášení správce školy</b>' +
-        '<button type="button" class="demo-btn" data-act="demo-login:admin"><span class="who">' + ic('users', 18) + '<span>Ředitel – Správa školy<small>vytváří učitele, třídy a žáky</small></span></span><span class="go">→</span></button>' +
-      '</div>' +
       '<p class="small-note" style="text-align:center;margin-top:14px">Učitelé, žáci a rodiče se přihlásí údaji, které jim správce vygeneroval.</p>' +
     '</div></div>';
 }
@@ -375,15 +372,6 @@ function dockToggle(open) {
   document.body.classList.toggle('dock-open', open);
 }
 onAct('dock-more', () => dockToggle(!document.querySelector('.sidebar').classList.contains('expanded')));
-function demoLogin(username) {
-  const u = db.users.find(x => x.username === username);
-  if (u) {
-    saveSession({ user: u.username });
-    location.hash = '#/' + u.role + '/' + defKeyFor(u);
-    route();
-  }
-}
-onAct('demo-login:', el => demoLogin(el.getAttribute('data-act').slice(11)));
 
 /* ---------- hesla: změna vlastního + zapomenuté heslo ---------- */
 function passErr(p) {
@@ -511,13 +499,6 @@ function boot() {
   themeInit();
   const app = document.getElementById('app');
   if (!app) return;
-  // auto-login z odkazu: app.html?user=admin
-  const params = new URLSearchParams(location.search);
-  const auto = params.get('user');
-  if (auto && db.users.find(u => u.username === auto)) {
-    saveSession({ user: auto });
-    history.replaceState(null, '', 'app.html');
-  }
   if (!location.hash) {
     const u = currentUser();
     location.hash = u ? '#/' + u.role + '/' + defKeyFor(u) : '#/login';
