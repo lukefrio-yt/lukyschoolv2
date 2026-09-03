@@ -29,7 +29,7 @@ function flushScheduled() {
   const due = db.scheduledMsgs.filter(m => new Date(m.sendAt).getTime() <= Date.now());
   if (!due.length) return;
   db.scheduledMsgs = db.scheduledMsgs.filter(m => new Date(m.sendAt).getTime() > Date.now());
-  due.forEach(m => { sendTeacherMsg(m.text, m.who || 'rodic', m.mode); toast('Naplánovaná zpráva byla odeslána ✓', 'ok'); });
+  due.forEach(m => { sendTeacherMsg(m.text, m.who || 'rodic', m.mode, m.subj || ''); toast('Naplánovaná zpráva byla odeslána ✓', 'ok'); });
   saveDB();
 }
 
@@ -74,10 +74,10 @@ function tPrehled() {
             '<div class="row-sub"><span class="chip chip-warn">SUPLOVÁNÍ</span> ' + escapeHtml(p.note || '') + '</div></div><span class="chip">' + (p.period + 1) + '. hod.</span></div>';
         }
         const who = p.teacherId ? teacherLabel(p.teacherId) : '';
-        const rm = p.room ? roomName(p.room) : '';
+        const rmChip = p.room ? roomChip(p.room, 22) : '';
         return '<div class="lesson"><span class="time">' + p.t.s + '<br>' + p.t.e + '</span>' +
           subjBadge(p.subj, 40) + '<div class="grow"><div class="row-title">' + escapeHtml(SUBJECTS[p.subj].name) + '</div>' +
-          '<div class="row-sub">' + escapeHtml([who, rm, p.cls].filter(Boolean).join(' · ') || p.cls) + '</div></div>' +
+          '<div class="row-sub">' + escapeHtml([who, p.cls].filter(Boolean).join(' · ')) + (rmChip ? '<span style="margin:0 0 0 7px">' + rmChip + '</span>' : '') + '</div></div>' +
           '<button class="btn btn-soft btn-sm" data-act="goto:#/ucitel/kniha">' + ic('edit', 14) + ' Zápis</button></div>';
       }).join('') : '<div class="empty">Dnes nemáte výuku</div>') + '</div>' +
     '</div>' +
@@ -169,9 +169,6 @@ function tDochazka() {
     '<div class="stat"><span class="s-ic" style="background:rgba(16,185,129,.14);color:var(--ok)">' + ic('calendar', 20) + '</span><div><b>' + sumMiss + '</b><span>zameškaných hodin</span></div></div>' +
     '<div class="stat"><span class="s-ic" style="background:rgba(239,68,68,.14);color:var(--bad)">' + ic('shield', 20) + '</span><div><b>' + sumN + '</b><span>neomluvených hodin</span></div></div>' +
   '</div>' +
-  (lessons.length === 0
-    ? '<div class="warn-line">' + ic('alert', 15) + ' <span>Zatím není zapsaná žádná hodina. Otevřete <b>Třídní knihu</b>, vyberte datum a hodinu a u každého žáka klepněte na ikonku stavu – tady se pak objeví přehled „zameškáno x / y hodin“.</span></div>'
-    : '') +
   (sts.length
     ? '<div class="card"><div class="card-title">' + ic('calendar', 16) + ' Zameškané hodiny po předmětech' +
         '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">x / y = zameškáno z hodin zapsaných v třídní knize</span></div>' +
@@ -621,6 +618,19 @@ function threadFor(childId, type, parentId) {
   }
   return th;
 }
+/* vlákno podle předmětu (tematická konverzace) – najde otevřené, jinak založí nové */
+function threadForSubject(childId, type, parentId, subject) {
+  const subj = String(subject || '').trim();
+  const pool = Object.values(db.threads || {});
+  let th = pool.find(t => t.childId === childId && (t.recipientType || 'rodic') === type && threadOpen(t)
+    && (type === 'rodic' ? t.parent === parentId : true)
+    && String(t.subject || '').trim().toLowerCase() === subj.toLowerCase());
+  if (!th) {
+    th = { id: uid(), childId, recipientType: type, parent: type === 'rodic' ? parentId : null, teacherId: null, subject: subj, taskId: null, taskTitle: null, status: 'open', createdAt: nowISO(), msgs: [] };
+    db.threads[th.id] = th;
+  }
+  return th;
+}
 function tZpravy() {
   clearTick();
   flushScheduled();
@@ -683,10 +693,11 @@ function tZpravy() {
             ? ['Pochvala za aktivitu', 'Zapomenuté pomůcky', 'Připomenutí úkolu', 'Pozvánka do kroužku']
             : ['Pochvala za aktivitu', 'Upozornění na neprospěch', 'Zapomenuté pomůcky', 'Pozvánka na třídní schůzky']).map(t =>
             '<button class="rcpt-pill" data-act="t-tpl:' + escapeHtml(t) + '" style="font-size:12px">' + escapeHtml(t) + '</button>').join('') + '</div></div>' +
+      '<div class="field"><label>Předmět konverzace <span class="small-note" style="margin:0 0 0 4px">(volitelné – vytvoří samostatnou konverzaci s tímto předmětem)</span></label><input id="tmsg-subj" placeholder="Např. Konzultace, dotaz k písemce…"></div>' +
       '<div class="field"><label>Text zprávy</label><textarea class="ta" id="tmsg-text" rows="4" placeholder="' + (TMSG.who === 'student' ? 'Ahoj, … (žákovi)' : 'Dobrý den, …') + '"></textarea></div>' +
       '<div style="display:flex;gap:10px;flex-wrap:wrap">' +
         '<button class="btn btn-primary" data-act="t-msg-send">' + ic('send', 15) + ' Odeslat nyní' +
-          (TMSG.mode === 'class' ? ' (' + rcps.length + ' příjemců)' : '') + '</button>' +
+          (TMSG.mode === 'class' ? ' (' + rcps.length + (rcps.length === 1 ? ' příjemce' : ' příjemců') + ')' : '') + '</button>' +
         '<button class="btn btn-ghost btn-sm" data-act="t-msg-later">' + ic('clock', 14) + ' Naplánovat na 8:00</button>' +
       '</div>' +
     '</div>' +
@@ -701,15 +712,22 @@ function tZpravy() {
             const whoName = isParent
               ? (db.users.find(x => x.id === t.parent) || {}).name
               : (db.users.find(x2 => x2.role === 'student' && x2.studentId === t.childId) || {}).name;
-            const title = t.subject || (t.taskTitle ? 'Úkol: ' + t.taskTitle : (whoName || studentFull(t.childId)));
+            const kidName = studentFull(t.childId);
+            const title = t.subject || (t.taskTitle ? 'Úkol: ' + t.taskTitle : kidName);
+            /* jméno rodičovského účtu už někdy obsahuje jméno dítěte – neopakovat */
+            const hasKid = !!(whoName && kidName && whoName.toLowerCase().indexOf(kidName.toLowerCase()) >= 0);
+            const subTxt = isParent
+              ? ((whoName ? whoName : 'Rodič') + (t.subject && !hasKid ? ' · ' + kidName : ''))
+              : ((whoName || kidName) + ' (žák)');
             const openBtn = '<button class="list-row" style="flex:1;min-width:0;text-align:left;cursor:pointer;opacity:' + (closed ? 0.62 : 1) + ';border-color:' + (curThread && t.id === curThread.id ? 'var(--accent)' : '') + '" data-act="t-msg-open:' + t.id + '">' +
-              '<span class="ava" style="width:34px;height:34px;font-size:13px;flex:0 0 auto">' + escapeHtml((whoName || '?').charAt(0)) + '</span>' +
-              '<div class="grow" style="min-width:0"><div class="row-title" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(title) +
-                (un ? ' <span class="chip chip-bad" style="padding:0 6px;font-size:9.5px">' + un + ' nové</span>' : '') + '</div>' +
-              '<div class="row-sub" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (last ? escapeHtml(last.text) : (closed ? 'konverzace uzavřena' : 'zatím prázdné')) + '</div></div>' +
-              (t.taskId ? '<span class="chip chip-warn" style="padding:0 7px;font-size:10px;flex:0 0 auto">úkol</span>' : '') +
-              '<span class="chip ' + (isParent ? 'chip-accent' : 'chip-ok') + '" style="padding:0 8px;font-size:10px;flex:0 0 auto">' + (isParent ? 'rodič' : 'žák') + '</span>' +
-              '<div style="font-size:10.5px;color:var(--muted);white-space:nowrap;flex:0 0 auto">' + (last ? tsLabel(last.ts) : '') + '</div></button>';
+              '<span class="ava" style="width:34px;height:34px;font-size:13px;flex:0 0 auto">' + escapeHtml(((whoName || kidName || '?').charAt(0))) + '</span>' +
+              '<div class="grow" style="min-width:0">' +
+                '<div class="row-title" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(title) +
+                  (closed ? ' <span class="chip chip-bad" style="padding:0 6px;font-size:9.5px">uzavřeno</span>' : '') + '</div>' +
+                '<div class="row-sub" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(subTxt) + (t.taskId ? ' · <span style="color:var(--warn)">úkol</span>' : '') + '</div>' +
+              '</div>' +
+              '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex:0 0 auto">' + unreadDot(un) +
+                '<div style="font-size:10.5px;color:var(--muted);white-space:nowrap">' + (last ? tsLabel(last.ts) : '') + '</div></div></button>';
             return '<div style="display:flex;gap:6px;align-items:center">' + openBtn +
               '<button class="icon-btn sm" data-act="t-msg-close:' + t.id + '" title="' + (closed ? 'Znovu otevřít konverzaci' : 'Uzavřít konverzaci (křížek)') + '" style="color:' + (closed ? 'var(--ok)' : 'var(--bad)') + ';flex:0 0 auto">' + ic('x', 15) + '</button></div>';
           }).join('') + '</div>'
@@ -787,15 +805,17 @@ onAct('t-tpl:', el => {
   ta.value = texts[tpl] || tpl;
   ta.focus();
 });
-function sendTeacherMsg(text, who, mode) {
+function sendTeacherMsg(text, who, mode, subject) {
   const u = currentUser();
   const cid = activeClsId();
   let targets = [];
   const whoAll = who === 'vse' ? ['rodic', 'student'] : [who];
   if (mode === 'one') {
-    const th = Object.values(db.threads || {}).find(t => t.id === TMSG.thread);
+    let th = Object.values(db.threads || {}).find(t => t.id === TMSG.thread);
     if (!th) { toast('Nejdřív vyberte příjemce', 'warn'); return; }
-    if (!threadOpen(th)) { toast('Tato konverzace je uzavřená – vyberte jinou nebo otevřete křížkem', 'warn'); return; }
+    const subj = String(subject || '').trim();
+    if (subj) th = threadForSubject(th.childId, th.recipientType || 'rodic', th.recipientType === 'rodic' ? th.parent : null, subj);
+    if (!threadOpen(th)) { toast('Tato konverzace je uzavřená – napište jiný předmět nebo ji otevřete křížkem', 'warn'); return; }
     const st = studentOf(th.childId);
     const recipUser = th.recipientType === 'student'
       ? (db.users || []).find(x2 => x2.role === 'student' && x2.studentId === th.childId)
@@ -804,7 +824,8 @@ function sendTeacherMsg(text, who, mode) {
   } else {
     whoAll.forEach(type => {
       msgRecipients(cid, type).forEach(r => {
-        const th = threadFor(r.childId, r.type, r.type === 'rodic' ? r.userId : null);
+        const subj = String(subject || '').trim();
+        const th = subj ? threadForSubject(r.childId, r.type, r.type === 'rodic' ? r.userId : null, subj) : threadFor(r.childId, r.type, r.type === 'rodic' ? r.userId : null);
         targets.push({ th, recipUser: db.users.find(x => x.id === r.userId), st: studentOf(r.childId) });
       });
     });
@@ -822,7 +843,8 @@ function sendTeacherMsg(text, who, mode) {
 onAct('t-msg-send', () => {
   const ta = document.getElementById('tmsg-text');
   if (!ta || !ta.value.trim()) { toast('Napište text zprávy', 'warn'); return; }
-  sendTeacherMsg(ta.value.trim(), TMSG.who, TMSG.mode);
+  const sub = document.getElementById('tmsg-subj');
+  sendTeacherMsg(ta.value.trim(), TMSG.who, TMSG.mode, sub ? sub.value : '');
   route();
 });
 onAct('t-msg-later', () => {
@@ -830,7 +852,8 @@ onAct('t-msg-later', () => {
   if (!ta || !ta.value.trim()) { toast('Napište text zprávy', 'warn'); return; }
   const t = new Date(); t.setDate(t.getDate() + 1); t.setHours(8, 0, 0, 0);
   db.scheduledMsgs = db.scheduledMsgs || [];
-  db.scheduledMsgs.push({ id: uid(), text: ta.value.trim(), who: TMSG.who, mode: TMSG.mode, sendAt: t.toISOString() });
+  const sub = document.getElementById('tmsg-subj');
+  db.scheduledMsgs.push({ id: uid(), text: ta.value.trim(), who: TMSG.who, mode: TMSG.mode, subj: sub ? sub.value : '', sendAt: t.toISOString() });
   saveDB();
   ta.value = '';
   toast('Naplánováno na zítra 8:00 ✓', 'ok');
@@ -967,8 +990,8 @@ function rzDenHtml(cid) {
   '<div class="card"><div class="card-title">' + ic('clock', 16) + ' ' + (isToday ? 'Dnes' : fmtDateLong(sel)) + ' – ' + escapeHtml(cls.name) + '</div>' +
     '<div class="day-grid">' + (lessons.length ? lessons.map(p => {
       const who = p.teacherId ? teacherLabel(p.teacherId) : '';
-      const rm = p.room ? roomName(p.room) : '';
-      const meta = [who, rm, p.cls].filter(Boolean).join(' · ');
+      const rmChip = p.room ? roomChip(p.room, 22) : '';
+      const meta = [who, p.cls].filter(Boolean).join(' · ');
       if (p.type === 'supl') {
         return '<div class="lesson sub"><span class="time">' + p.t.s + '<br>' + p.t.e + '</span>' + subjBadge(p.subj, 40) +
           '<div class="grow"><div class="row-title">SUPLOVÁNÍ · ' + escapeHtml(SUBJECTS[p.subj].name) + '</div>' +
@@ -976,7 +999,7 @@ function rzDenHtml(cid) {
       }
       return '<div class="lesson"><span class="time">' + p.t.s + '<br>' + p.t.e + '</span>' + subjBadge(p.subj, 40) +
         '<div class="grow"><div class="row-title">' + escapeHtml(SUBJECTS[p.subj].name) + '</div>' +
-        '<div class="row-sub">' + escapeHtml(meta || p.cls) + '</div></div>' +
+        '<div class="row-sub">' + escapeHtml(meta || p.cls) + (rmChip ? '<span style="margin:0 0 0 7px">' + rmChip + '</span>' : '') + '</div></div>' +
         '<button class="btn btn-soft btn-sm" data-act="goto:#/ucitel/kniha">' + ic('edit', 14) + ' Zápis</button></div>';
     }).join('') : '<div class="empty"><b>Rozvrh zatím není nastaven</b>Vyplňte ho v záložce „Nastavit rozvrh“.</div>') + '</div>' +
   '</div>';
@@ -988,7 +1011,7 @@ function rzEditorHtml(cid) {
   const teachers = db.users.filter(u => u.role === 'ucitel');
   const subjectOpts = ['<option value="">— předmět —</option>'].concat(SUBJ_KEYS.map(s => '<option value="' + s + '">' + SUBJECTS[s].name + '</option>')).join('');
   const teacherOpts = ['<option value="">— kdo učí —</option>'].concat(teachers.map(u => '<option value="' + u.id + '">' + escapeHtml(u.name) + '</option>')).join('');
-  const roomOpts = ['<option value="">— učebna —</option>'].concat(rooms.map(r => '<option value="' + r.id + '">' + escapeHtml(r.name) + '</option>')).join('');
+  const roomOpts = ['<option value="">— učebna —</option>'].concat(rooms.map(r => '<option value="' + r.id + '">' + escapeHtml((r.short || genRoomShort(r.name, rooms) || r.name)) + ' · ' + escapeHtml(r.name) + '</option>')).join('');
   const cells = [1, 2, 3, 4, 5].map(d => sc.days[d]);
   return '<div class="card">' +
     '<div class="card-title">' + ic('calendar', 16) + ' Týdenní rozvrh – ' + escapeHtml(cls.name) + '</div>' +
@@ -1028,14 +1051,7 @@ function rzEditorHtml(cid) {
     '</div>' +
     '<div class="small-note" style="margin-top:10px">Předmět „—“ = v tuto hodinu se nic nevyučuje (bude se zobrazovat jako volno).</div>' +
   '</div>' +
-  '<div class="card" style="margin-top:16px"><div class="card-title">' + ic('home', 16) + ' Učebny školy</div>' +
-    '<div class="rcpt-row">' + (rooms.length ? rooms.map(r =>
-      '<span class="rcpt-pill" style="cursor:default">' + escapeHtml(r.name) +
-      '<button class="icon-btn sm" data-act="rt-room-del:' + r.id + '" style="margin-left:4px;color:var(--bad)">' + ic('x', 12) + '</button></span>').join('') : '<span class="chip">zatím žádné</span>') + '</div>' +
-    '<form data-form="rt-room-add" style="display:flex;gap:8px;margin-top:10px;max-width:420px">' +
-      '<input class="txt" name="name" placeholder="Nová učebna, např. Chemická laboratoř" style="flex:1" required>' +
-      '<button class="btn btn-soft btn-sm">' + ic('plus', 14) + ' Přidat</button>' +
-    '</form>' +
+  '<div class="small-note" style="margin-top:14px">' + ic('home', 13) + ' Učebny (názvy, zkratky a barvy) se spravují v sekci <b data-act="goto:#/ucitel/ucebny" style="cursor:pointer;color:var(--accent)">Učebny</b>.</div>'
   '</div>';
 }
 function rzRezHtml() {
@@ -1125,19 +1141,7 @@ onAct('rt-slot-rm', () => {
   if (sc.slots.length <= 1) { toast('Nelze odebrat jedinou hodinu', 'warn'); return; }
   scheduleRemoveSlot(cid); saveDB(); toast('Poslední hodina odebrána'); route();
 });
-onAct('form:rt-room-add', f => {
-  const name = String(new FormData(f).get('name')).trim();
-  if (!name) return;
-  addRoom(name);
-  toast('Učebna „' + escapeHtml(name) + '“ přidána ✓', 'ok');
-  route();
-});
-onAct('rt-room-del:', el => {
-  const id = el.getAttribute('data-act').slice(12);
-  removeRoom(id);
-  toast('Učebna odebrána');
-  route();
-});
+
 onAct('form:t-res', f => {
   const fd = new FormData(f);
   const res = String(fd.get('res')), date = String(fd.get('date')), period = Number(fd.get('period'));
@@ -1295,6 +1299,123 @@ onAct('sub-del-ok:', el => {
   route();
 });
 
+/* ================= UČEBNY (názvy, zkratky pro rozvrh, barvy) ================= */
+function tUcebny() {
+  clearTick();
+  const rooms = roomsList();
+  roomsEnsure();
+  const row = r => {
+    const short = r.short || genRoomShort(r.name, roomsList());
+    const n = roomUsageCount(r.id);
+    return '<div class="list-row">' +
+      '<span class="room-chip" style="background:' + (r.color || ROOM_DEF_COLOR) + ';font-size:13px;height:34px;min-width:34px;padding:0 9px" title="' + escapeHtml(r.name) + '">' + escapeHtml(short) + '</span>' +
+      '<div class="grow"><div class="row-title">' + escapeHtml(r.name) + '</div>' +
+      '<div class="row-sub">zkratka v rozvrhu: <code class="mono">' + escapeHtml(short) + '</code> · ' + escapeHtml(r.color || ROOM_DEF_COLOR) + (n ? ' · použita v rozvrhu na ' + n + ' místech' : '') + '</div></div>' +
+      '<div style="display:flex;gap:6px">' +
+        '<button class="btn btn-soft btn-sm" data-act="rm-edit:' + r.id + '">' + ic('edit', 13) + ' Upravit</button>' +
+        '<button class="icon-btn sm" data-act="rm-del:' + r.id + '" title="Smazat učebnu" style="color:var(--bad)">' + ic('trash', 15) + '</button>' +
+      '</div>' +
+    '</div>';
+  };
+  return '<div class="page-head"><div><h1>Učebny</h1>' +
+    '<div class="sub">Učebny školy s krátkou zkratkou – ta se zobrazí v rozvrhu místo celého názvu</div></div></div>' +
+    '<div class="grid grid-2">' +
+      '<div class="card"><div class="card-title">' + ic('plus', 16) + ' Nová učebna (' + rooms.length + ')' +
+        '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">zkratka se ukáže v rozvrhu</span></div>' +
+        '<form data-form="rm-add" style="margin-bottom:14px">' +
+          '<div class="field-row">' +
+            '<div class="field"><label>Název učebny</label><input name="name" placeholder="Např. Tělocvična, Chemická laboratoř…" required></div>' +
+            '<div class="field"><label>Zkratka <span class="small-note" style="margin:0">(prázdné = vygeneruje se)</span></label><input name="short" placeholder="Např. A607, TV…" maxlength="6" style="font-family:monospace;text-transform:uppercase"></div>' +
+          '</div>' +
+          '<div class="field"><label>Barva – vyberte z ' + ROOM_PALETTE.length + '</label>' +
+            '<div style="display:flex;flex-wrap:wrap;gap:7px">' +
+              ROOM_PALETTE.map(c => '<button type="button" class="subj-col' + (c === ROOM_DEF_COLOR ? ' sel' : '') + '" data-color="' + c + '" title="' + c + '" style="background:' + c + '" aria-pressed="' + (c === ROOM_DEF_COLOR ? 'true' : 'false') + '"></button>').join('') +
+            '</div>' +
+            '<input type="hidden" name="color" value="' + ROOM_DEF_COLOR + '"></div>' +
+          '<button class="btn btn-primary">' + ic('plus', 14) + ' Vytvořit učebnu</button>' +
+        '</form>' +
+        (rooms.length
+          ? '<div class="list">' + rooms.map(row).join('') + '</div>'
+          : '<div class="empty"><b>Zatím žádné učebny</b>Přidejte první učebnu – pak ji přiřadíte hodinám v rozvrhu.</div>') +
+      '</div>' +
+      '<div class="card"><div class="card-title">' + ic('clock', 16) + ' Jak to vypadá v rozvrhu' +
+        '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">ukázka</span></div>' +
+        '<div class="small-note" style="margin:0 0 12px">U každé hodiny se zobrazí jen barevná zkratka učebny, kterou tu nastavíte – prázdné políčko znamená hodinu bez učebny.</div>' +
+        '<div class="empty"><b>V rozvrhu se píše zkratka</b>Žák i učitel uvidí u hodiny místo celého názvu barevnou zkratku – celé jméno se ukáže po najetí myší.</div>' +
+      '</div>' +
+    '</div>';
+}
+onAct('form:rm-add', f => {
+  const fd = new FormData(f);
+  const name = String(fd.get('name')).trim();
+  if (!name) { toast('Zadejte název učebny', 'bad'); return; }
+  const shortRaw = String(fd.get('short') || '').trim();
+  const short = shortRaw.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  if (shortRaw && !short) { toast('Zkratka může obsahovat jen písmena a číslice', 'bad'); return; }
+  if (short && roomCodeTaken(short)) { toast('Zkratka „' + escapeHtml(short) + '“ už se používá', 'bad'); return; }
+  addRoom(name, short, String(fd.get('color')) || ROOM_DEF_COLOR);
+  toast('Učebna „' + escapeHtml(name) + '“ vytvořena ✓', 'ok');
+  route();
+});
+/* mřížka barev pro učebny (modál úprav) */
+function roomColorGrid(selColor) {
+  return '<div style="display:flex;flex-wrap:wrap;gap:7px">' +
+    ROOM_PALETTE.map(c => '<button type="button" class="subj-col' + (c === (selColor || ROOM_DEF_COLOR) ? ' sel' : '') + '" data-color="' + c + '" title="' + c + '" style="background:' + c + '" aria-pressed="' + (c === (selColor || ROOM_DEF_COLOR) ? 'true' : 'false') + '"></button>').join('') +
+    '</div>' +
+    '<input type="hidden" name="color" value="' + (selColor || ROOM_DEF_COLOR) + '">';
+}
+onAct('rm-edit:', el => {
+  const rid = el.getAttribute('data-act').slice(8);
+  const r = roomsList().find(x => x.id === rid);
+  if (!r) return;
+  openModal('<h3>Upravit učebnu „' + escapeHtml(r.name) + '“</h3>' +
+    '<form data-form="rm-edit">' +
+      '<input type="hidden" name="id" value="' + escapeHtml(rid) + '">' +
+      '<div class="field"><label>Název</label><input name="name" value="' + escapeHtml(r.name) + '" required></div>' +
+      '<div class="field"><label>Zkratka</label><input name="short" value="' + escapeHtml(r.short || '') + '" maxlength="6" required style="font-family:monospace;text-transform:uppercase">' +
+      '<span class="small-note" style="margin:4px 0 0">Zkratka se zobrazuje v rozvrhu místo celého názvu (např. A607).</span></div>' +
+      '<div class="field"><label>Barva</label>' + roomColorGrid(r.color) + '</div>' +
+      '<button class="btn btn-primary">Uložit změny</button>' +
+    '</form>');
+});
+onAct('form:rm-edit', f => {
+  const fd = new FormData(f);
+  const rid = String(fd.get('id'));
+  const r = roomsList().find(x => x.id === rid);
+  if (!r) return;
+  const name = String(fd.get('name')).trim();
+  const short = String(fd.get('short') || '').trim().replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  const color = String(fd.get('color'));
+  if (!name || !short) { toast('Vyplňte název i zkratku', 'bad'); return; }
+  if (roomsList().some(x => x.id !== rid && (x.short || '').toUpperCase() === short)) { toast('Zkratka „' + escapeHtml(short) + '“ už se používá', 'bad'); return; }
+  r.name = name;
+  r.short = short;
+  if (color) r.color = color;
+  saveDB();
+  closeModal();
+  toast('Učebna upravena ✓', 'ok');
+  route();
+});
+onAct('rm-del:', el => {
+  const rid = el.getAttribute('data-act').slice(7);
+  const r = roomsList().find(x => x.id === rid);
+  if (!r) return;
+  const n = roomUsageCount(rid);
+  openModal('<h3>Smazat učebnu „' + escapeHtml(r.name) + '“?</h3>' +
+    '<p class="small-note" style="margin:0 0 14px">' + (n
+      ? 'Učebna se odebere z rozvrhu na <b>' + n + ' místech</b>. Tuto akci nelze vrátit.'
+      : 'Učebna se zatím nikde nepoužívá.') + '</p>' +
+    '<div style="display:flex;gap:10px"><button class="btn btn-bad" data-act="rm-del-ok:' + rid + '">Smazat</button>' +
+    '<button class="btn btn-ghost" data-act="close-modal">Zrušit</button></div>');
+});
+onAct('rm-del-ok:', el => {
+  const rid = el.getAttribute('data-act').slice(10);
+  removeRoom(rid);
+  closeModal();
+  toast('Učebna smazána', 'bad');
+  route();
+});
+
 /* ================= ÚKOLY (domácí úkoly pro žáky) ================= */
 function tUkoly() {
   clearTick();
@@ -1447,6 +1568,7 @@ registerView('ucitel', 'zpravy', tZpravy);
 registerView('ucitel', 'omluvenky', tOmluvenky);
 registerView('ucitel', 'rozvrh', tRozvrh);
 registerView('ucitel', 'predmety', tPredmety);
+registerView('ucitel', 'ucebny', tUcebny);
 registerView('ucitel', 'ukoly', tUkoly);
 registerView('ucitel', 'hesla', tHesla);
 
