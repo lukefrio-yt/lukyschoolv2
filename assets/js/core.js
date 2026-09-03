@@ -496,6 +496,11 @@ onAct('notif-go:ukoly', () => { closeBell(); gotoHash('#/student/ukoly'); });
 onAct('notif-go:omluvenky', () => { closeBell(); const u = currentUser(); gotoHash('#/' + u.role + '/omluvenky'); });
 onAct('notif-go:prehled', () => { closeBell(); const u = currentUser(); gotoHash('#/' + u.role + '/prehled'); });
 onAct('notif-go:zpravy', () => { closeBell(); const u = currentUser(); gotoHash('#/' + u.role + '/zpravy'); });
+onAct('notif-go:pololetka', () => { closeBell(); const u = currentUser(); gotoHash('#/' + u.role + '/pololetka'); });
+onAct('notif-go:prubezna', () => { closeBell(); const u = currentUser(); gotoHash('#/' + u.role + '/prubezna'); });
+/* ostatní route notifikací (dochazka, rozvrh, oznameni…) řešíme genericky přes existující view */
+onAct('notif-go:dochazka', () => { closeBell(); const u = currentUser(); gotoHash('#/' + u.role + '/dochazka'); });
+onAct('notif-go:oznameni', () => { closeBell(); const u = currentUser(); gotoHash('#/' + u.role + '/oznameni'); });
 function closeBell() {
   const box = document.getElementById('notif-box');
   if (box) box.style.display = 'none';

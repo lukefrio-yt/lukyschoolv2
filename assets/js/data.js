@@ -232,6 +232,13 @@ const TOKEN_VAL = { '1': 1, '1-': 1.5, '2': 2, '2-': 2.5, '3': 3, '3-': 3.5, '4'
 function tokenVal(t) { return Object.prototype.hasOwnProperty.call(TOKEN_VAL, t) ? TOKEN_VAL[t] : null; }
 function tokenShort(t) { return t === '?' ? '?' : t; }
 function tokenCounted(t) { return tokenVal(t) !== null; }
+/* české skloňování počtu: csPlural(n, 'žák','žáci','žáků') */
+function csPlural(n, one, few, many) {
+  const x = Math.abs(Number(n) || 0);
+  if (x === 1) return one;
+  if (x >= 2 && x <= 4) return few;
+  return many;
+}
 function gradeColor(v) {
   const n = (typeof v === 'number' ? v : tokenVal(v));
   if (n === null) return '';
@@ -686,7 +693,7 @@ function semesterColumnGradesOf(sid, subj, sem) {
 /* ---------- pochvaly a výchovná opatření (průběžná klasifikace) ---------- */
 const REC_TYPES = [
   { id: 'pch-tu', label: 'Pochvala třídního učitele', tone: 'ok' },
-  { id: 'pch-red', label: 'Pochvala ředitele školy', tone: 'acc' },
+  { id: 'pch-red', label: 'Pochvala ředitele školy', tone: 'accent' },
   { id: 'nap-tu', label: 'Napomenutí třídního učitele', tone: 'warn' },
   { id: 'du-tu', label: 'Důtka třídního učitele', tone: 'bad' },
   { id: 'du-red', label: 'Důtka ředitele školy', tone: 'bad' }

@@ -53,7 +53,7 @@ function spClasses() {
               '<span class="chip chip-accent" style="font-size:15px;padding:7px 14px">' + escapeHtml(c.name) + '</span>' +
               '<button class="icon-btn sm" data-act="sp-cls-edit:' + c.id + '" title="Upravit">' + ic('edit', 15) + '</button>' +
               '<button class="icon-btn sm" data-act="sp-cls-del:' + c.id + '" title="Smazat třídu" style="color:var(--bad)">' + ic('trash', 15) + '</button>' +
-              '<span style="margin-left:auto;color:var(--muted);font-size:13px;font-weight:700">' + sts.length + ' žáků</span>' +
+              '<span style="margin-left:auto;color:var(--muted);font-size:13px;font-weight:700">' + sts.length + ' ' + csPlural(sts.length, 'žák', 'žáci', 'žáků') + '</span>' +
             '</div>' +
             '<div class="field"><label>Třídní učitel</label><select class="sel" data-chg="sp-cls-main:' + c.id + '">' +
               '<option value="">— žádný —</option>' +
@@ -231,7 +231,7 @@ function spStudents() {
       ? clsNames.map(cl => {
           const c = classOf(cl);
           return '<div class="card"><div class="card-title">' + ic('home', 16) + ' ' + escapeHtml(c ? c.name : cl) +
-            '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:700">' + groups[cl].length + ' žáků</span></div>' +
+            '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:700">' + groups[cl].length + ' ' + csPlural(groups[cl].length, 'žák', 'žáci', 'žáků') + '</span></div>' +
             '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Žák</th><th>Přihlašovací jméno</th><th>IVP</th><th style="width:180px"></th></tr></thead><tbody>' +
             groups[cl].map(s => {
               const acc = (db.users || []).find(u => u.role === 'student' && u.studentId === s.id);
