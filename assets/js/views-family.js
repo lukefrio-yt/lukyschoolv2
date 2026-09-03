@@ -466,7 +466,8 @@ function pPrehled() {
         k.first + ' ' + k.last + '</button>').join('') + '</div>'
     : '') +
   '<div class="grid grid-3">' +
-    '<div class="card"><div class="card-title">' + ic('book', 16) + ' ' + escapeHtml(st.first) + ' – celkový průměr</div>' +
+    '<div class="card"><div class="card-title" style="display:flex;align-items:center;gap:8px">' + ic('book', 16) + ' ' + escapeHtml(st.first) + ' – celkový průměr' +
+      '<button class="btn btn-ghost btn-sm" style="margin-left:auto" data-act="ch-child-pass:' + cid + '" title="Změnit heslo žáka">' + ic('lock', 14) + ' heslo</button></div>' +
       '<span class="avg-big" style="color:' + avgColor(avg) + '">' + avgTxt(avg) + '</span>' +
       '<div style="margin-top:10px"><span class="chip ' + (avg === null ? '' : (avg > 3 ? 'chip-bad' : 'chip-ok')) + '">' + (avg === null ? 'zatím bez známek' : (avg > 3 ? 'potřeba podpořit' : 'vše v pořádku')) + '</span></div>' +
       '<div style="margin-top:16px" class="tbl-wrap"><table class="tbl" style="min-width:0"><tbody>' +
@@ -514,6 +515,30 @@ function pPrehled() {
   '</div>';
 }
 onAct('p-child:', el => { localStorage.setItem('ls_child', el.getAttribute('data-act').slice(8)); route(); });
+onAct('ch-child-pass:', el => {
+  const sid = el.getAttribute('data-act').slice(14);
+  const st = studentOf(sid);
+  if (!st) return;
+  openModal(
+    '<h3>Změnit heslo žáka · ' + escapeHtml(st.first + ' ' + st.last) + '</h3>' +
+    '<p class="small-note" style="margin-bottom:12px">Podmínky: alespoň 8 znaků a minimálně 1 číslice. Přihlašovací jméno se měnit nedá.</p>' +
+    '<form data-form="pass-child">' +
+      '<input type="hidden" name="sid" value="' + sid + '">' +
+      passFieldsHtml('') +
+      '<button class="btn btn-primary">Uložit nové heslo</button>' +
+    '</form>');
+});
+onAct('form:pass-child', f => {
+  const fd = new FormData(f);
+  const sid = String(fd.get('sid'));
+  const acc = (db.users || []).find(u => u.role === 'student' && u.studentId === sid);
+  if (!acc) { toast('Žákovský účet se nenašel', 'bad'); return; }
+  if (applyPassError(String(fd.get('new1') || ''), String(fd.get('new2') || ''))) return;
+  acc.pass = String(fd.get('new1'));
+  saveDB();
+  closeModal();
+  toast('Heslo žáka změněno ✓', 'ok');
+});
 
 /* stav formuláře omluvenky (aby přežil přebarvení při změně data/dítěte) */
 const EXC = { child: null, date: null, selKey: '', note: '' };
@@ -823,16 +848,41 @@ function pDochazka() {
     : '') +
   dochazkaBodyHtml(cid);
 }
+/* ---------- OZNÁMENÍ (zprávy učitelů pro třídu) ---------- */
+function sOznameni() {
+  const u = currentUser();
+  if (!u) return '';
+  annMarkRead(u);
+  const list = annVisibleFor(u).slice().sort((a, b) => (a.ts < b.ts ? 1 : -1));
+  const forWhom = u.role === 'rodic' ? 'vašich dětí' : 'vaši třídu';
+  return '<div class="page-head"><div><h1>Oznámení</h1>' +
+    '<div class="sub">Zprávy učitelů pro ' + forWhom + ' – písemky, akce, změny</div></div></div>' +
+    (list.length
+      ? '<div class="list">' + list.map(a => {
+          const teacher = (db.users || []).find(x => x.id === a.teacherId);
+          return '<div class="list-row" style="align-items:flex-start">' +
+            '<span class="ava" style="background:linear-gradient(135deg,#3B82F6,#8B5CF6)">' + ic('bell', 16) + '</span>' +
+            '<div class="grow">' +
+              '<div class="row-title">' + escapeHtml((teacher ? teacher.name : 'Učitel')) + '</div>' +
+              '<div class="row-sub">' + escapeHtml((classOf(a.cls) || {}).name || a.cls) + ' · ' + annWhoLabel(a.who) + ' · ' + tsLabel(a.ts) + '</div>' +
+              '<div style="white-space:pre-wrap;margin-top:6px">' + escapeHtml(a.text) + '</div>' +
+            '</div>' +
+            '</div>';
+        }).join('') + '</div>'
+      : '<div class="card"><div class="empty"><b>Zatím žádná oznámení</b>Když učitel třídě něco vzkáže (písemka, akce…), objeví se to tady.</div></div>');
+}
 registerView('student', 'prehled', sPrehled);
 registerView('student', 'znamky', sZnamky);
 registerView('student', 'dochazka', sDochazka);
 registerView('student', 'rozvrh', sRozvrh);
 registerView('student', 'ukoly', sUkoly);
 registerView('student', 'zpravy', sZpravy);
+registerView('student', 'oznameni', sOznameni);
 registerView('rodic', 'prehled', pPrehled);
 registerView('rodic', 'dochazka', pDochazka);
 registerView('rodic', 'omluvenky', pOmluvenky);
 registerView('rodic', 'zpravy', pZpravy);
+registerView('rodic', 'oznameni', sOznameni);
 
 function tickLoop() {
   if (document.getElementById('cd-now') || document.querySelector('[data-cd-remain]')) cdTick();
