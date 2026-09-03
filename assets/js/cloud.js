@@ -105,6 +105,8 @@
     suppressPush = true;
     if (pendingTimer) { clearTimeout(pendingTimer); pendingTimer = null; }
     db = parsed;
+    if (typeof roomsEnsure === 'function') roomsEnsure();
+    if (typeof reportsEnsure === 'function') reportsEnsure();
     saveDB();                         /* lokální kopie + timestamp */
     lsSet(TS_KEY, String(cloudTs));   /* baseline = čas z cloudu */
     suppressPush = false;

@@ -325,7 +325,7 @@ function buildSeed() {
   const now = nowISO();
   return {
     v: DB_VERSION,
-    meta: { seededAt: now, schoolYear: '2025/2026' },
+    meta: { seededAt: now, schoolYear: schoolYearLabel() },
     classes: [],
     users: [JSON.parse(JSON.stringify(ADMIN_USER))],
     students: [],
@@ -343,6 +343,7 @@ function buildSeed() {
     absReq: [],
     notifs: [],
     notifsSeen: {},
+    reports: {}, /* pololetní klasifikace: {clsId: {1:{...},2:{...}}} */
     seen: { 'u-admin': null }
   };
 }
@@ -355,6 +356,10 @@ let db = null;
    ředitelský účet admin / admin1234*. Všechno se staví znovu ve Správě.
    Další verze (>= 12) už migrují běžně, bez mazání. */
 function migrateDB(parsed) {
+  /* posun školního roku, pokud data pocházejí z předchozího roku */
+  if (parsed && parsed.meta && parsed.meta.schoolYear && parsed.meta.schoolYear !== schoolYearLabel()) {
+    parsed.meta.schoolYear = schoolYearLabel();
+  }
   if (parsed && parsed.v && parsed.v < DB_VERSION) {
     if (parsed.v < 12) return buildSeed();
     if (parsed.v < 10) {
@@ -400,6 +405,7 @@ function loadDB() {
         dbSubjects(); // zaručí klíč v databázi
         refreshSubjects();
         roomsEnsure(); // starším učebnám doplní zkratku a barvu
+        reportsEnsure(); // starší data bez pololetní klasifikace
         return db;
       }
     }
@@ -408,6 +414,7 @@ function loadDB() {
   saveDB();
   refreshSubjects();
   roomsEnsure();
+  reportsEnsure();
   return db;
 }
 function saveDB() {
@@ -425,10 +432,10 @@ function resetDB() {
 function wipeSchool() {
   db = {
     v: DB_VERSION,
-    meta: { seededAt: nowISO(), schoolYear: '2025/2026' },
+    meta: { seededAt: nowISO(), schoolYear: schoolYearLabel() },
     classes: [], users: [JSON.parse(JSON.stringify(ADMIN_USER))],
     students: [], rooms: JSON.parse(JSON.stringify(DEFAULT_ROOMS)), subjects: {}, schedule: {}, columns: [], tasks: [], classbook: [],
-    threads: {}, excuses: [], subs: [], reservations: [], absReq: [], notifs: [], seen: { 'u-admin': null }
+    threads: {}, excuses: [], subs: [], reservations: [], absReq: [], notifs: [], reports: {}, seen: { 'u-admin': null }
   };
   saveDB();
   refreshSubjects();
@@ -635,6 +642,105 @@ function roomUsageCount(roomId) {
     [1, 2, 3, 4, 5].forEach(d => (sc.days[d] || []).forEach(en => { if (en && en.room === roomId) n++; }));
   });
   return n;
+}
+
+/* ================= POLOLETNÍ KLASIFIKACE (vysvědčení) =================
+   1. pololetí = známky do 31. 1., 2. pololetí = od 1. 2. daného školního roku.
+   db.reports[clsId][sem] = { closed, closedAt, checked:{sid:{subj:grade}} }  */
+function reportsEnsure() {
+  if (!db.reports) db.reports = {};
+}
+/* hranice pololetí dle školního roku, který PRÁVĚ běží (začíná v září).
+   Příklad dnes (září 2026): školní rok 2026/2027, 1. pololetí 9/2026–1/2027. */
+function currentSchoolYear() {
+  const now = new Date();
+  const y = now.getFullYear();
+  return (now.getMonth() + 1 >= 9 ? y : y - 1) + 1; // koncový rok (např. 2027)
+}
+function schoolYearLabel() { return (currentSchoolYear() - 1) + '/' + currentSchoolYear(); }
+function schoolYearBounds() {
+  const y1 = currentSchoolYear();
+  return { s1Start: (y1 - 1) + '-09-01', s1End: y1 + '-01-31', s2Start: y1 + '-02-01', s2End: y1 + '-06-30' };
+}
+function semLabel(sem) { return sem === 1 ? '1. pololetí' : '2. pololetí'; }
+function semDateLabel(sem) { return sem === 1 ? 'leden' : 'červen'; }
+/* známky žáka z předmětu omezené na pololetí (vč. váhy) */
+function semesterGradesOf(sid, subj, sem) {
+  const b = schoolYearBounds();
+  const [a, c] = sem === 1 ? [b.s1Start, b.s1End] : [b.s2Start, b.s2End];
+  return columnsFor(sid)
+    .filter(col => col.subj === subj && col.date && col.date >= a && col.date <= c && col.cells && col.cells[sid] !== undefined && col.cells[sid] !== '' && col.cells[sid] !== '?')
+    .map(col => ({ v: tokenVal(col.cells[sid]), w: col.weight || 1 }))
+    .filter(x => x.v !== null);
+}
+/* průměr za pololetí (započítané známky) – {avg,count} */
+function semesterAvgOf(sid, subj, sem) {
+  const list = semesterGradesOf(sid, subj, sem);
+  const sw = list.reduce((s, g) => s + g.w, 0);
+  const sv = list.reduce((s, g) => s + g.v * g.w, 0);
+  return sw ? { avg: sv / sw, count: list.length } : { avg: null, count: 0 };
+}
+/* navržená známka z průměru dle tabulky pololetí:
+   rozhodne: true = „Rozhoduje učitel“ (1,45–1,55 atd.), známka se nevyplní sama. */
+function gradeFromAvg(a) {
+  if (a === null || a === undefined) return { g: null, decide: false };
+  if (a < 1.45) return { g: 1, decide: false };
+  if (a <= 1.55) return { g: null, decide: true };
+  if (a < 2.45) return { g: 2, decide: false };
+  if (a <= 2.55) return { g: null, decide: true };
+  if (a < 3.45) return { g: 3, decide: false };
+  if (a <= 3.55) return { g: null, decide: true };
+  if (a < 4.45) return { g: 4, decide: false };
+  if (a <= 4.55) return { g: null, decide: true };
+  return { g: 5, decide: false };
+}
+/* report třídy pro pololetí (vytvoří, když chybí) */
+function classReport(clsId, sem) {
+  reportsEnsure();
+  const byCls = db.reports[clsId] || (db.reports[clsId] = {});
+  const r = byCls[sem] || (byCls[sem] = { closed: false, closedAt: null, checked: {} });
+  return r;
+}
+function reportClosed(clsId, sem) { const r = classReport(clsId, sem); return !!r.closed; }
+/* předměty dané třídy (rozvrh + zapsané známky) */
+function classSubjects(clsId) {
+  const set = scheduleSubjectsOf(clsId);
+  (db.columns || []).forEach(c => { if (c.cls === clsId) set.add(c.subj); });
+  return SUBJ_KEYS.filter(k => set.has(k));
+}
+/* předměty, u kterých má žák v pololetí nějaké známky */
+function semesterGradedSubjects(sid, sem) {
+  return classSubjects(studentOf(sid) ? studentOf(sid).cls : null)
+    .filter(sub => semesterGradesOf(sid, sub, sem).length > 0);
+}
+/* zbývající „rozhoduje učitel“ bez vybrané známky */
+function reportPendingCount(clsId, sem) {
+  let n = 0;
+  studentsOfClass(clsId).forEach(st => {
+    const subjList = classSubjects(clsId);
+    subjList.forEach(sub => {
+      const a = semesterAvgOf(st.id, sub, sem);
+      if (!a.avg) return;
+      const g = gradeFromAvg(a.avg);
+      if (g.decide && !(classReport(clsId, sem).checked[st.id] || {})[sub]) n++;
+    });
+  });
+  return n;
+}
+/* navrhované známky celé třídy naplní do checked (bez přepsání ručně zadaných) */
+function reportAutoFill(clsId, sem) {
+  const r = classReport(clsId, sem);
+  studentsOfClass(clsId).forEach(st => {
+    classSubjects(clsId).forEach(sub => {
+      const a = semesterAvgOf(st.id, sub, sem);
+      if (!a.avg) return;
+      const g = gradeFromAvg(a.avg);
+      if (!g.g) return; // hraniční pásmo: rozhodne učitel
+      const m = r.checked[st.id] || (r.checked[st.id] = {});
+      if (m[sub] === undefined || m[sub] === null || m[sub] === '') m[sub] = String(g.g);
+    });
+  });
+  saveDB();
 }
 
 /* ---------- známky ze sloupců ---------- */

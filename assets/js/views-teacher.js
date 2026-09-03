@@ -373,6 +373,139 @@ onAct('t-export', () => {
   toast('CSV export stažen ✓', 'ok');
 });
 
+/* ================= POLOLETNÍ KLASIFIKACE (vysvědčení) =================
+   Učitel třídy spravuje vysvědčení: navrhované známky z průměrů, hraniční
+   pásma („Rozhoduje učitel“) doplní ručně, pak pololetí uzavře a žáci i
+   rodiče výsledek vidí. Znovuotevření = oprava. */
+let KLS = { sem: 1 };
+function tPololetka() {
+  clearTick();
+  if (!myClasses().length) return noClassPrompt();
+  const cid = activeClsId();
+  const cls = classOf(cid);
+  const sem = KLS.sem;
+  const sts = studentsOfClass(cid);
+  const subs = classSubjects(cid);
+  const rep = classReport(cid, sem);
+  const closed = !!rep.closed;
+  const subjTitle = (sub, sid) => {
+    const a = semesterAvgOf(sid, sub, sem);
+    if (!a.avg) return { avg: null, count: 0 };
+    const g = gradeFromAvg(a.avg);
+    return { avg: a.avg, count: a.count, g, decide: g.decide };
+  };
+  const gradeOpts = (sid, sub, cur) => {
+    const t = subjTitle(sub, sid);
+    const isDecide = !!(t.avg !== null && t.decide);
+    const opt = g => '<option value="' + g + '"' + (String(cur) === String(g) ? ' selected' : '') + '>' + g + '</option>';
+    const decided = String(cur || '') !== '';
+    const noClass = !t.avg ? ' style="border-color:rgba(148,163,184,.35)"' : (isDecide && !decided ? ' style="border-color:var(--warn);background:rgba(245,158,11,.08)"' : '');
+    return '<select class="sel g-sel kls-g" data-sid="' + sid + '" data-sub="' + sub + '"' + noClass + ' title="' + (isDecide && !decided ? 'Hraniční průměr – rozhodnete vy' : '') + '">' +
+      '<option value=""' + (!cur ? ' selected' : '') + '>—</option>' +
+      [1, 2, 3, 4, 5].map(opt).join('') + '</select>';
+  };
+  const sumFor = sid => {
+    let sum = 0, n = 0;
+    subs.forEach(sub => {
+      const v = (rep.checked[sid] || {})[sub];
+      const t = subjTitle(sub, sid);
+      if (!t.avg) return;
+      sum += t.avg; n++;
+    });
+    return n ? { avg: sum / n, n } : { avg: null, n: 0 };
+  };
+  const cellVal = (sid, sub) => (rep.checked[sid] || {})[sub] || '';
+  const pending = reportPendingCount(cid, sem);
+  const autoFilled = () => { reportAutoFill(cid, sem); route(); toast('Navržené známky doplněny – hraniční pásma zůstala k vašemu rozhodnutí', 'ok'); };
+  const semTabs = '<div class="tabs"><button class="tab' + (sem === 1 ? ' active' : '') + '" data-act="kls-sem:1">1. pololetí</button>' +
+    '<button class="tab' + (sem === 2 ? ' active' : '') + '" data-act="kls-sem:2">2. pololetí</button></div>';
+  return '' +
+  '<div class="page-head"><div><h1>Pololetní klasifikace</h1>' +
+    '<div class="sub">' + escapeHtml(cls.name) + ' · vysvědčení za ' + semLabel(sem) + (closed ? ' – uzavřeno ' + fmtDate(rep.closedAt) : ' – návrh (žáci a rodiče ho zatím nevidí)') + '</div></div>' +
+    '<div class="page-acts">' +
+      (closed
+        ? '<button class="btn btn-soft btn-sm" data-act="kls-open">' + ic('edit', 15) + ' Znovu otevřít k opravě</button>'
+        : '<button class="btn btn-primary btn-sm" data-act="kls-close">' + ic('check', 15) + ' Konec pololetí – uzavřít</button>') +
+      (!closed ? '<button class="btn btn-ghost btn-sm" data-act="kls-auto">' + ic('zap', 15) + ' Doplnit navržené známky</button>' : '') +
+    '</div></div>' +
+  clsScopePills() + semTabs +
+  (!closed && pending
+    ? '<div class="warn-line" data-cd><span>Zbývá <b>' + pending + '</b> hraničních případů („Rozhoduje učitel“) – označené žlutě doplňte ručně.</span></div>'
+    : '') +
+  (!closed ? '<div class="small-note" style="margin:2px 0 12px">Známky se navrhují z průměru známek daného pololetí. Kde je průměr v hraničním pásmu (1,45–1,55 apod.), vybere finální známku učitel – takové políčko je zvýrazněné žlutě.</div>' : '') +
+  (sts.length && subs.length
+    ? '<div class="card"><div class="tbl-wrap" style="max-height:620px;overflow:auto">' +
+        '<table class="tbl" style="min-width:900px"><thead><tr>' +
+          '<th style="position:sticky;left:0;background:var(--surface);z-index:2;min-width:180px">Žák</th>' +
+          subs.map(s => '<th style="min-width:88px;text-align:center" title="' + escapeHtml(SUBJECTS[s].name) + '">' + subjBadge(s, 24) +
+            '<div style="font-size:10px;color:var(--muted);font-weight:600;margin-top:3px">' + escapeHtml(SUBJECTS[s].name) + '</div></th>').join('') +
+          '<th style="min-width:90px">Průměr</th><th style="min-width:120px">Stav</th></tr></thead><tbody>' +
+          sts.map(st => {
+            const chk = rep.checked[st.id] || {};
+            const sum = sumFor(st.id);
+            const cnt = Object.values(chk).filter(v => v !== '' && v !== null && v !== undefined).length;
+            const subCnt = subs.length;
+            const dec = pending ? 0 : 0;
+            const stSubjCnt = subs.filter(s => semesterAvgOf(st.id, s, sem).avg !== null).length;
+            return '<tr>' +
+              '<td style="position:sticky;left:0;background:var(--surface);z-index:1"><div style="display:flex;align-items:center;gap:8px">' + teacherAva(st, 28) + '<b>' + escapeHtml(st.last + ' ' + st.first) + '</b></div></td>' +
+              subs.map(s => '<td style="text-align:center;vertical-align:middle"><div style="display:inline-flex;flex-direction:column;gap:3px;align-items:center">' +
+                gradeOpts(st.id, s, cellVal(st.id, s)) +
+                '<span style="font-size:10.5px;color:var(--muted)">' + (subjTitle(s, st.id).avg !== null ? 'Ø ' + subjTitle(s, st.id).avg.toFixed(2) : 'bez známek') + '</span></div></td>').join('') +
+              '<td class="num" style="color:' + avgColor(sum.avg) + ';font-weight:900">' + avgTxt(sum.avg) + (sum.n ? '' : '') + '</td>' +
+              '<td>' + (stSubjCnt === 0 ? '<span class="chip">bez známek</span>' : cnt >= stSubjCnt ? '<span class="chip chip-ok">hotovo</span>' : '<span class="chip chip-warn">' + cnt + '/' + stSubjCnt + '</span>') + '</td></tr>';
+          }).join('') + '</tbody></table></div>' +
+        (closed
+          ? '<div class="small-note" style="margin-top:10px">Vysvědčení je uzavřené – žáci a rodiče vidí výsledek. Znovuotevřením se vrátí do návrhu a změny se projeví po novém uzavření.</div>'
+          : '<div class="small-note" style="margin-top:10px">„Ø“ = průměr známek daného pololetí (vážený). Po uzavření uvidí výsledek žák i rodič.</div>') +
+      '</div>'
+    : '<div class="card"><div class="empty">' + (!sts.length ? '<b>Ve třídě zatím nejsou žáci</b>' : '<b>Třída zatím nemá předměty se známkami</b>Zapište nejdřív známky v Známkování (nebo nastavte rozvrh).') + '</div></div>') +
+  '<div class="small-note" style="margin-top:10px">Návrh z průměru: 1,00–1,45 → 1 · 1,45–1,55 rozhoduje učitel · 1,55–2,45 → 2 · 2,45–2,55 rozhoduje učitel · 2,55–3,45 → 3 · 3,45–3,55 rozhoduje učitel · 3,55–4,45 → 4 · 4,45–4,55 rozhoduje učitel · 4,55–5,00 → 5.</div>';
+}
+onAct('kls-sem:', el => { KLS.sem = Number(el.getAttribute('data-act').slice(8)); route(); });
+onAct('kls-auto', () => { reportAutoFill(activeClsId(), KLS.sem); toast('Navržené známky doplněny – hraniční pásma zůstala k vašemu rozhodnutí', 'ok'); route(); });
+/* změna známky v tabulce: uložit a překreslit */
+document.addEventListener('change', e => {
+  const sel = e.target.closest('.kls-g');
+  if (!sel) return;
+  const r = classReport(activeClsId(), KLS.sem);
+  const m = r.checked[sel.dataset.sid] || (r.checked[sel.dataset.sid] = {});
+  m[sel.dataset.sub] = sel.value;
+  saveDB();
+  route();
+});
+onAct('kls-close', () => {
+  const cid = activeClsId();
+  const sem = KLS.sem;
+  const r = classReport(cid, sem);
+  const pending = reportPendingCount(cid, sem);
+  if (pending) {
+    toast('Nejdřív rozhodněte ' + pending + ' hraničních případů (žlutá políčka)', 'bad');
+    return;
+  }
+  r.closed = true;
+  r.closedAt = todayISO();
+  saveDB();
+  (db.users || []).forEach(u => {
+    if (u.role !== 'student' && u.role !== 'rodic') return;
+    const s = u.role === 'student' ? studentOf(u.studentId) : null;
+    const rel = u.role === 'student' ? !!(s && s.cls === cid) : (u.children || []).some(id => { const k = studentOf(id); return k && k.cls === cid; });
+    if (!rel) return;
+    db.notifs.push({ userId: u.id, type: 'grade', text: 'Vysvědčení za ' + semLabel(sem) + ' je připravené k nahlédnutí', ts: nowISO(), route: 'pololetka' });
+  });
+  saveDB();
+  toast('Pololetí uzavřeno – žáci a rodiče vidí vysvědčení ✓', 'ok');
+  route();
+});
+onAct('kls-open', () => {
+  const r = classReport(activeClsId(), KLS.sem);
+  r.closed = false;
+  r.closedAt = null;
+  saveDB();
+  toast('Vysvědčení otevřeno k opravě – žáci ho zase nevidí', 'warn');
+  route();
+});
+
 /* ================= TŘÍDNÍ KNIHA ================= */
 function tKniha() {
   clearTick();
@@ -1569,6 +1702,7 @@ registerView('ucitel', 'omluvenky', tOmluvenky);
 registerView('ucitel', 'rozvrh', tRozvrh);
 registerView('ucitel', 'predmety', tPredmety);
 registerView('ucitel', 'ucebny', tUcebny);
+registerView('ucitel', 'pololetka', tPololetka);
 registerView('ucitel', 'ukoly', tUkoly);
 registerView('ucitel', 'hesla', tHesla);
 
