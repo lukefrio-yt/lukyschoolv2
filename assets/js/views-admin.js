@@ -128,7 +128,7 @@ function confirmDeleteClass(id) {
     '<div style="display:flex;gap:10px"><button class="btn btn-bad" data-act="sp-cls-del-ok:' + id + '">' + ic('trash', 15) + ' Smazat</button>' +
     '<button class="btn btn-ghost" data-act="close-modal">Zrušit</button></div>');
 }
-onAct('sp-cls-del:', el => confirmDeleteClass(el.getAttribute('data-act').slice(12)));
+onAct('sp-cls-del:', el => confirmDeleteClass(el.getAttribute('data-act').slice(11)));
 onAct('sp-cls-del-ok:', el => {
   const id = el.getAttribute('data-act').slice(14);
   studentsOfClass(id).forEach(s => removeStudentCascade(s.id));
