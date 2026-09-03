@@ -965,6 +965,82 @@ function pDochazka() {
     : '') +
   dochazkaBodyHtml(cid);
 }
+
+/* ================= VYSVĚDČENÍ (pololetní klasifikace – žák i rodič) ================= */
+function vysvedceniView() {
+  clearTick();
+  const u = currentUser();
+  if (!u) return '';
+  const isRod = u.role === 'rodic';
+  let sid = null;
+  if (u.role === 'student') sid = u.studentId;
+  else {
+    const kids = parentChildren();
+    if (!kids.length) return '<div class="card"><div class="empty"><b>Nemáte propojené žádné dítě</b>Kontaktujte správce školy.</div></div>';
+    sid = parentCurChild();
+  }
+  const st = studentOf(sid);
+  if (!st) return '';
+  const clsId = st.cls;
+  const cls = classOf(clsId);
+  const sem = 1;
+  const rep = classReport(clsId, sem);
+  const closed = !!rep.closed;
+  const subs = classSubjects(clsId);
+  const syLbl = schoolYearLabel();
+  const metaTxt = '<div class="sub">' + (isRod ? 'Vysvědčení vašeho dítěte' : 'Tvoje vysvědčení') + ' · ' + escapeHtml(cls ? cls.name : clsId) + ' · ' + semLabel(sem) + ' ' + escapeHtml(syLbl) + '</div>';
+  const headTitle = '<h1>Vysvědčení</h1>';
+  /* rozvržení jako oficiální dokument */
+  const doc = '<div style="border:1px solid var(--border);border-radius:14px;background:linear-gradient(180deg,rgba(59,130,246,.05),transparent 60%);padding:22px 24px;max-width:720px">' +
+    '<div style="text-align:center"><div style="font-weight:900;font-size:17px;letter-spacing:.5px">Vysvědčení</div>' +
+    '<div style="font-size:12.5px;color:var(--muted);margin-top:3px">' + semLabel(sem) + ' · školní rok ' + escapeHtml(syLbl) + '</div></div>' +
+    '<div style="display:flex;flex-wrap:wrap;gap:6px 26px;margin:16px 0 4px;font-size:13.5px"><span><b>Žák:</b> ' + escapeHtml(st.first + ' ' + st.last) + '</span>' +
+    '<span><b>Třída:</b> ' + escapeHtml(cls ? cls.name : clsId) + '</span>' +
+    (rep.closedAt ? '<span><b>Vydáno:</b> ' + fmtDate(rep.closedAt) + '</span>' : '') + '</div>' +
+    '<table class="tbl" style="margin-top:10px"><thead><tr><th style="text-align:left">Předmět</th><th style="text-align:center;width:120px">Klasifikace</th><th style="text-align:center;width:110px">Průměr</th></tr></thead><tbody>' +
+    subs.map(sub => {
+      const g = (rep.checked[st.id] || {})[sub];
+      const a = semesterAvgOf(st.id, sub, sem);
+      const dec = a.avg !== null ? gradeFromAvg(a.avg).decide : false;
+      return '<tr><td><div style="display:flex;align-items:center;gap:9px">' + subjBadge(sub, 24) + '<b>' + escapeHtml(SUBJECTS[sub].name) + '</b></div></td>' +
+        '<td style="text-align:center">' + (g
+          ? '<span style="display:inline-grid;place-items:center;width:36px;height:36px;border-radius:10px;background:var(--surface-2);border:1px solid var(--border);font-weight:900;font-size:16px">' + escapeHtml(g) + '</span>'
+          : (a.avg !== null ? '<span class="chip chip-warn">rozhoduje učitel</span>' : '<span class="chip">bez hodnocení</span>')) + '</td>' +
+        '<td style="text-align:center;color:var(--muted);font-weight:700">' + (a.avg !== null ? a.avg.toFixed(2) : '—') + (dec && g ? ' <span class="small-note" style="margin:0">(rozhodl učitel)</span>' : '') + '</td></tr>';
+    }).join('') + '</tbody></table>' +
+    '<div style="margin-top:16px;font-size:13px;color:var(--muted)">' + (subs.length ? 'Výsledný prospěch: <b style="color:var(--text)">' + vysvedceniGradePhrase(sid, sem) + '</b>' : '') + '</div>' +
+    '</div>';
+  const kidsRow = isRod
+    ? (parentChildren().length > 1
+        ? '<div class="rcpt-row">' + parentChildren().map(k =>
+            '<button class="rcpt-pill' + (k.id === sid ? ' active' : '') + '" data-act="p-child:' + k.id + '">' +
+            '<span class="ava" style="width:24px;height:24px;font-size:11px">' + escapeHtml(k.first.charAt(0)) + '</span>' +
+            k.first + ' ' + k.last + '</button>').join('') + '</div>'
+        : '')
+    : '';
+  return '<div class="page-head"><div>' + headTitle + metaTxt + '</div></div>' +
+    kidsRow +
+    (closed
+      ? doc
+      : '<div class="card"><div class="empty"><b>Vysvědčení zatím není připravené</b>Učitel ho vystaví po uzavření pololetí – uvidíte ho tady.</div></div>');
+}
+/* slovní hodnocení celkového prospěchu z pololetních průměrů */
+function vysvedceniGradePhrase(sid, sem) {
+  const st = studentOf(sid);
+  if (!st) return '—';
+  const subs = classSubjects(st.cls);
+  const grades = [];
+  subs.forEach(sub => {
+    const g = (classReport(st.cls, sem).checked[sid] || {})[sub];
+    const n = Number(g);
+    if (g && !isNaN(n)) grades.push(n);
+  });
+  if (!grades.length) return '—';
+  const avg = grades.reduce((s, x) => s + x, 0) / grades.length;
+  if (grades.includes(5)) return 'neprospěl(a)';
+  if (avg <= 1.5 && !grades.some(g => g > 2)) return 'prospěl(a) s vyznamenáním';
+  return 'prospěl(a)';
+}
 /* ---------- OZNÁMENÍ (zprávy učitelů pro třídu) ---------- */
 function sOznameni() {
   const u = currentUser();
@@ -990,12 +1066,14 @@ function sOznameni() {
 }
 registerView('student', 'prehled', sPrehled);
 registerView('student', 'znamky', sZnamky);
+registerView('student', 'pololetka', vysvedceniView);
 registerView('student', 'dochazka', sDochazka);
 registerView('student', 'rozvrh', sRozvrh);
 registerView('student', 'ukoly', sUkoly);
 registerView('student', 'zpravy', sZpravy);
 registerView('student', 'oznameni', sOznameni);
 registerView('rodic', 'prehled', pPrehled);
+registerView('rodic', 'pololetka', vysvedceniView);
 registerView('rodic', 'dochazka', pDochazka);
 registerView('rodic', 'omluvenky', pOmluvenky);
 registerView('rodic', 'zpravy', pZpravy);
