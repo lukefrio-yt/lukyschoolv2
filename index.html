@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="cs" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LukySchool – Známky, úkoly a zprávy. Konečně bez frustrace.</title>
+<meta name="description" content="LukySchool je rychlá a krásná alternativa k Bakalářům. Studenti si spočítají průměr jedním ťuknutím, rodiče pošlou omluvenku za pár vteřin, učitelé zapíšou hodinu během přestávky.">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='26' fill='%233B82F6'/><text x='50' y='68' font-size='52' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'>L</text></svg>">
+<style>
+  .store-body ul { margin: 8px 0 0; padding-left: 18px; }
+</style>
+</head>
+<body class="landing">
+<div class="bgfx"></div>
+<div class="gridfx"></div>
+
+<header class="lnav">
+  <div class="lnav-in">
+    <a class="brand" href="#top">
+      <span class="logo">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10 12 5 2 10l10 5 10-5z"/><path d="M6 12v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5"/></svg>
+      </span>
+      Luky<small>School</small>
+    </a>
+    <nav class="lnav-links">
+      <a href="#pro-studenty">Pro studenty</a>
+      <a href="#pro-rodice">Pro rodiče</a>
+      <a href="#demo">Vyzkoušet demo</a>
+    </nav>
+    <div class="lnav-cta">
+      <button class="btn btn-primary btn-sm" onclick="location.href='app.html'">
+        Otevřít aplikaci
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- ================= HERO ================= -->
+<section class="hero" id="top">
+  <div>
+    <span class="kicker">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.2H22l-6 4.6 2.3 7.2-6.3-4.5L5.7 21 8 13.8l-6-4.6h7.6z"/></svg>
+      Alternativa k Bakalářům
+    </span>
+    <h1>Všechno ze školy.<br><span class="grad">Jedna aplikace.</span><br>Žádná frustrace.</h1>
+    <p class="hero-sub">
+      Pryč se sekajícím se webem, nepřehlednými tabulkami a lovením průměru na kalkulačce.
+      LukySchool je rychlá, přehledná a krásná aplikace, kterou děti milují a rodiče si konečně oddechnou.
+    </p>
+    <div class="hero-cta">
+      <a class="btn btn-primary btn-lg" href="app.html">Vyzkoušet demo zdarma</a>
+      <a class="btn btn-ghost btn-lg" href="#pro-studenty">Pro studenty</a>
+    </div>
+    <div class="hero-note">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m22 4-10 10.01-3-3"/></svg>
+      Tmavý režim · plynulé animace · načte se okamžitě · funguje v mobilu i na počítači
+    </div>
+  </div>
+
+  <div class="mock-wrap">
+    <div class="mock">
+      <div class="mock-screen">
+        <div class="mock-top">
+          <span class="mock-head">Matematika · 1. A</span>
+          <span class="dot"></span>
+        </div>
+        <div class="mock-avg"><b>1,9</b><span>▲ o 0,3</span></div>
+        <div style="font-size:11.5px;color:#64748B;margin-top:2px;">Co kdyby Předvídač počítal s dvojkou?</div>
+        <div class="mock-row">
+          <span class="subj" style="background:#3B82F6;">M</span>
+          <span>Písemka – zlomky</span>
+          <span class="g g-2">2</span>
+        </div>
+        <div class="mock-row">
+          <span class="subj" style="background:#8B5CF6;">ČJ</span>
+          <span style="opacity:.85;text-decoration:line-through;">Sloh – popis</span>
+          <span style="color:#10B981;font-weight:900;">✓</span>
+        </div>
+        <div class="mock-row">
+          <span class="subj" style="background:#F59E0B;">AJ</span>
+          <span>Suplování · Mr. Green</span>
+          <span style="font-size:11px;font-weight:800;color:#FBBF24;">12:41</span>
+        </div>
+      </div>
+    </div>
+    <div class="mock-chip c1"><b>▼ 12:41</b> do konce hodiny</div>
+    <div class="mock-chip c2"><b>✦ Nová známka</b> hned v mobilu</div>
+    <div class="mock-chip c3"><b>Úkol splněn!</b> odškrtnuto ✓</div>
+  </div>
+</section>
+
+<!-- ================= PRO STUDENTY ================= -->
+<section class="sec tone-student" id="pro-studenty">
+  <div class="sec-head student-head">
+    <span class="kicker">👋 Pro tebe</span>
+    <h2>Proč ji budeš milovat ty</h2>
+    <p class="sub">Tvoje známky, tvoje pravidla, tvůj styl. Bez kroužení po starém systému a počítání průměru z hlavy.</p>
+  </div>
+  <div class="feat-grid">
+    <div class="feat-card">
+      <div class="feat-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg></div>
+      <h3>Tmavý režim</h3>
+      <p>Děláš úkoly večer? Tmavý režim šetří oči – a hlavně vypadá prostě skvěle. Světlý i tmavý mód přepneš jedním ťuknutím.</p>
+      <span class="feat-tag">Vypadá to dobře →</span>
+    </div>
+    <div class="feat-card">
+      <div class="feat-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8"/><path d="M9 18h6"/></svg></div>
+      <h3>Předvídač známek</h3>
+      <p>Co by se stalo s průměrem, kdybys dostal dvojku z písemky s váhou 3? Předvídač ti to ukáže dřív, než paní učitelka stihne zatukat do klávesnice.</p>
+      <span class="feat-tag">Překvapení jen tam, kde chceš →</span>
+    </div>
+    <div class="feat-card">
+      <div class="feat-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+      <h3>Chytrý rozvrh</h3>
+      <p>Odpočet do konce hodiny, když už nemůžeš dýchat. Suplování jasně zvýrazněné, ať tě nic nepřekvapí. Vždycky víš, co tě čeká.</p>
+      <span class="feat-tag">Nikdy nic nezmeškáš →</span>
+    </div>
+    <div class="feat-card">
+      <div class="feat-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m22 4-10 10.01-3-3"/></svg></div>
+      <h3>To-do úkolů</h3>
+      <p>Domácí úkoly na jednom místě – a odškrtávání, které prostě baví. Splněno, další, hotovo. Nic už neskončí v zapomenuté aktovce.</p>
+      <span class="feat-tag">Odškrtni a ukaž světu →</span>
+    </div>
+    <div class="feat-card">
+      <div class="feat-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></div>
+      <h3>Notifikace na známku</h3>
+      <p>Nová známka? Víme hned. Pípnutí v mobilu, haptická odezva a ty nemusíš hodinu a půl obnovovat stránku jako v roce 2008.</p>
+      <span class="feat-tag">Buzz. Hotovo. →</span>
+    </div>
+    <div class="feat-card">
+      <div class="feat-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+      <h3>Rychlá a plynulá</h3>
+      <p>Žádné čekání, žádné „systém právě počítá“. Vše se otevře okamžitě a hezky plynule animuje. Aplikace, ne muzeum.</p>
+      <span class="feat-tag">Frrr. A je to →</span>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PRO RODIČE ================= -->
+<section class="sec tone-parent" id="pro-rodice" style="padding-top:40px;">
+  <div class="sec-head parent-head">
+    <span class="kicker">🤝 Pro vás</span>
+    <h2>Proč ji potřebujete vy</h2>
+    <p class="sub">Přehled místo hledání. Klid místo starostí. Všechno důležité o vašich dětech na jednom místě – kdykoli a odkudkoli.</p>
+  </div>
+  <div class="feat-grid">
+    <div class="feat-card">
+      <div class="feat-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg></div>
+      <h3>Okamžitý přehled</h3>
+      <p>Všechny známky a absence na jedné obrazovce – bez složitého přihlašování a bloudění po zastaralém webu. Vidíte pokrok svého dítěte na první pohled.</p>
+      <span class="feat-tag">Rodičovský klid →</span>
+    </div>
+    <div class="feat-card">
+      <div class="feat-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+      <h3>Omluvenka na pár kliknutí</h3>
+      <p>Dítě ráno zvrací? Omluvenku odešlete z mobilu za třicet vteřin, učitel ji schválí jedním ťuknutím. Žádné papírové lístky, žádné dohánění.</p>
+      <span class="feat-tag">30 vteřin a hotovo →</span>
+    </div>
+    <div class="feat-card">
+      <div class="feat-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+      <h3>Komunikace s učiteli</h3>
+      <p>Píšete učiteli jako v chatu – přehledně, rychle, bez zdlouhavých formulářů. Zprávy (Komens v moderním kabátě) dorazí tam i zpátky za pár vteřin.</p>
+      <span class="feat-tag">Konečně přímá linka →</span>
+    </div>
+    <div class="feat-card">
+      <div class="feat-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+      <h3>Více dětí najednou</h3>
+      <p>Máte dva školou povinné? Přepínání mezi účty sourozenců je otázka jednoho ťuknutí. Každé dítě má svůj přehled, vy máte jeden klid.</p>
+      <span class="feat-tag">Jeden účet, obě děti →</span>
+    </div>
+    <div class="feat-card">
+      <div class="feat-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+      <h3>Bezpečnost na prvním místě</h3>
+      <p>Moderní zabezpečení dat. Každý vidí jen to, co vidět má – vy údaje svých dětí, učitel jen svou třídu. Žádné úniky, žádné dohady.</p>
+      <span class="feat-tag">Vaše data, vaše pravidla →</span>
+    </div>
+    <div class="feat-card">
+      <div class="feat-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></div>
+      <h3>Podpora dítěte, ne kontrola</h3>
+      <p>Vidíte známky včas, ne až na vysvědčení. Můžete pomoct dřív, než něco začne hasit. To je rozdíl mezi starostí a jistotou.</p>
+      <span class="feat-tag">Včas vědět = včas pomoct →</span>
+    </div>
+  </div>
+</section>
+
+<!-- reassurance -->
+<div class="band">
+  <div class="band-in">
+    <div class="band-item">
+      <svg class="band-ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 4-10 10.01-3-3"/><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/></svg>
+      <div><b>Bleskově rychlá</b><span>Vše do dvou kliknutí, žádné čekání.</span></div>
+    </div>
+    <div class="band-item">
+      <svg class="band-ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+      <div><b>Konečně krásná</b><span>Tmavý i světlý režim, plynulé animace.</span></div>
+    </div>
+    <div class="band-item">
+      <svg class="band-ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+      <div><b>Jednoduchá pro všechny</b><span>Učitel, žák i prarodič to zvládnou.</span></div>
+    </div>
+    <div class="band-item">
+      <svg class="band-ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.6 7.6a5.5 5.5 0 1 1-7.78 7.78 5.5 5.5 0 0 1 7.78-7.78Zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+      <div><b>Pro všechny role</b><span>Studentský, rodičovský i učitelský účet.</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- demo -->
+<section class="demo" id="demo">
+  <div class="demo-card">
+    <div>
+      <h2>Vyzkoušejte si to rovnou. Žádná registrace.</h2>
+      <p>Do aplikace se přihlásíte jako ředitel (správa školy) a sami si postavíte školu: přidáte třídu, učitele a žáky – každý dostane vlastní přihlašovací údaje. Učitel pak zapisuje známky v tabulce (sloupec = test s vahou a datem), rozvrh i docházku v třídní knize.</p>
+      <div class="demo-acts">
+        <a class="btn btn-primary" href="app.html">Otevřít aplikaci</a>
+        <a class="btn btn-ghost" href="app.html?user=admin">Rychlý start jako ředitel</a>
+      </div>
+      <details class="store">
+        <summary>Popis do App Store / Google Play (kratká verze)</summary>
+        <div class="store-body">
+          <b>LukySchool – škola bez starostí</b>
+          <p style="margin-top:6px;">Rychlá, přehledná a krásná alternativa k Bakalářům. Studenti mají známky, průměr s předvídačem, chytrý rozvrh s odpočtem i to-do úkolů. Rodiče vidí vše na jedné obrazovce, pošlou omluvenku za pár kliknutí a napíšou učiteli jako v chatu. Tmavý režim, okamžité notifikace a moderní zabezpečení dat.</p>
+          <ul>
+            <li>Předvídač průměru – co udělá nová známka s tvým průměrem</li>
+            <li>Chytrý rozvrh se zvýrazněným suplováním a odpočtem</li>
+            <li>Omluvenky a zprávy učitelům na pár kliknutí</li>
+            <li>Tmavý režim, notifikace, více dětí v jednom účtu</li>
+          </ul>
+        </div>
+      </details>
+    </div>
+    <div>
+      <ul class="cred-list">
+        <li><span class="k">Ředitel (správa školy)</span> <code>admin</code> / <code>admin1234*</code></li>
+      </ul>
+      <p class="small-note" style="margin-top:10px;color:var(--muted)">Učitelům, žákům a rodičům vygenerujete přihlášení ve Správě školy – po spuštění změňte heslo ředitele.</p>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="footer-in">
+    <span><b style="color:var(--text)">LukySchool</b> — koncept aplikace pro školy. Ukázková data, žádná skutečná škola.</span>
+    <span>© 2026 · Postaveno jako prototyp</span>
+  </div>
+</footer>
+
+<script>
+  // smooth scroll for anchor links
+  document.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.addEventListener('click', e => {
+      const el = document.querySelector(a.getAttribute('href'));
+      if (el) { e.preventDefault(); el.scrollIntoView({ behavior: 'smooth' }); }
+    });
+  });
+</script>
+</body>
+</html>
