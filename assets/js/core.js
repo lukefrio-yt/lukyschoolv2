@@ -30,6 +30,7 @@ const I = {
   zap: '<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>',
   calc: '<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 19h.01M12 19h.01M16 19h.01"/>',
   list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+  menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
   eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
   lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
   phone: '<rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/>',
@@ -139,6 +140,8 @@ const ROLE_NAV = {
     { key: 'predmety',  icon: 'book', label: 'Předměty' },
     { key: 'ucebny',    icon: 'home', label: 'Učebny' },
     { key: 'ukoly',     icon: 'check', label: 'Úkoly' },
+    { key: 'poznamky',  icon: 'edit', label: 'Poznámky' },
+    { key: 'planakci',  icon: 'flag', label: 'Plán akcí' },
     { key: 'hesla',     icon: 'zap', label: 'Resetování hesel' },
     { key: 'oznameni',  icon: 'bell', label: 'Oznámení' }
   ],
@@ -149,6 +152,7 @@ const ROLE_NAV = {
     { key: 'pololetka', icon: 'check', label: 'Vysvědčení' },
     { key: 'dochazka', icon: 'calendar', label: 'Docházka' },
     { key: 'rozvrh',  icon: 'clock', label: 'Rozvrh' },
+    { key: 'planakci', icon: 'flag', label: 'Plán akcí' },
     { key: 'ukoly',   icon: 'check', label: 'Moje úkoly' },
     { key: 'zpravy',  icon: 'chat', label: 'Zprávy' },
     { key: 'oznameni', icon: 'bell', label: 'Oznámení' }
@@ -158,6 +162,8 @@ const ROLE_NAV = {
     { key: 'prubezna',  icon: 'list', label: 'Průběžná klasifikace' },
     { key: 'pololetka', icon: 'check', label: 'Vysvědčení' },
     { key: 'dochazka',  icon: 'calendar', label: 'Docházka' },
+    { key: 'planakci',  icon: 'flag', label: 'Plán akcí' },
+    { key: 'poznamky',  icon: 'edit', label: 'Poznámky' },
     { key: 'omluvenky', icon: 'shield', label: 'Omluvenky' },
     { key: 'zpravy',    icon: 'chat', label: 'Zprávy s učiteli' },
     { key: 'oznameni',  icon: 'bell', label: 'Oznámení' }
@@ -220,12 +226,8 @@ function navBadge(role, key, user) {
 function shellHTML(user, activeKey) {
   const role = user.role;
   const nav = navForUser(user);
-  /* učitel: 5 hlavních položek v 1. řádku; zbytek (index >= 5) se schová
-     za „Více“ – „Více“/„Sbalit“ sedí vždy na konci 2. řádku docku.
-     Ředitel (admin) má jen Správu – bez docku a bez badge. */
-  const isTeacher = role === 'ucitel' && !user.isAdmin;
+  /* Ředitel (admin) má jen Správu – bez docku a bez badge. */
   const roleLabel = (role === 'ucitel' && user.isAdmin) ? 'Ředitel' : ROLES_CS[role];
-  const navExtraAt = 5;
   const bell = (role === 'student' || role === 'rodic')
     ? '<button class="icon-btn" data-act="bell" id="bell-btn" style="position:relative">' + ic('bell', 18) +
       (notifUnreadFor(user.id) ? '<span style="position:absolute;top:-2px;right:-2px;background:var(--bad);color:#fff;border-radius:99px;min-width:15px;height:15px;font-size:10px;font-weight:900;display:grid;place-items:center;padding:0 3px">' + notifUnreadFor(user.id) + '</span>' : '') + '</button>'
@@ -233,6 +235,7 @@ function shellHTML(user, activeKey) {
   return '' +
     '<header class="topbar">' +
       '<span class="brand"><span class="logo">' + ic('home', 15) + '</span>Luky<small>School</small></span>' +
+      '<button type="button" class="icon-btn nav-menu-btn" data-act="nav-menu" aria-label="Menu" title="Menu">' + ic('menu', 19) + '</button>' +
       '<div class="user-pill">' + bell +
         '<button class="icon-btn" data-act="ch-pass" title="Změnit heslo">' + ic('lock', 17) + '</button>' +
         '<button class="icon-btn" data-act="theme" title="Přepnout tmavý / světlý režim">' + ic(document.documentElement.getAttribute('data-theme') === 'light' ? 'moon' : 'sun', 17) + '</button>' +
@@ -244,21 +247,13 @@ function shellHTML(user, activeKey) {
     '<div class="layout">' +
       '<aside class="sidebar' + (role === 'ucitel' && !user.isAdmin ? ' role-ucitel' : '') + '"><div class="side-label">' + roleLabel + (role === 'ucitel' && !user.isAdmin && myClasses().length ? ' · ' + escapeHtml(classOf(activeClsId()).name) : '') + '</div>' +
         nav.map((n, i) =>
-          '<button class="nav-item' + (n.key === activeKey ? ' active' : '') + (isTeacher && i >= navExtraAt ? ' nav-extra' : '') + '" data-act="goto:#/' + role + '/' + n.key + '">' +
+          '<button class="nav-item' + (n.key === activeKey ? ' active' : '') + '" data-act="goto:#/' + role + '/' + n.key + '">' +
             ic(n.icon, 18) + '<span>' + n.label + '</span>' + navBadge(role, n.key, user) + '</button>'
         ).join('') +
-        (isTeacher
-          ? '<button type="button" class="dock-more" data-act="dock-more" title="Další sekce / sbalit">' +
-              '<span class="dm-ic dm-open">' + ic('chevUp', 18) + '</span>' +
-              '<span class="dm-ic dm-close">' + ic('chevDown', 18) + '</span>' +
-              '<span class="dm-lbl dm-open">Více</span>' +
-              '<span class="dm-lbl dm-close">Sbalit</span>' +
-              (navBadgeTotal(user) ? '<span class="dm-badge">' + navBadgeTotal(user) + '</span>' : '') +
-            '</button>'
-          : '') +
       '</aside>' +
       '<main class="main"><div id="view"></div></main>' +
     '</div>' +
+    '<div class="nav-backdrop" data-act="nav-close"></div>' +
     '<div id="notif-panel"></div>';
 }
 
@@ -285,7 +280,7 @@ function route() {
   if (!useKey) useKey = defKeyFor(user);
   const app = document.getElementById('app');
   app.innerHTML = shellHTML(user, useKey);
-  document.body.classList.remove('dock-open');
+  document.body.classList.remove('nav-open', 'dock-open');
   if (user.role === 'student' || user.role === 'rodic') renderBell();
   const fn = VIEWS[role][useKey];
   if (fn) { document.getElementById('view').innerHTML = fn(user); bindView(); }
@@ -294,6 +289,7 @@ function route() {
 /* ---------- přihlášení ---------- */
 function renderLogin() {
   const app = document.getElementById('app');
+  document.body.classList.remove('nav-open', 'dock-open');
   const remHtml = rememberedLoginHtml();
   app.innerHTML =
     '<div class="login-wrap"><div class="login-card card">' +
@@ -380,13 +376,10 @@ onAct('rm-acc-ok:', el => {
   toast('Účet odebrán ze seznamu', 'bad');
 });
 onAct('logout', () => { logout(); location.hash = ''; renderLogin(); toast('Byl jste odhlášen'); });
-function dockToggle(open) {
-  const sb = document.querySelector('.sidebar');
-  if (!sb) return;
-  sb.classList.toggle('expanded', open);
-  document.body.classList.toggle('dock-open', open);
-}
-onAct('dock-more', () => dockToggle(!document.querySelector('.sidebar').classList.contains('expanded')));
+/* mobilní zásuvka s navigací – otevře ji ☰ vedle loga */
+onAct('nav-menu', () => document.body.classList.add('nav-open'));
+onAct('nav-close', () => document.body.classList.remove('nav-open'));
+document.addEventListener('keydown', e => { if (e.key === 'Escape') document.body.classList.remove('nav-open'); });
 
 /* ---------- hesla: změna vlastního + zapomenuté heslo ---------- */
 function passErr(p) {

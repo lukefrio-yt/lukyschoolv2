@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>LukySchool – Známky, úkoly a zprávy. Konečně bez frustrace.</title>
 <meta name="description" content="LukySchool je rychlá a krásná alternativa k Bakalářům. Studenti si spočítají průměr jedním ťuknutím, rodiče pošlou omluvenku za pár vteřin, učitelé zapíšou hodinu během přestávky.">
-<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/style.css?v=21">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='26' fill='%233B82F6'/><text x='50' y='68' font-size='52' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'>L</text></svg>">
 <style>
   .store-body ul { margin: 8px 0 0; padding-left: 18px; }
@@ -26,11 +26,11 @@
     <nav class="lnav-links">
       <a href="#pro-studenty">Pro studenty</a>
       <a href="#pro-rodice">Pro rodiče</a>
-      <a href="#demo">Vyzkoušet demo</a>
+      <a href="#demo">Přihlášení</a>
     </nav>
     <div class="lnav-cta">
       <button class="btn btn-primary btn-sm" onclick="location.href='app.html'">
-        Otevřít aplikaci
+        Přihlásit se
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
       </button>
     </div>
@@ -50,7 +50,7 @@
       LukySchool je rychlá, přehledná a krásná aplikace, kterou děti milují a rodiče si konečně oddechnou.
     </p>
     <div class="hero-cta">
-      <a class="btn btn-primary btn-lg" href="app.html">Vyzkoušet demo zdarma</a>
+      <a class="btn btn-primary btn-lg" href="app.html">Přihlásit se</a>
       <a class="btn btn-ghost btn-lg" href="#pro-studenty">Pro studenty</a>
     </div>
     <div class="hero-note">
@@ -207,43 +207,26 @@
   </div>
 </div>
 
-<!-- demo -->
+<!-- demo / přihlášení -->
 <section class="demo" id="demo">
   <div class="demo-card">
     <div>
-      <h2>Vyzkoušejte si to rovnou. Žádná registrace.</h2>
-      <p>Do aplikace se přihlásíte jako ředitel (správa školy) a sami si postavíte školu: přidáte třídu, učitele a žáky – každý dostane vlastní přihlašovací údaje. Učitel pak zapisuje známky v tabulce (sloupec = test s vahou a datem), rozvrh i docházku v třídní knize.</p>
+      <h2>Přihlašte se svými údaji</h2>
+      <p>LukySchool je soukromá aplikace školy. Účty zakládá správce: každý žák, rodič i učitel má vlastní uživatelské jméno a heslo a přihlásí se jimi ve formuláři v aplikaci.</p>
       <div class="demo-acts">
-        <a class="btn btn-primary" href="app.html">Otevřít aplikaci</a>
-        <a class="btn btn-ghost" href="app.html">Přihlásit se do aplikace</a>
+        <a class="btn btn-primary" href="app.html">Přihlásit se do aplikace</a>
       </div>
-      <details class="store">
-        <summary>Popis do App Store / Google Play (kratká verze)</summary>
-        <div class="store-body">
-          <b>LukySchool – škola bez starostí</b>
-          <p style="margin-top:6px;">Rychlá, přehledná a krásná alternativa k Bakalářům. Studenti mají známky, průměr s předvídačem, chytrý rozvrh s odpočtem i to-do úkolů. Rodiče vidí vše na jedné obrazovce, pošlou omluvenku za pár kliknutí a napíšou učiteli jako v chatu. Tmavý režim, okamžité notifikace a moderní zabezpečení dat.</p>
-          <ul>
-            <li>Předvídač průměru – co udělá nová známka s tvým průměrem</li>
-            <li>Chytrý rozvrh se zvýrazněným suplováním a odpočtem</li>
-            <li>Omluvenky a zprávy učitelům na pár kliknutí</li>
-            <li>Tmavý režim, notifikace, více dětí v jednom účtu</li>
-          </ul>
-        </div>
-      </details>
     </div>
     <div>
-      <ul class="cred-list">
-        <li><span class="k">Ředitel (správa školy)</span> <code>admin</code> / <code>admin1234*</code></li>
-      </ul>
-      <p class="small-note" style="margin-top:10px;color:var(--muted)">Učitelům, žákům a rodičům vygenerujete přihlášení ve Správě školy – po spuštění změňte heslo ředitele.</p>
+      <p style="font-size:14.5px;color:var(--muted)">Zapomněli jste heslo? Na přihlašovací obrazovce klepněte na <b style="color:var(--text)">„Zapomněl jsem heslo“</b> – správce pošle nové heslo třídnímu učiteli a ten vám ho předá.</p>
     </div>
   </div>
 </section>
 
 <footer class="footer">
   <div class="footer-in">
-    <span><b style="color:var(--text)">LukySchool</b> — koncept aplikace pro školy. Ukázková data, žádná skutečná škola.</span>
-    <span>© 2026 · Postaveno jako prototyp</span>
+    <span><b style="color:var(--text)">LukySchool</b> — soukromá aplikace školy. Přihlašují se jen účty vytvořené správcem.</span>
+    <span>© 2026</span>
   </div>
 </footer>
 

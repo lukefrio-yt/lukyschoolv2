@@ -280,6 +280,15 @@ details.store summary { cursor: pointer; font-weight: 700; color: var(--accent);
 .nav-item:hover { background: var(--surface-2); color: var(--text); }
 .nav-item.active { background: rgba(59,130,246,0.14); color: var(--accent); }
 .nav-item .nav-n { margin-left: auto; }
+
+/* ☰ menu na mobilu: tlačítko vedle loga + zatemnění za zásuvkou */
+.nav-menu-btn { display: none; }
+.nav-backdrop {
+  position: fixed; inset: 0; z-index: 74; background: rgba(2, 6, 23, 0.55);
+  opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+}
+body.nav-open .nav-backdrop { opacity: 1; pointer-events: auto; }
+
 .main { padding: 26px 28px 60px; min-width: 0; }
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 22px; flex-wrap: wrap; }
 .page-head h1 { font-size: 26px; }
@@ -485,6 +494,10 @@ textarea.ta { min-height: 44px; }
   .demo { padding: 14px 18px 56px; }
   .demo-card { grid-template-columns: 1fr; padding: 26px 20px; }
   .demo-card h2 { font-size: 24px; }
+  /* plovoucí „notifikační“ čipy zůstanou v tabletové šířce u telefonu, ať nic nepřetéká ven */
+  .mock-chip.c1 { left: calc(50% - 145px - 26px); top: 12px; }
+  .mock-chip.c2 { right: calc(50% - 145px - 26px); }
+  .mock-chip.c3 { left: calc(50% - 100px); }
 
   /* aplikace: jedna sloupec, navigace = pás pod horní lištou */
   .layout { grid-template-columns: 1fr; }
@@ -499,7 +512,7 @@ textarea.ta { min-height: 44px; }
   .sidebar::-webkit-scrollbar { display: none; }
   .side-label { display: none; }
   .nav-item {
-    flex: 0 0 auto; min-height: 44px; padding: 10px 14px;
+    flex: 0 0 auto; width: auto; min-height: 44px; padding: 10px 14px;
     font-size: 13.5px; scroll-snap-align: start;
   }
   .nav-item.active { box-shadow: inset 0 0 0 1px rgba(59,130,246,0.45); }
@@ -514,6 +527,10 @@ textarea.ta { min-height: 44px; }
   .hero { padding: 34px 16px 10px; gap: 44px; }
   .hero h1 { font-size: 38px; }
   .hero-sub { font-size: 16px; }
+  .mock { max-width: calc(100vw - 32px); }
+  .mock-chip.c1 { left: calc(50% - 155px); top: 6px; }
+  .mock-chip.c2 { right: calc(50% - 155px); }
+  .mock-chip.c3 { left: calc(50% - 92px); bottom: -10px; }
   .demo-acts .btn { flex: 1 1 auto; justify-content: center; }
 
   /* horní lišta – kompaktní, jméno schováme, notifikace zůstává */
@@ -525,31 +542,35 @@ textarea.ta { min-height: 44px; }
   .ava { width: 29px; height: 29px; font-size: 12px; }
   .icon-btn { width: 40px; height: 40px; }
 
-  /* spodní navigační lišta (dock) – palcem dosažitelná */
+  /* navigace = zásuvka zleva; otevře ji ☰ vedle loga, zavře křížek/pozadí/Esc */
+  .nav-menu-btn { display: inline-flex; }
   .sidebar {
-    position: fixed; top: auto; bottom: 0; left: 0; right: 0; z-index: 45;
-    display: flex; align-items: stretch; gap: 2px;
-    padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
-    border-right: none; border-bottom: none; border-top: 1px solid var(--border);
-    background: color-mix(in srgb, var(--surface) 92%, transparent);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
+    position: fixed; top: 0; left: 0; bottom: 0; z-index: 80;
+    width: min(300px, 86vw); height: 100%;
+    display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start;
+    gap: 2px; overflow-y: auto; overflow-x: hidden;
+    padding: calc(16px + env(safe-area-inset-top)) 12px calc(28px + env(safe-area-inset-bottom));
+    border-right: 1px solid var(--border);
+    background: var(--surface);
+    transform: translateX(-108%);
+    transition: transform 0.22s ease;
+    box-shadow: 22px 0 46px -22px rgba(2, 6, 23, 0.65);
   }
+  body.nav-open .sidebar { transform: translateX(0); }
+  .side-label { display: block; font-size: 11px; padding: 4px 12px 10px; }
   .nav-item {
-    flex: 0 1 78px; min-width: 56px;
-    flex-direction: column; gap: 3px; justify-content: center;
-    min-height: 56px; padding: 5px 4px;
-    font-size: 9.5px; font-weight: 800; letter-spacing: 0.01em;
-    border-radius: 10px; text-align: center;
+    flex: none; width: 100%; min-width: 0; min-height: 48px;
+    flex-direction: row; gap: 12px; justify-content: flex-start;
+    padding: 12px 13px; font-size: 14.5px; font-weight: 700; letter-spacing: 0;
+    border-radius: 12px; text-align: left;
   }
-  .nav-item svg { width: 20px; height: 20px; }
-  .nav-item span { display: block; max-width: 88px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.1; }
-  .nav-item .nav-n { margin-left: 0; position: absolute; top: 2px; right: 2px; }
-  .sidebar { justify-content: space-evenly; }
-  .nav-item.active { background: rgba(59,130,246,0.18); color: var(--accent); box-shadow: none; }
-  .nav-item:hover { background: transparent; }
+  .nav-item svg { width: 19px; height: 19px; }
+  .nav-item span { display: block; max-width: none; overflow: visible; white-space: normal; line-height: 1.25; }
+  .nav-item .nav-n { margin-left: auto; position: static; }
+  .nav-item.active { background: rgba(59,130,246,0.16); color: var(--accent); box-shadow: none; }
+  .nav-item:hover { background: var(--surface-2); color: var(--text); }
 
-  .main { padding: 14px 12px calc(86px + env(safe-area-inset-bottom)); }
+  .main { padding: 14px 12px calc(30px + env(safe-area-inset-bottom)); }
   .page-head { flex-direction: column; align-items: stretch; gap: 12px; margin-bottom: 18px; }
   .page-head h1 { font-size: 21px; }
   .page-head .sub { font-size: 13.5px; }
@@ -603,44 +624,20 @@ textarea.ta { min-height: 44px; }
   .msg { max-width: 92%; }
 }
 @media (max-width: 400px) {
-  .grid-3, .grid-4 { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .grid-3, .grid-4 { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+  /* na nejúžších displejích se dvousloupcové karty vyskládají pod sebe, ať nic nepřetéká ven */
+  .grid-2 { grid-template-columns: 1fr; }
   .statMini b, .stat b { font-size: 19px; }
   .card-title { font-size: 14.5px; }
 }
 
-/* --- učitel na mobilu: dock = mřížka 1 řádek (5 položek + „Více“)
-   → rozbaleno 2 řádky, „Sbalit“ na konci (plná šířka, 11. buňka). --- */
-.dock-more { display: none; }
-@media (max-width: 640px) {
-  .sidebar .side-label { display: none; }
-  .sidebar.role-ucitel { flex-wrap: nowrap; }
-  /* sbaleno: jeden posuvný řádek – 5 položek + „Více“ v přirozené šířce */
-  .sidebar.role-ucitel .nav-item, .sidebar.role-ucitel .dock-more { flex: 0 0 auto; min-width: 78px; width: auto; }
-  .sidebar.role-ucitel:not(.expanded) .nav-item.nav-extra { display: none; }
-  .sidebar.role-ucitel .dock-more {
-    position: relative; margin: 0;
-    display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-    min-height: 56px; padding: 5px 8px;
-    background: none; border: none; cursor: pointer; color: var(--accent);
-    font-family: inherit; font-size: 9.5px; font-weight: 800; letter-spacing: 0.01em; line-height: 1.1; border-radius: 10px;
-    user-select: none;
-  }
-  .sidebar.role-ucitel .dock-more:active { background: rgba(59,130,246,0.14); }
-  .sidebar.role-ucitel .dock-more .dm-ic { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: rgba(59,130,246,0.16); color: var(--accent); }
-  .sidebar.role-ucitel .dock-more .dm-lbl { display: block; max-width: 72px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .sidebar.role-ucitel .dock-more .dm-close, .sidebar.role-ucitel.expanded .dock-more .dm-open { display: none; }
-  .sidebar.role-ucitel .dock-more .dm-badge {
-    position: absolute; top: -4px; right: 2px; background: var(--bad); color: #fff;
-    font-size: 10px; font-weight: 900; border-radius: 999px; min-width: 17px; height: 17px;
-    display: grid; place-items: center; padding: 0 4px; box-shadow: 0 0 0 2px var(--surface);
-  }
-  /* rozbaleno: přes celou šířku, 2 řádky po 5; „Sbalit“ na konci */
-  .sidebar.role-ucitel.expanded { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; justify-content: stretch; }
-  .sidebar.role-ucitel.expanded .nav-item { flex: none; width: 100%; max-width: none; }
-  .sidebar.role-ucitel.expanded .nav-item.nav-extra { display: inline-flex; }
-  .sidebar.role-ucitel.expanded .dock-more { grid-column: 1 / -1; flex-direction: row; gap: 6px; border-radius: 10px; }
-  body.dock-open .main { padding-bottom: calc(172px + env(safe-area-inset-bottom)); }
+/* na nejúžších displejích se horní lišta zkrátí (☰ + uživatelské tlačítka) */
+@media (max-width: 370px) {
+  .topbar .brand small { display: none; }
 }
+
+/* učitel i ostatní role mají na mobilu všechny sekce v zásuvce (☰) */
+.dock-more { display: none !important; }
 
 /* mobilní doladění specifických komponent */
 @media (max-width: 640px) {

@@ -108,6 +108,8 @@
     if (typeof roomsEnsure === 'function') roomsEnsure();
     if (typeof reportsEnsure === 'function') reportsEnsure();
     if (typeof recordsEnsure === 'function') recordsEnsure();
+    if (typeof notesEnsure === 'function') notesEnsure();
+    if (typeof actionsEnsure === 'function') actionsEnsure();
     saveDB();                         /* lokální kopie + timestamp */
     lsSet(TS_KEY, String(cloudTs));   /* baseline = čas z cloudu */
     suppressPush = false;

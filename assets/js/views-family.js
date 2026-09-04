@@ -1018,10 +1018,34 @@ function vysvedceniView() {
             k.first + ' ' + k.last + '</button>').join('') + '</div>'
         : '')
     : '';
+  /* pochvaly + výchovná opatření: z průběžné klasifikace (db.records) a závažné
+     poznámky učitele (závažnost 3, db.notes) za dané pololetí */
+  const semRecs = recordsOf(sid).filter(r => (r.sem || semOfDate(r.date)) === sem);
+  const pochvaly = semRecs.filter(r => r.type.indexOf('pch-') === 0);
+  const opatreni = semRecs.filter(r => r.type.indexOf('pch-') !== 0);
+  const sev3notes = notesOf(sid).filter(n => Number(n.sev) === 3 && semOfDate(n.date) === sem);
+  const vyhRow = (labelHtml, sub) => '<div class="list-row" style="padding:9px 12px;margin-bottom:8px;align-items:flex-start"><div class="grow"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' + labelHtml + '</div>' +
+    (sub ? '<div class="row-sub" style="margin-top:3px;white-space:pre-wrap">' + escapeHtml(sub) + '</div>' : '') + '</div></div>';
+  const vyhSections = (pochvaly.length || opatreni.length || sev3notes.length)
+    ? '<div style="max-width:720px;margin-top:16px;display:grid;gap:14px">' +
+      (pochvaly.length
+        ? '<div style="border:1px solid var(--border);border-radius:14px;padding:14px 18px"><div class="card-title" style="margin-bottom:6px">' + ic('check', 16) + ' Pochvaly' +
+          '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">' + pochvaly.length + ' ' + csPlural(pochvaly.length, 'záznam', 'záznamy', 'záznamů') + '</span></div>' +
+          pochvaly.map(r => vyhRow(recChip(r.type), (r.reason ? r.reason + '\n' : '') + fmtDate(r.date))).join('') + '</div>'
+        : '') +
+      ((opatreni.length || sev3notes.length)
+        ? '<div style="border:1px solid var(--border);border-radius:14px;padding:14px 18px"><div class="card-title" style="margin-bottom:6px">' + ic('alert', 16) + ' Výchovná opatření' +
+          '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">' + (opatreni.length + sev3notes.length) + ' ' + csPlural(opatreni.length + sev3notes.length, 'záznam', 'záznamy', 'záznamů') + '</span></div>' +
+          opatreni.map(r => vyhRow(recChip(r.type), (r.reason ? r.reason + '\n' : '') + fmtDate(r.date))).join('') +
+          sev3notes.map(n => vyhRow('<span class="chip chip-bad" style="padding:2px 9px;font-size:11px">Závažná poznámka učitele</span> ' + escapeHtml(n.title || ''), (n.reason ? n.reason + '\n' : '') + fmtDate(n.date))).join('') +
+          '</div>'
+        : '') +
+      '</div>'
+    : '';
   return '<div class="page-head"><div>' + headTitle + metaTxt + '</div></div>' +
     kidsRow +
     (closed
-      ? doc
+      ? doc + vyhSections
       : '<div class="card"><div class="empty"><b>Vysvědčení zatím není připravené</b>Učitel ho vystaví po uzavření pololetí – uvidíte ho tady.</div></div>');
 }
 /* slovní hodnocení celkového prospěchu z pololetních průměrů */
@@ -1146,6 +1170,87 @@ registerView('rodic', 'dochazka', pDochazka);
 registerView('rodic', 'omluvenky', pOmluvenky);
 registerView('rodic', 'zpravy', pZpravy);
 registerView('rodic', 'oznameni', sOznameni);
+registerView('student', 'planakci', planAkciView);
+registerView('rodic', 'planakci', planAkciView);
+registerView('rodic', 'poznamky', rodicPoznamkyView);
+
+/* ================= POZNÁMKY UČITELE (pouze rodič) ================= */
+function rodicPoznamkyView() {
+  clearTick();
+  const u = currentUser();
+  if (!u || u.role !== 'rodic') return '';
+  const kids = parentChildren();
+  if (!kids.length) return '<div class="card"><div class="empty"><b>Nemáte propojené žádné dítě</b>Kontaktujte správce školy.</div></div>';
+  const sid = parentCurChild();
+  const st = studentOf(sid);
+  if (!st) return '';
+  const notes = notesOf(sid).slice().sort((a, z) => (a.date === z.date ? 0 : a.date < z.date ? 1 : -1));
+  const kidsRow = parentChildren().length > 1
+    ? '<div class="rcpt-row">' + parentChildren().map(k =>
+        '<button class="rcpt-pill' + (k.id === sid ? ' active' : '') + '" data-act="p-child:' + k.id + '">' +
+        '<span class="ava" style="width:24px;height:24px;font-size:11px">' + escapeHtml(k.first.charAt(0)) + '</span>' +
+        k.first + ' ' + k.last + '</button>').join('') + '</div>'
+    : '';
+  return '<div class="page-head"><div><h1>Poznámky</h1>' +
+    '<div class="sub">Zápisky učitele k vašemu dítěti · ' + escapeHtml(st.first + ' ' + st.last) + '</div></div></div>' +
+    kidsRow +
+    '<div class="card"><div class="card-title">' + ic('edit', 16) + ' Poznámky učitele' +
+      '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">' + notes.length + ' ' + csPlural(notes.length, 'poznámka', 'poznámky', 'poznámek') + '</span></div>' +
+    (notes.length
+      ? '<div class="list">' + notes.map(n =>
+          '<div class="list-row" style="align-items:flex-start"><span class="ava" style="background:linear-gradient(135deg,#8B5CF6,#6D28D9)">' + ic('edit', 15) + '</span>' +
+          '<div class="grow"><div class="row-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' + escapeHtml(n.title || 'Poznámka') + noteSevChip(n.sev) + '</div>' +
+          (n.reason ? '<div style="margin-top:3px;white-space:pre-wrap">' + escapeHtml(n.reason) + '</div>' : '') +
+          '<div class="row-sub">' + fmtDate(n.date) + (Number(n.sev) === 3 ? ' · zapíše se do výchovných opatření na vysvědčení' : '') + '</div></div></div>').join('') + '</div>'
+      : '<div class="empty"><b>Zatím žádné poznámky</b>Když učitel k vašemu dítěti něco zapíše (pochvala, upozornění…), uvidíte to tady.</div>') +
+    '</div>';
+}
+
+/* ================= PLÁN AKCÍ (žák i rodič) ================= */
+function planAkciView() {
+  clearTick();
+  const u = currentUser();
+  if (!u) return '';
+  const isRod = u.role === 'rodic';
+  let sid = null;
+  if (u.role === 'student') sid = u.studentId;
+  else {
+    const kids = parentChildren();
+    if (!kids.length) return '<div class="card"><div class="empty"><b>Nemáte propojené žádné dítě</b>Kontaktujte správce školy.</div></div>';
+    sid = parentCurChild();
+  }
+  const st = studentOf(sid);
+  if (!st) return '';
+  const cls = classOf(st.cls);
+  const acts = actionsFor(sid).slice().sort((a, z) => (a.date === z.date ? 0 : a.date < z.date ? -1 : 1));
+  const future = acts.filter(a => daysUntilAction(a.date) >= 0);
+  const past = acts.filter(a => daysUntilAction(a.date) < 0);
+  const row = (a, isPast) => {
+    const days = daysUntilAction(a.date);
+    return '<div class="list-row" style="align-items:flex-start"><span class="ava" style="background:linear-gradient(135deg,#F59E0B,#D97706)">' + ic('flag', 15) + '</span>' +
+      '<div class="grow"><div class="row-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' + escapeHtml(a.title) + (isPast ? '' : actionCountdownChip(days)) + '</div>' +
+      (a.desc ? '<div style="margin-top:3px;white-space:pre-wrap">' + escapeHtml(a.desc) + '</div>' : '') +
+      '<div class="row-sub">' + fmtDate(a.date) + (isPast ? ' · proběhlo' : '') + (a.sid ? ' · akce jen pro ' + (isRod ? 'vaše dítě' : 'tebe') : ' · celá třída') + '</div></div></div>';
+  };
+  const kidsRow = isRod && parentChildren().length > 1
+    ? '<div class="rcpt-row">' + parentChildren().map(k =>
+        '<button class="rcpt-pill' + (k.id === sid ? ' active' : '') + '" data-act="p-child:' + k.id + '">' +
+        '<span class="ava" style="width:24px;height:24px;font-size:11px">' + escapeHtml(k.first.charAt(0)) + '</span>' +
+        k.first + ' ' + k.last + '</button>').join('') + '</div>'
+    : '';
+  return '<div class="page-head"><div><h1>Plán akcí</h1>' +
+    '<div class="sub">' + (isRod ? 'Plánované akce vašeho dítěte' : 'Tvoje plánované akce') + ' · ' + escapeHtml(cls ? cls.name : st.cls) + '</div></div></div>' +
+    kidsRow +
+    '<div class="card"><div class="card-title">' + ic('flag', 16) + ' Připravované akce' +
+      '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">' + future.length + ' ' + csPlural(future.length, 'akce', 'akce', 'akcí') + '</span></div>' +
+    (future.length
+      ? '<div class="list">' + future.map(a => row(a, false)).join('') + '</div>'
+      : '<div class="empty"><b>Zatím žádné plánované akce</b>Výlet, exkurze, soutěž… když učitel akci přidá, objeví se tady s odpočtem do začátku a tím, co si připravit.</div>') +
+    '</div>' +
+    (past.length ? '<div class="card"><div class="card-title">' + ic('clock', 15) + ' Proběhlé akce' +
+      '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">' + past.length + '</span></div>' +
+      '<div class="list">' + past.map(a => row(a, true)).join('') + '</div></div>' : '');
+}
 
 function tickLoop() {
   if (document.getElementById('cd-now') || document.querySelector('[data-cd-remain]')) cdTick();
