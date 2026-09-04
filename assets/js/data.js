@@ -352,6 +352,8 @@ function buildSeed() {
     notifsSeen: {},
     reports: {}, /* pololetní klasifikace: {clsId: {1:{...},2:{...}}} */
     records: [], /* pochvaly a výchovná opatření: {id,sid,type,reason,date,sem,by,ts} */
+    notes: [],   /* poznámky učitele k žákovi: {id,sid,title,reason,sev,date,by,ts} */
+    actions: [], /* plán akcí: {id,cls,sid?,title,desc,date,by,ts} */
     seen: { 'u-admin': null }
   };
 }
@@ -415,6 +417,8 @@ function loadDB() {
         roomsEnsure(); // starším učebnám doplní zkratku a barvu
         reportsEnsure(); // starší data bez pololetní klasifikace
         recordsEnsure();
+        notesEnsure();
+        actionsEnsure();
         return db;
       }
     }
@@ -425,6 +429,8 @@ function loadDB() {
   roomsEnsure();
   reportsEnsure();
   recordsEnsure();
+  notesEnsure();
+  actionsEnsure();
   return db;
 }
 function saveDB() {
@@ -445,7 +451,7 @@ function wipeSchool() {
     meta: { seededAt: nowISO(), schoolYear: schoolYearLabel() },
     classes: [], users: [JSON.parse(JSON.stringify(ADMIN_USER))],
     students: [], rooms: JSON.parse(JSON.stringify(DEFAULT_ROOMS)), subjects: {}, schedule: {}, columns: [], tasks: [], classbook: [],
-    threads: {}, excuses: [], subs: [], reservations: [], absReq: [], notifs: [], reports: {}, records: [], seen: { 'u-admin': null }
+    threads: {}, excuses: [], subs: [], reservations: [], absReq: [], notifs: [], reports: {}, records: [], notes: [], actions: [], seen: { 'u-admin': null }
   };
   saveDB();
   refreshSubjects();
@@ -701,6 +707,42 @@ const REC_TYPES = [
 const REC_BY_ID = {}; REC_TYPES.forEach(r => { REC_BY_ID[r.id] = r; });
 function recordsOf(sid) { return (db.records || []).filter(r => r.sid === sid); }
 function recordsEnsure() { if (!db.records) db.records = []; }
+
+/* ---------- poznámky učitele k žákovi (závažnost 1–3) ---------- */
+const NOTE_SEVS = [
+  { id: 1, label: '1 · drobná', cls: 'chip-ok' },
+  { id: 2, label: '2 · střední', cls: 'chip-warn' },
+  { id: 3, label: '3 · závažná', cls: 'chip-bad' }
+];
+function notesEnsure() { if (!db.notes) db.notes = []; }
+function notesOf(sid) { return (db.notes || []).filter(n => n.sid === sid); }
+function noteSevChip(sev) {
+  const s = NOTE_SEVS.find(x => x.id === Number(sev)) || NOTE_SEVS[0];
+  return '<span class="chip ' + s.cls + '" style="padding:2px 9px;font-size:11px">' + s.label + '</span>';
+}
+
+/* ---------- plán akcí (budoucí akce třídy / vybraného žáka) ---------- */
+function actionsEnsure() { if (!db.actions) db.actions = []; }
+function actionsOfClass(clsId) { return (db.actions || []).filter(a => a.cls === clsId); }
+/* akce, které se týkají žáka: celotřídní + jeho vlastní */
+function actionsFor(sid) {
+  const st = studentOf(sid);
+  if (!st) return [];
+  return (db.actions || []).filter(a => a.cls === st.cls && (!a.sid || a.sid === sid));
+}
+/* kolik dní zbývá do akce: 0 = dnes, záporné = proběhla před |d| dny */
+function daysUntilAction(iso) {
+  if (!iso) return 0;
+  const t = new Date(iso + 'T00:00:00');
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  return Math.round((t - now) / 86400000);
+}
+function actionCountdownChip(days) {
+  if (days < 0) return '<span class="chip" style="opacity:.7">proběhlo</span>';
+  if (days === 0) return '<span class="chip chip-bad">dnes</span>';
+  const txt = 'za ' + days + ' ' + csPlural(days, 'den', 'dny', 'dní');
+  return days <= 7 ? '<span class="chip chip-warn">' + txt + '</span>' : '<span class="chip chip-ok">' + txt + '</span>';
+}
 /* známky žáka z předmětu omezené na pololetí (vč. váhy) */
 function semesterGradesOf(sid, subj, sem) {
   const b = schoolYearBounds();

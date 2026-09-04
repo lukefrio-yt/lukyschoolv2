@@ -1890,3 +1890,220 @@ onAct('rec-del:', el => {
 });
 registerView('ucitel', 'oznameni', tOznameni);
 registerView('ucitel', 'prubezna', tPrubezna);
+
+/* ================= POZNÁMKY K ŽÁKŮM (závažnost 1–3) ================= */
+function tPoznamky() {
+  clearTick();
+  if (!myClasses().length) return noClassPrompt();
+  const cid = activeClsId();
+  const cls = classOf(cid);
+  const sts = studentsOfClass(cid);
+  const notes = (db.notes || [])
+    .filter(n => sts.some(s => s.id === n.sid))
+    .sort((a, z) => (a.date === z.date ? 0 : a.date < z.date ? 1 : -1));
+  const cnt = notes.length;
+  return '' +
+  '<div class="page-head"><div><h1>Poznámky</h1>' +
+    '<div class="sub">' + escapeHtml(cls.name) + ' · zápisky k žákům; závažnost 3 se promítne do výchovných opatření na vysvědčení</div></div>' +
+    '<div class="page-acts">' + (sts.length ? '<button class="btn btn-primary btn-sm" data-act="t-note-add">' + ic('plus', 15) + ' Nová poznámka</button>' : '') + '</div></div>' +
+  clsScopePills() +
+  (sts.length
+    ? '<div class="card"><div class="card-title">' + ic('edit', 16) + ' Poznámky žáků třídy' +
+        '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">' + cnt + ' ' + csPlural(cnt, 'poznámka', 'poznámky', 'poznámek') + '</span></div>' +
+      (notes.length
+        ? '<div class="list">' + notes.map(n => {
+            const st = studentOf(n.sid);
+            const by = (db.users || []).find(x => x.id === n.by);
+            return '<div class="list-row" style="align-items:flex-start"><span class="ava" style="background:linear-gradient(135deg,#8B5CF6,#6D28D9)">' + ic('edit', 15) + '</span>' +
+              '<div class="grow"><div class="row-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' + escapeHtml(n.title || 'Poznámka') + noteSevChip(n.sev) + (Number(n.sev) === 3 ? ' <span class="chip chip-accent" style="padding:2px 9px;font-size:11px">půjde na vysvědčení</span>' : '') + '</div>' +
+              (n.reason ? '<div style="margin-top:3px;white-space:pre-wrap">' + escapeHtml(n.reason) + '</div>' : '') +
+              '<div class="row-sub">' + escapeHtml(st ? st.first + ' ' + st.last : '—') + ' · ' + fmtDate(n.date) + (by ? ' · ' + escapeHtml(by.name) : '') + '</div></div>' +
+              '<button class="icon-btn sm" data-act="t-note-edit:' + n.id + '" title="Upravit">' + ic('edit', 13) + '</button>' +
+              '<button class="icon-btn sm" style="color:var(--bad)" data-act="t-note-del:' + n.id + '" title="Smazat">' + ic('trash', 13) + '</button></div>';
+          }).join('') + '</div>'
+        : '<div class="empty"><b>Zatím žádné poznámky</b>Přidejte první poznámku k žákovi – uvidí ji jeho rodiče.</div>') +
+      '</div>'
+    : '<div class="card"><div class="empty"><b>Ve třídě zatím nejsou žáci</b>Přidejte je ve Správě školy.</div></div>');
+}
+function tNoteModalFor(noteId) {
+  const cid = activeClsId();
+  const sts = studentsOfClass(cid);
+  if (!sts.length) { toast('Ve třídě zatím nejsou žáci', 'bad'); return; }
+  const n = noteId ? (db.notes || []).find(x => x.id === noteId) : null;
+  if (noteId && !n) return;
+  openModal('<h3>' + (n ? 'Upravit poznámku' : 'Nová poznámka k žákovi') + '</h3>' +
+    '<form data-form="' + (n ? 't-note-edit' : 't-note-add') + '"' + (n ? ' data-id="' + n.id + '"' : '') + '>' +
+      '<div class="field"><label>Žák</label><select name="sid">' + sts.map(s =>
+        '<option value="' + s.id + '"' + (n && n.sid === s.id ? ' selected' : '') + '>' + escapeHtml(s.first + ' ' + s.last) + '</option>').join('') + '</select></div>' +
+      '<div class="field"><label>Název</label><input name="title" required maxlength="120" placeholder="např. Pozdní příchody, Pomoc spolužákovi…" value="' + (n ? escapeHtml(n.title || '') : '') + '"></div>' +
+      '<div class="field"><label>Důvod / popis</label><textarea name="reason" class="ta" rows="3" required placeholder="Co se stalo nebo za co poznámka je…">' + (n ? escapeHtml(n.reason || '') : '') + '</textarea></div>' +
+      '<div class="field"><label>Závažnost</label><select name="sev">' + NOTE_SEVS.map(s =>
+        '<option value="' + s.id + '"' + (n && Number(n.sev) === s.id ? ' selected' : '') + '>' + s.label + '</option>').join('') + '</select></div>' +
+      '<div class="field"><label>Datum</label><input name="date" type="date" value="' + (n ? n.date : todayISO()) + '"></div>' +
+      '<div class="small-note" style="margin:0 0 12px">Závažnost <b>3 · závažná</b> se objeví rodičům a ve výchovných opatřeních na vysvědčení.</div>' +
+      '<div class="form-row-btns"><button class="btn btn-primary">' + ic('check', 15) + (n ? ' Uložit změny' : ' Přidat poznámku') + '</button>' +
+      '<button type="button" class="btn btn-ghost" data-act="close-modal">Zrušit</button></div>' +
+    '</form>');
+}
+onAct('t-note-add', () => tNoteModalFor(null));
+onAct('t-note-edit:', el => tNoteModalFor(el.getAttribute('data-act').slice(12)));
+onAct('form:t-note-add', f => {
+  const fd = new FormData(f);
+  const sid = String(fd.get('sid'));
+  const title = String(fd.get('title') || '').trim();
+  const reason = String(fd.get('reason') || '').trim();
+  const sev = Math.min(3, Math.max(1, Number(fd.get('sev')) || 1));
+  const date = String(fd.get('date')) || todayISO();
+  if (!sid || !title || !reason) { toast('Vyplňte název i důvod poznámky', 'bad'); return; }
+  notesEnsure();
+  const id = uid();
+  db.notes.push({ id, sid, title, reason, sev, date, by: currentUser().id, ts: nowISO() });
+  saveDB();
+  const st = studentOf(sid);
+  if (st) {
+    (db.users || []).forEach(uu => {
+      if (uu.role === 'rodic' && (uu.children || []).includes(sid)) {
+        db.notifs.push({ userId: uu.id, type: 'grade', text: 'Nová poznámka k žákovi ' + st.first + ': „' + title + '“ (závažnost ' + sev + ')', ts: nowISO(), route: 'poznamky' });
+      }
+    });
+    saveDB();
+  }
+  closeModal();
+  toast('Poznámka přidána – rodiče dostali oznámení ✓', 'ok');
+  route();
+});
+onAct('form:t-note-edit', f => {
+  const id = f.getAttribute('data-id');
+  const n = (db.notes || []).find(x => x.id === id);
+  if (!n) return;
+  const fd = new FormData(f);
+  n.sid = String(fd.get('sid'));
+  n.title = String(fd.get('title') || '').trim();
+  n.reason = String(fd.get('reason') || '').trim();
+  n.sev = Math.min(3, Math.max(1, Number(fd.get('sev')) || 1));
+  n.date = String(fd.get('date')) || n.date;
+  saveDB();
+  closeModal();
+  toast('Poznámka upravena ✓', 'ok');
+  route();
+});
+onAct('t-note-del:', el => {
+  const id = el.getAttribute('data-act').slice(11);
+  const n = (db.notes || []).find(x => x.id === id);
+  if (!n) return;
+  openModal('<h3>Smazat poznámku?</h3>' +
+    '<p class="small-note" style="margin-bottom:14px">Poznámka <b>' + escapeHtml(n.title || '') + '</b> (žák ' + escapeHtml(studentFull(n.sid)) + ') se trvale odstraní.</p>' +
+    '<div style="display:flex;gap:10px"><button class="btn btn-bad" data-act="t-note-del-ok:' + id + '">' + ic('trash', 14) + ' Ano, smazat</button>' +
+    '<button class="btn btn-ghost" data-act="close-modal">Zrušit</button></div>');
+});
+onAct('t-note-del-ok:', el => {
+  const id = el.getAttribute('data-act').slice(14);
+  db.notes = (db.notes || []).filter(x => x.id !== id);
+  saveDB();
+  closeModal();
+  toast('Poznámka smazána', 'bad');
+  route();
+});
+
+/* ================= PLÁN AKCÍ (budoucí akce třídy / žáka) ================= */
+function tPlanAkci() {
+  clearTick();
+  if (!myClasses().length) return noClassPrompt();
+  const cid = activeClsId();
+  const cls = classOf(cid);
+  const sts = studentsOfClass(cid);
+  const acts = actionsOfClass(cid).slice().sort((a, z) => (a.date === z.date ? 0 : a.date < z.date ? -1 : 1));
+  const future = acts.filter(a => daysUntilAction(a.date) >= 0);
+  const past = acts.filter(a => daysUntilAction(a.date) < 0);
+  const row = (a, isPast) => {
+    const days = daysUntilAction(a.date);
+    const target = a.sid ? 'jen: ' + studentFull(a.sid) : 'celá třída';
+    return '<div class="list-row" style="align-items:flex-start"><span class="ava" style="background:linear-gradient(135deg,#F59E0B,#D97706)">' + ic('flag', 15) + '</span>' +
+      '<div class="grow"><div class="row-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' + escapeHtml(a.title) +
+        (isPast ? '' : actionCountdownChip(days)) + '</div>' +
+      (a.desc ? '<div style="margin-top:3px;white-space:pre-wrap">' + escapeHtml(a.desc) + '</div>' : '') +
+      '<div class="row-sub">' + fmtDate(a.date) + (isPast ? ' · proběhlo' : '') + ' · ' + escapeHtml(target) + '</div></div>' +
+      '<button class="icon-btn sm" data-act="t-act-edit:' + a.id + '" title="Upravit">' + ic('edit', 13) + '</button>' +
+      '<button class="icon-btn sm" style="color:var(--bad)" data-act="t-act-del:' + a.id + '" title="Smazat">' + ic('trash', 13) + '</button></div>';
+  };
+  return '' +
+  '<div class="page-head"><div><h1>Plán akcí</h1>' +
+    '<div class="sub">' + escapeHtml(cls.name) + ' · budoucí akce třídy – žáci i rodiče vidí, co je čeká a co si mají připravit</div></div>' +
+    '<div class="page-acts"><button class="btn btn-primary btn-sm" data-act="t-act-add">' + ic('plus', 15) + ' Nová akce</button></div></div>' +
+  clsScopePills() +
+  (sts.length || actionsOfClass(cid).length
+    ? '<div class="card"><div class="card-title">' + ic('flag', 16) + ' Připravované akce' +
+        '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">' + future.length + ' ' + csPlural(future.length, 'akce', 'akce', 'akcí') + '</span></div>' +
+      (future.length ? '<div class="list">' + future.map(a => row(a, false)).join('') + '</div>' : '<div class="empty"><b>Zatím žádné naplánované akce</b>Výlet, soutěž, třídní schůzka… co přidáte, uvidí žáci i rodiče s odpočtem do začátku.</div>') +
+      '</div>'
+      + (past.length ? '<div class="card"><div class="card-title">' + ic('clock', 15) + ' Proběhlé akce' +
+        '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">' + past.length + '</span></div>' +
+        '<div class="list">' + past.map(a => row(a, true)).join('') + '</div></div>' : '')
+    : '<div class="card"><div class="empty"><b>Ve třídě zatím nejsou žáci</b>Akce lze plánovat, jakmile třída existuje.</div></div>');
+}
+function tActModalFor(actionId) {
+  const cid = activeClsId();
+  const sts = studentsOfClass(cid);
+  const a = actionId ? (db.actions || []).find(x => x.id === actionId) : null;
+  if (actionId && !a) return;
+  const minD = todayISO();
+  openModal('<h3>' + (a ? 'Upravit akci' : 'Nová akce') + '</h3>' +
+    '<form data-form="' + (a ? 't-act-edit' : 't-act-add') + '"' + (a ? ' data-id="' + a.id + '"' : '') + '>' +
+      '<div class="field"><label>Název akce</label><input name="title" required maxlength="120" placeholder="např. Exkurze do Prahy, Vánoční besídka…" value="' + (a ? escapeHtml(a.title || '') : '') + '"></div>' +
+      '<div class="field-row"><div class="field"><label>Datum</label><input name="date" type="date" min="' + minD + '" value="' + (a ? a.date : minD) + '" required></div>' +
+      '<div class="field"><label>Pro koho</label><select name="sid"><option value=""' + (!a || !a.sid ? ' selected' : '') + '>Celá třída</option>' +
+        sts.map(s => '<option value="' + s.id + '"' + (a && a.sid === s.id ? ' selected' : '') + '>' + escapeHtml(s.first + ' ' + s.last) + '</option>').join('') + '</select></div></div>' +
+      '<div class="field"><label>Popis – co si připravit</label><textarea name="desc" class="ta" rows="3" placeholder="Sraz, co si vzít, pomůcky, vstupné…">' + (a ? escapeHtml(a.desc || '') : '') + '</textarea></div>' +
+      '<div class="form-row-btns"><button class="btn btn-primary">' + ic('check', 15) + (a ? ' Uložit změny' : ' Přidat akci') + '</button>' +
+      '<button type="button" class="btn btn-ghost" data-act="close-modal">Zrušit</button></div>' +
+    '</form>');
+}
+onAct('t-act-add', () => tActModalFor(null));
+onAct('t-act-edit:', el => tActModalFor(el.getAttribute('data-act').slice(11)));
+onAct('form:t-act-add', f => {
+  const fd = new FormData(f);
+  const title = String(fd.get('title') || '').trim();
+  const date = String(fd.get('date'));
+  const sid = String(fd.get('sid') || '');
+  const desc = String(fd.get('desc') || '').trim();
+  if (!title || !date) { toast('Zadejte název a datum akce', 'bad'); return; }
+  actionsEnsure();
+  db.actions.push({ id: uid(), cls: activeClsId(), sid: sid || null, title, desc, date, by: currentUser().id, ts: nowISO() });
+  saveDB();
+  closeModal();
+  toast('Akce přidána – žáci a rodiče ji vidí v Plánu akcí ✓', 'ok');
+  route();
+});
+onAct('form:t-act-edit', f => {
+  const id = f.getAttribute('data-id');
+  const a = (db.actions || []).find(x => x.id === id);
+  if (!a) return;
+  const fd = new FormData(f);
+  a.title = String(fd.get('title') || '').trim();
+  a.date = String(fd.get('date'));
+  a.sid = String(fd.get('sid') || '') || null;
+  a.desc = String(fd.get('desc') || '').trim();
+  saveDB();
+  closeModal();
+  toast('Akce upravena ✓', 'ok');
+  route();
+});
+onAct('t-act-del:', el => {
+  const id = el.getAttribute('data-act').slice(10);
+  const a = (db.actions || []).find(x => x.id === id);
+  if (!a) return;
+  openModal('<h3>Smazat akci?</h3>' +
+    '<p class="small-note" style="margin-bottom:14px">Akce <b>' + escapeHtml(a.title || '') + '</b> (' + fmtDate(a.date) + ') se trvale odstraní z plánu.</p>' +
+    '<div style="display:flex;gap:10px"><button class="btn btn-bad" data-act="t-act-del-ok:' + id + '">' + ic('trash', 14) + ' Ano, smazat</button>' +
+    '<button class="btn btn-ghost" data-act="close-modal">Zrušit</button></div>');
+});
+onAct('t-act-del-ok:', el => {
+  const id = el.getAttribute('data-act').slice(13);
+  db.actions = (db.actions || []).filter(x => x.id !== id);
+  saveDB();
+  closeModal();
+  toast('Akce smazána', 'bad');
+  route();
+});
+registerView('ucitel', 'poznamky', tPoznamky);
+registerView('ucitel', 'planakci', tPlanAkci);
