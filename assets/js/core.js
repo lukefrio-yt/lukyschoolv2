@@ -265,6 +265,8 @@ function route() {
   const user = currentUser();
   if (!user) { renderLogin(); return; }
   const role = user.role;
+  /* učitel na telefonu: až po přihlášení dostane výraznou obrazovku, že musí použít počítač */
+  if (isMobile() && role === 'ucitel') { showTeacherMobileBlock(); return; }
   let h = location.hash.replace(/^#\/?/, '');
   const parts = h.split('/');
   // povolíme parametr za „|" (např. #/student/znamky|M) – base klíč pro lookup
@@ -282,6 +284,14 @@ function route() {
   }
   if (!useKey) useKey = defKeyFor(user);
   const app = document.getElementById('app');
+  /* mobilní launcher: přehled se na telefonu zobrazí jako ikonky „aplikací“ */
+  if (isMobile() && (role === 'student' || role === 'rodic') && useKey === 'prehled') {
+    app.innerHTML = shellHTML(user, 'prehled');
+    document.body.classList.remove('nav-open', 'dock-open');
+    renderBell();
+    document.getElementById('view').innerHTML = mobileHomeHTML(user);
+    return;
+  }
   app.innerHTML = shellHTML(user, useKey);
   document.body.classList.remove('nav-open', 'dock-open');
   if (user.role === 'student' || user.role === 'rodic') renderBell();
@@ -508,26 +518,57 @@ document.addEventListener('click', e => {
 /* ---------- po vyrenderování view: naskrolovat, doplnit data ---------- */
 function bindView() { /* hook pro views */ }
 
-/* ---------- blokace mobilů (aplikace je jen pro počítač/tablet) ---------- */
-function deviceBlocked() { return window.innerWidth < 768; }
-function showDeviceBlock() {
+/* ---------- mobilní režim: žák/rodič = launcher dlaždic, učitel = pouze počítač ---------- */
+function isMobile() { return window.innerWidth < 768; }
+function showTeacherMobileBlock() {
   const app = document.getElementById('app');
+  document.body.classList.remove('nav-open', 'dock-open');
   if (app) app.innerHTML =
-    '<div class="device-block"><div class="device-block-in">' +
-      '<span class="device-block-ic">' + ic('alert', 34) + '</span>' +
-      '<h1>Aplikace na tomto zařízení zatím není dostupná</h1>' +
-      '<p>LukySchool otevřete prosím na počítači nebo tabletu s širší obrazovkou.</p>' +
+    '<div class="teacher-block"><div class="teacher-block-in">' +
+      '<div class="tb-ring">' + ic('home', 30) + '</div>' +
+      '<h1>Pro učitele jen na počítači</h1>' +
+      '<p>Tato verze aplikace je na telefonu určena <b>pro žáky a rodiče</b>.<br>Učitelská rozhraní (třídní kniha, známkování, docházka…) otevřete prosím na počítači nebo tabletu.</p>' +
+      '<button class="btn btn-ghost tb-btn" data-act="logout">' + ic('logout', 16) + ' Zpět na přihlášení</button>' +
     '</div></div>';
   document.body.classList.add('device-locked');
 }
-window.addEventListener('resize', () => { if (deviceBlocked() !== document.body.classList.contains('device-locked')) location.reload(); });
+/* ikonková obrazovka „jako aplikace“ – vidí ji žák i rodič na telefonu */
+const MOBILE_TILE_BG = {
+  znamky: 'linear-gradient(135deg,#3B82F6,#2563EB)', pololetka: 'linear-gradient(135deg,#8B5CF6,#6D28D9)',
+  dochazka: 'linear-gradient(135deg,#14B8A6,#0F766E)', rozvrh: 'linear-gradient(135deg,#F59E0B,#D97706)',
+  vyuka: 'linear-gradient(135deg,#6366F1,#4338CA)', poznamky: 'linear-gradient(135deg,#F43F5E,#BE123C)',
+  planakci: 'linear-gradient(135deg,#10B981,#059669)', ukoly: 'linear-gradient(135deg,#06B6D4,#0E7490)',
+  zpravy: 'linear-gradient(135deg,#EC4899,#BE185D)', oznameni: 'linear-gradient(135deg,#F97316,#C2410C)',
+  omluvenky: 'linear-gradient(135deg,#84CC16,#4D7C0F)'
+};
+const MOBILE_TILE_FALLBACK = ['linear-gradient(135deg,#3B82F6,#2563EB)', 'linear-gradient(135deg,#8B5CF6,#6D28D9)', 'linear-gradient(135deg,#10B981,#059669)', 'linear-gradient(135deg,#F59E0B,#D97706)', 'linear-gradient(135deg,#EC4899,#BE185D)', 'linear-gradient(135deg,#06B6D4,#0E7490)'];
+function mobileHomeHTML(user) {
+  const role = user.role;
+  const tiles = navForUser(user).filter(n => n.key !== 'prehled');
+  const avatar = '<span class="m-ava" style="background:linear-gradient(135deg,#3B82F6,' + (role === 'rodic' ? '#10B981' : '#F59E0B') + ')">' + escapeHtml(user.name.charAt(0)) + '</span>';
+  const grid = tiles.map((n, i) => {
+    let badgeN = 0;
+    if (n.key === 'zpravy') badgeN = userUnreadMsgs(user.id);
+    if (n.key === 'oznameni') badgeN = annUnreadCount(user);
+    return '<button class="m-tile" data-act="goto:#/' + role + '/' + n.key + '">' +
+      '<span class="m-ico" style="background:' + (MOBILE_TILE_BG[n.key] || MOBILE_TILE_FALLBACK[i % MOBILE_TILE_FALLBACK.length]) + '">' + ic(n.icon, 26) + '</span>' +
+      (badgeN ? '<span class="m-n">' + badgeN + '</span>' : '') +
+      '<span class="m-lbl">' + n.label + '</span></button>';
+  }).join('');
+  return '<div class="m-home">' +
+    '<div class="m-hero">' + avatar + '<b>' + escapeHtml(user.name) + '</b>' +
+      '<span>' + escapeHtml(user.note || ROLES_CS[role]) + '</span></div>' +
+    '<div class="m-grid">' + grid + '</div>' +
+  '</div>';
+}
+window.addEventListener('resize', () => { if (String(isMobile()) !== (document.body.dataset.mob || '0')) location.reload(); });
 
 /* ---------- start ---------- */
 function boot() {
-  if (deviceBlocked()) { showDeviceBlock(); return; }
   loadDB();
   loadSession();
   themeInit();
+  document.body.dataset.mob = isMobile() ? '1' : '0';
   const app = document.getElementById('app');
   if (!app) return;
   if (!location.hash) {
