@@ -1125,22 +1125,34 @@ function sVyuka() {
   const bySubj = {};
   recs.forEach(r => { if (!r.subj) return; (bySubj[r.subj] = bySubj[r.subj] || []).push(r); });
   const keys = mySubjKeys().filter(k => bySubj[k] && bySubj[k].length).concat(Object.keys(bySubj).filter(k => !mySubjKeys().includes(k)));
+  const subjList = (k, list) =>
+    '<div class="card" style="margin-bottom:16px"><div class="card-title">' + subjBadge(k, 30) + ' ' + escapeHtml(SUBJECTS[k] ? SUBJECTS[k].name : k) +
+      '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">' + list.length + ' ' + csPlural(list.length, 'zápis', 'zápisy', 'zápisů') + '</span></div>' +
+      '<div class="list">' + list.map(r =>
+        '<div class="list-row" style="align-items:flex-start"><span class="chip" style="flex:0 0 auto">' + fmtDate(r.date) + ' · ' + (r.period + 1) + '. hod.</span>' +
+        '<div class="grow"><div class="row-title">' + escapeHtml(r.tema || '—') + '</div>' +
+        (r.ucivo ? '<div class="row-sub">' + escapeHtml(r.ucivo) + '</div>' : '') +
+        (r.ukol ? '<div style="margin-top:3px;font-size:13px;color:var(--warn)"><b>Úkol:</b> ' + escapeHtml(r.ukol) + '</div>' : '') +
+        '</div></div>').join('') + '</div></div>';
+  /* na telefonu/tabletu: výběr předmětu nahoře, bez dlouhého scrollování */
+  if (isAppMode() && isFamilyRole(currentUser().role) && keys.length) {
+    let sel = localStorage.getItem('ls_vyuka_subj');
+    if (!keys.includes(sel)) sel = keys[0];
+    const list = bySubj[sel].slice().sort((a, z) => (a.date === z.date ? (a.period - z.period) : (a.date < z.date ? 1 : -1)));
+    return '<div class="page-head"><div><h1>Výuka</h1>' +
+      '<div class="sub">Vyber předmět a uvidíš, co se probíralo</div></div></div>' +
+      '<div class="rcpt-row" style="flex-wrap:nowrap;overflow-x:auto;padding-bottom:6px">' + keys.map(k =>
+        '<button class="rcpt-pill' + (k === sel ? ' active' : '') + '" data-act="m-vyuka:' + k + '" style="flex:0 0 auto">' +
+        (SUBJECTS[k] ? escapeHtml(SUBJECTS[k].name) : escapeHtml(k)) + '</button>').join('') + '</div>' +
+      subjList(sel, list);
+  }
   return '<div class="page-head"><div><h1>Výuka</h1>' +
     '<div class="sub">Co se probíralo v jednotlivých předmětech – zápisy z třídní knihy</div></div></div>' +
     (keys.length
-      ? keys.map(k => {
-          const list = bySubj[k].slice().sort((a, z) => (a.date === z.date ? (a.period - z.period) : (a.date < z.date ? 1 : -1)));
-          return '<div class="card" style="margin-bottom:16px"><div class="card-title">' + subjBadge(k, 30) + ' ' + escapeHtml(SUBJECTS[k] ? SUBJECTS[k].name : k) +
-            '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">' + list.length + ' ' + csPlural(list.length, 'zápis', 'zápisy', 'zápisů') + '</span></div>' +
-            '<div class="list">' + list.map(r =>
-              '<div class="list-row" style="align-items:flex-start"><span class="chip" style="flex:0 0 auto">' + fmtDate(r.date) + ' · ' + (r.period + 1) + '. hod.</span>' +
-              '<div class="grow"><div class="row-title">' + escapeHtml(r.tema || '—') + '</div>' +
-              (r.ucivo ? '<div class="row-sub">' + escapeHtml(r.ucivo) + '</div>' : '') +
-              (r.ukol ? '<div style="margin-top:3px;font-size:13px;color:var(--warn)"><b>Úkol:</b> ' + escapeHtml(r.ukol) + '</div>' : '') +
-              '</div></div>').join('') + '</div></div>';
-        }).join('')
+      ? keys.map(k => subjList(k, bySubj[k].slice().sort((a, z) => (a.date === z.date ? (a.period - z.period) : (a.date < z.date ? 1 : -1))))).join('')
       : '<div class="card"><div class="empty"><b>Zatím žádné zápisy</b>Jakmile učitel zapíše první hodinu do třídní knihy, uvidíš tady, co se probíralo – rozdělené podle předmětů.</div></div>');
 }
+onAct('m-vyuka:', el => { localStorage.setItem('ls_vyuka_subj', el.getAttribute('data-act').slice(8)); route(); });
 
 registerView('student', 'prehled', sPrehled);
 registerView('student', 'znamky', sZnamky);
