@@ -426,6 +426,30 @@ textarea.ta { min-height: 44px; }
 .lesson .prog { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--accent); }
 .lesson.sub { border-color: rgba(245,158,11,0.55); background: rgba(245,158,11,0.08); }
 .lesson.free { opacity: 0.55; }
+/* změna v rozvrhu (odpadlá / změna) = výrazná červená */
+.lesson.chg { border-color: rgba(239,68,68,0.6); background: rgba(239,68,68,0.07); }
+.lesson.chg .prog { background: var(--bad); }
+/* drobné ikonky před zkratkou předmětu v rozvrhu: ✓ zapsáno, 📖 úkol, ! písemka */
+.l-ics { display: flex; flex-direction: column; gap: 3px; flex: 0 0 auto; }
+.l-ic {
+  width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center;
+  font-size: 11px; font-weight: 900; line-height: 1; border: 1px solid transparent;
+}
+.l-ic.g-ok { background: rgba(16,185,129,0.16); color: var(--ok); }
+.l-ic.g-book { background: rgba(59,130,246,0.16); color: var(--accent); }
+.l-ic.g-bad { background: rgba(239,68,68,0.18); color: var(--bad); }
+/* blokace mobilních zařízení */
+.device-block {
+  position: fixed; inset: 0; z-index: 999; display: grid; place-items: center;
+  background: var(--bg); padding: 24px; text-align: center;
+}
+.device-block-in { max-width: 460px; }
+.device-block-ic {
+  width: 68px; height: 68px; border-radius: 20px; margin: 0 auto 18px; display: grid; place-items: center;
+  background: rgba(245,158,11,0.14); color: var(--warn); border: 1px solid rgba(245,158,11,0.35);
+}
+.device-block h1 { font-size: 24px; margin-bottom: 10px; }
+.device-block p { color: var(--muted); font-size: 15px; }
 
 /* tabs */
 .tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--border); margin-bottom: 18px; overflow-x: auto; }

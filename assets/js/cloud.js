@@ -110,6 +110,9 @@
     if (typeof recordsEnsure === 'function') recordsEnsure();
     if (typeof notesEnsure === 'function') notesEnsure();
     if (typeof actionsEnsure === 'function') actionsEnsure();
+    if (typeof changesEnsure === 'function') changesEnsure();
+    if (typeof subjDeletedList === 'function') subjDeletedList();
+    if (typeof refreshSubjects === 'function') refreshSubjects();
     saveDB();                         /* lokální kopie + timestamp */
     lsSet(TS_KEY, String(cloudTs));   /* baseline = čas z cloudu */
     suppressPush = false;

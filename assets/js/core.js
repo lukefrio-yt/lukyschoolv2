@@ -37,16 +37,21 @@ const I = {
   arrowR: '<path d="M5 12h14M12 5l7 7-7 7"/>',
   chevUp: '<path d="m18 15-6-6-6 6"/>',
   chevDown: '<path d="m6 9 6 6 6-6"/>',
-  flag: '<path d="M4 22V4c0-.5.5-1 1-1h11l-2 4 2 4H5"/>'
+  flag: '<path d="M4 22V4c0-.5.5-1 1-1h11l-2 4 2 4H5"/>',
+  user: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  swap: '<path d="m3 16 4 4 4-4"/><path d="M7 20V4"/><path d="m21 8-4-4-4 4"/><path d="M17 4v16"/>'
 };
 function ic(name, size) {
   return '<svg width="' + (size || 18) + '" height="' + (size || 18) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + (I[name] || I.alert) + '</svg>';
 }
 function subjBadge(key, size) {
   const s = SUBJECTS[key] || { name: key, color: '#64748B' };
-  const short = { M: 'M', CJ: 'ČJ', AJ: 'AJ', D: 'D', F: 'FY', P: 'PŘ', TV: 'TV', HV: 'HV', INF: 'IN', Z: 'Z' }[key] || key;
   const sz = size || 36;
-  return '<span class="subj-badge" style="width:' + sz + 'px;height:' + sz + 'px;background:' + s.color + '" title="' + escapeHtml(s.name) + '">' + short + '</span>';
+  return '<span class="subj-badge" style="width:' + sz + 'px;height:' + sz + 'px;background:' + s.color + '" title="' + escapeHtml(s.name) + '">' + escapeHtml(subjShort(key)) + '</span>';
+}
+/* zkratka předmětu (M, ČJ, AJ…) – používá i rozvrh při změně předmětu */
+function subjShort(key) {
+  return { M: 'M', CJ: 'ČJ', AJ: 'AJ', D: 'D', F: 'FY', P: 'PŘ', TV: 'TV', HV: 'HV', INF: 'IN', Z: 'Z' }[key] || key;
 }
 /* barevná čipka učebny v rozvrhu (zkratka typu „A607“, celý název v tooltipu) */
 function roomChip(roomId, size) {
@@ -131,37 +136,35 @@ const ROLE_NAV = {
     { key: 'prehled',   icon: 'home', label: 'Přehled' },
     { key: 'dochazka',  icon: 'calendar', label: 'Docházka' },
     { key: 'klasifikace', icon: 'book', label: 'Známkování' },
-    { key: 'prubezna',  icon: 'list', label: 'Průběžná klasifikace' },
     { key: 'pololetka', icon: 'check', label: 'Pololetní klasifikace' },
     { key: 'kniha',     icon: 'clipboard', label: 'Třídní kniha' },
     { key: 'zpravy',    icon: 'chat', label: 'Zprávy' },
     { key: 'omluvenky', icon: 'shield', label: 'Omluvenky' },
-    { key: 'rozvrh',    icon: 'clock', label: 'Rozvrh a rezervace' },
+    { key: 'rozvrh',    icon: 'clock', label: 'Rozvrh' },
     { key: 'predmety',  icon: 'book', label: 'Předměty' },
     { key: 'ucebny',    icon: 'home', label: 'Učebny' },
     { key: 'ukoly',     icon: 'check', label: 'Úkoly' },
-    { key: 'poznamky',  icon: 'edit', label: 'Poznámky' },
+    { key: 'poznamky',  icon: 'edit', label: 'Vých. Opatření' },
     { key: 'planakci',  icon: 'flag', label: 'Plán akcí' },
     { key: 'hesla',     icon: 'zap', label: 'Resetování hesel' },
-    { key: 'oznameni',  icon: 'bell', label: 'Oznámení' }
+    { key: 'oznameni',  icon: 'bell', label: 'Oznámení' },
+    { key: 'zmenyrozvrh', icon: 'alert', label: 'Změny v rozvrhu' }
   ],
   student: [
     { key: 'prehled', icon: 'home', label: 'Přehled' },
     { key: 'znamky',  icon: 'book', label: 'Známky' },
-    { key: 'prubezna', icon: 'list', label: 'Průběžná klasifikace' },
-    { key: 'pololetka', icon: 'check', label: 'Vysvědčení' },
+    { key: 'pololetka', icon: 'check', label: 'Pololetní klasifikace' },
     { key: 'dochazka', icon: 'calendar', label: 'Docházka' },
     { key: 'rozvrh',  icon: 'clock', label: 'Rozvrh' },
+    { key: 'vyuka',   icon: 'book', label: 'Výuka' },
     { key: 'planakci', icon: 'flag', label: 'Plán akcí' },
     { key: 'ukoly',   icon: 'check', label: 'Moje úkoly' },
     { key: 'zpravy',  icon: 'chat', label: 'Zprávy' },
     { key: 'oznameni', icon: 'bell', label: 'Oznámení' }
   ],
   rodic: [
-    { key: 'prehled',   icon: 'home', label: 'Přehled' },
-    { key: 'prubezna',  icon: 'list', label: 'Průběžná klasifikace' },
-    { key: 'pololetka', icon: 'check', label: 'Vysvědčení' },
-    { key: 'dochazka',  icon: 'calendar', label: 'Docházka' },
+    { key: 'prehled',   icon: 'home', label: 'Přehled' },    { key: 'pololetka', icon: 'check', label: 'Pololetní klasifikace' },
+    { key: 'dochazka', icon: 'calendar', label: 'Docházka' },
     { key: 'planakci',  icon: 'flag', label: 'Plán akcí' },
     { key: 'poznamky',  icon: 'edit', label: 'Poznámky' },
     { key: 'omluvenky', icon: 'shield', label: 'Omluvenky' },
@@ -185,7 +188,7 @@ function defKeyFor(user) {
 /* souhrnný odznáček „Více“ pro učitele na mobilu (čekající omluvenky + zprávy + žádosti) */
 function navBadgeTotal(user) {
   if (!user || user.role !== 'ucitel' || user.isAdmin) return 0;
-  return pendingExcusesFor(user).length + userUnreadMsgs(user.id) + (db.absReq || []).filter(r => r.status === 'ceka').length + teacherResetUnread(user.id) + annUnreadCount(user);
+  return pendingExcusesFor(user).length + userUnreadMsgs(user.id) + teacherResetUnread(user.id) + annUnreadCount(user);
 }
 function navBadge(role, key, user) {
   if (role === 'ucitel' && user && user.isAdmin) return '';
@@ -197,10 +200,6 @@ function navBadge(role, key, user) {
     if (key === 'zpravy') {
       const n = userUnreadMsgs(user.id);
       return n ? '<span class="nav-n badge-dot" data-n="' + n + '">' + ic('chat', 16) + '</span>' : '';
-    }
-    if (key === 'rozvrh') {
-      const n = (db.absReq || []).filter(r => r.status === 'ceka').length;
-      return n ? '<span class="nav-n badge-dot" data-n="' + n + '">' + ic('clock', 16) + '</span>' : '';
     }
     if (key === 'hesla') {
       const n = teacherResetUnread(user.id);
@@ -490,7 +489,7 @@ onAct('notif-go:omluvenky', () => { closeBell(); const u = currentUser(); gotoHa
 onAct('notif-go:prehled', () => { closeBell(); const u = currentUser(); gotoHash('#/' + u.role + '/prehled'); });
 onAct('notif-go:zpravy', () => { closeBell(); const u = currentUser(); gotoHash('#/' + u.role + '/zpravy'); });
 onAct('notif-go:pololetka', () => { closeBell(); const u = currentUser(); gotoHash('#/' + u.role + '/pololetka'); });
-onAct('notif-go:prubezna', () => { closeBell(); const u = currentUser(); gotoHash('#/' + u.role + '/prubezna'); });
+onAct('notif-go:prubezna', () => { closeBell(); const u = currentUser(); gotoHash('#/' + u.role + '/pololetka'); });
 /* ostatní route notifikací (dochazka, rozvrh, oznameni…) řešíme genericky přes existující view */
 onAct('notif-go:dochazka', () => { closeBell(); const u = currentUser(); gotoHash('#/' + u.role + '/dochazka'); });
 onAct('notif-go:oznameni', () => { closeBell(); const u = currentUser(); gotoHash('#/' + u.role + '/oznameni'); });
@@ -505,8 +504,23 @@ document.addEventListener('click', e => {
 /* ---------- po vyrenderování view: naskrolovat, doplnit data ---------- */
 function bindView() { /* hook pro views */ }
 
+/* ---------- blokace mobilů (aplikace je jen pro počítač/tablet) ---------- */
+function deviceBlocked() { return window.innerWidth < 768; }
+function showDeviceBlock() {
+  const app = document.getElementById('app');
+  if (app) app.innerHTML =
+    '<div class="device-block"><div class="device-block-in">' +
+      '<span class="device-block-ic">' + ic('alert', 34) + '</span>' +
+      '<h1>Aplikace na tomto zařízení zatím není dostupná</h1>' +
+      '<p>LukySchool otevřete prosím na počítači nebo tabletu s širší obrazovkou.</p>' +
+    '</div></div>';
+  document.body.classList.add('device-locked');
+}
+window.addEventListener('resize', () => { if (deviceBlocked() !== document.body.classList.contains('device-locked')) location.reload(); });
+
 /* ---------- start ---------- */
 function boot() {
+  if (deviceBlocked()) { showDeviceBlock(); return; }
   loadDB();
   loadSession();
   themeInit();

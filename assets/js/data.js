@@ -55,18 +55,21 @@ const SUBJECT_PALETTE = ['#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981', 
 /* šablona témat pro předměty bez ŠVP (např. vlastní předměty) */
 const DEFAULT_TOPICS = ['Úvod a opakování', 'Nové učivo', 'Procvičování', 'Shrnutí a opakování'];
 
-/* registr předmětů: vestavěné + vlastní z db.subjects (volá se po načtení dat) */
+/* registr předmětů: vestavěné + vlastní z db.subjects (volá se po načtení dat).
+   db.subjDeleted = zkratky smazaných vestavěných předmětů (aby se nevracely). */
 function dbSubjects() { return db.subjects || (db.subjects = {}); }
+function subjDeletedList() { return db.subjDeleted || (db.subjDeleted = []); }
 function refreshSubjects() {
   const custom = dbSubjects();
-  /* odeber smazané vlastní předměty, doplň nové */
+  const del = subjDeletedList();
+  /* odeber smazané předměty (vlastní i vestavěné), doplň nové */
   Object.keys(SUBJECTS).forEach(k => {
-    if (!SUBJECT_KEYS_BUILTIN.includes(k) && !Object.prototype.hasOwnProperty.call(custom, k)) delete SUBJECTS[k];
+    if (!Object.prototype.hasOwnProperty.call(custom, k) && (del.includes(k) || !SUBJECT_KEYS_BUILTIN.includes(k))) delete SUBJECTS[k];
   });
   Object.keys(custom).forEach(code => { SUBJECTS[code] = { name: custom[code].name, color: custom[code].color }; });
   SUBJ_KEYS.length = 0;
-  SUBJECT_KEYS_BUILTIN.forEach(k => SUBJ_KEYS.push(k));
-  Object.keys(custom).forEach(code => SUBJ_KEYS.push(code));
+  SUBJECT_KEYS_BUILTIN.forEach(k => { if (!del.includes(k)) SUBJ_KEYS.push(k); });
+  Object.keys(custom).forEach(code => { if (SUBJECTS[code] && !del.includes(code) && !SUBJ_KEYS.includes(code)) SUBJ_KEYS.push(code); });
 }
 /* seznam předmětů pro výběry: {code, name, color, builtin} */
 function subjectsList() {
@@ -109,22 +112,27 @@ function addSubject(name, code, color) {
   return final;
 }
 function renameSubject(code, name) {
-  const c = dbSubjects()[code];
+  let c = dbSubjects()[code];
+  if (!c && SUBJECTS[code]) c = dbSubjects()[code] = { name: SUBJECTS[code].name, color: SUBJECTS[code].color };
   if (!c) return false;
   c.name = String(name).trim();
   if (SUBJECTS[code]) SUBJECTS[code].name = c.name;
   saveDB();
   return true;
 }
-/* přejmenování zkratky vlastního předmětu: přepíšeme kód v rozvrhu, třídní knize,
+/* přejmenování zkratky předmětu (vlastního i vestavěného): přepíšeme kód v rozvrhu, třídní knize,
    známkovacích sloupcích i úkolech (známky zůstávají zachované). */
 function renameSubjectCode(code, newCode) {
-  const c = dbSubjects()[code];
+  let c = dbSubjects()[code];
+  if (!c && SUBJECTS[code]) c = dbSubjects()[code] = { name: SUBJECTS[code].name, color: SUBJECTS[code].color };
   if (!c) return false;
   const n = String(newCode || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-  if (!n || Object.prototype.hasOwnProperty.call(SUBJECTS, n)) return false;
-  delete dbSubjects()[code];
-  dbSubjects()[n] = c;
+  if (!n || (n !== code && Object.prototype.hasOwnProperty.call(SUBJECTS, n))) return false;
+  if (n !== code) {
+    delete dbSubjects()[code];
+    dbSubjects()[n] = c;
+    if (SUBJECT_KEYS_BUILTIN.includes(code) && !subjDeletedList().includes(code)) subjDeletedList().push(code);
+  }
   (db.classes || []).forEach(cls => {
     const sc = db.schedule && db.schedule[cls.id];
     if (!sc || !sc.days) return;
@@ -133,23 +141,25 @@ function renameSubjectCode(code, newCode) {
   (db.classbook || []).forEach(r => { if (r.subj === code) r.subj = n; });
   (db.columns || []).forEach(c2 => { if (c2.subj === code) c2.subj = n; });
   (db.tasks || []).forEach(t => { if (t.subj === code) t.subj = n; });
-  delete SUBJECTS[code];
+  if (n !== code) { delete SUBJECTS[code]; }
   SUBJECTS[n] = { name: c.name, color: c.color };
   refreshSubjects();
   saveDB();
   return true;
 }
 function setSubjectColor(code, color) {
-  const c = dbSubjects()[code];
+  let c = dbSubjects()[code];
+  if (!c && SUBJECTS[code]) c = dbSubjects()[code] = { name: SUBJECTS[code].name, color: SUBJECTS[code].color };
   if (!c) return false;
   c.color = color;
   if (SUBJECTS[code]) SUBJECTS[code].color = color;
   saveDB();
   return true;
 }
-/* smazání vlastního předmětu vč. použití v rozvrhu / třídní knize / známkách */
+/* smazání předmětu (vlastního i vestavěného) vč. použití v rozvrhu / třídní knize / známkách */
 function deleteSubjectCascade(code) {
-  if (SUBJECT_KEYS_BUILTIN.includes(code)) return false;
+  if (!SUBJECTS[code]) return false;
+  if (SUBJECT_KEYS_BUILTIN.includes(code) && !subjDeletedList().includes(code)) subjDeletedList().push(code);
   delete dbSubjects()[code];
   (db.classes || []).forEach(cls => {
     const sc = db.schedule && db.schedule[cls.id];
@@ -451,7 +461,10 @@ function wipeSchool() {
     meta: { seededAt: nowISO(), schoolYear: schoolYearLabel() },
     classes: [], users: [JSON.parse(JSON.stringify(ADMIN_USER))],
     students: [], rooms: JSON.parse(JSON.stringify(DEFAULT_ROOMS)), subjects: {}, schedule: {}, columns: [], tasks: [], classbook: [],
-    threads: {}, excuses: [], subs: [], reservations: [], absReq: [], notifs: [], reports: {}, records: [], notes: [], actions: [], seen: { 'u-admin': null }
+    threads: {},
+    subs: [], reservations: [], absReq: [], notifs: [],
+    changes: [], /* změny rozvrhu: {id,cls,date,period,kind:'odpadla'|'mistnost'|'ucitel'|'predmet',reason,newRoom,newTeacher,newSubj,by,ts} */
+    reports: {}, records: [], notes: [], actions: [], subjDeleted: [], resetReq: [], resetPass: [], scheduledMsgs: [], seen: { 'u-admin': null }
   };
   saveDB();
   refreshSubjects();
@@ -736,6 +749,22 @@ function daysUntilAction(iso) {
   const t = new Date(iso + 'T00:00:00');
   const now = new Date(); now.setHours(0, 0, 0, 0);
   return Math.round((t - now) / 86400000);
+}
+
+/* ---------- změny rozvrhu (odpadlá hodina, změna místnosti / učitele / předmětu) ---------- */
+const CHANGE_KINDS = [
+  { id: 'odpadla',  label: 'Odpadlá hodina' },
+  { id: 'mistnost', label: 'Změna místnosti' },
+  { id: 'ucitel',   label: 'Změna učitele' },
+  { id: 'predmet',  label: 'Změna předmětu' }
+];
+function changesEnsure() { if (!db.changes) db.changes = []; }
+function changeFor(clsId, iso, period) {
+  return (db.changes || []).find(c => c.cls === clsId && c.date === iso && c.period === period) || null;
+}
+function changesOfClass(clsId) { return (db.changes || []).filter(c => c.cls === clsId); }
+function changeShortLabel(c) {
+  return ({ odpadla: 'odpadlá', mistnost: 'místnost', ucitel: 'učitel', predmet: 'předmět' })[c.kind] || 'změna';
 }
 function actionCountdownChip(days) {
   if (days < 0) return '<span class="chip" style="opacity:.7">proběhlo</span>';

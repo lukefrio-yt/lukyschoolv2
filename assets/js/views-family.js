@@ -75,7 +75,7 @@ function dueWithin(due, days) { return addDaysISO(todayISO(), days) >= due; }
 function dayStateHtml(cls) {
   const info = currentLessonInfo(cls, todayISO());
   const today = todayISO();
-  const subToday = (db.subs || []).filter(x => x.date === today && x.cls === cls);
+  const chgToday = (db.changes || []).filter(x => x.date === today && x.cls === cls);
   let icon = ic('calendar', 16), txt = '';
   if (info.state === 'now') {
     txt = 'Právě probíhá <b>' + escapeHtml(SUBJECTS[info.lesson.subj].name) + '</b> · do konce <b data-cd-remain style="color:var(--accent)">—</b>';
@@ -88,7 +88,7 @@ function dayStateHtml(cls) {
     const subj = subjOf(cls, nx, 0);
     txt = 'Dnes není škola · příští hodina ' + WD_CS[weekdayOf(nx) - 1] + ' „' + escapeHtml(subj ? SUBJECTS[subj].name : '—') + '“';
   }
-  if (subToday.length) txt += ' &nbsp;·&nbsp; <span class="chip chip-warn" style="padding:1px 8px">suplování</span>';
+  if (chgToday.length) txt += ' &nbsp;·&nbsp; <span class="chip chip-bad" style="padding:1px 8px">' + chgToday.length + ' ' + csPlural(chgToday.length, 'změna', 'změny', 'změn') + ' v rozvrhu</span>';
   return { icon, txt };
 }
 
@@ -206,17 +206,49 @@ function sRozvrh() {
     const nowInfo = currentLessonInfo(cls, dayISO);
     return sc.slots.map((slot, i) => {
       const en = sc.days[weekdayOf(dayISO)] ? sc.days[weekdayOf(dayISO)][i] : null;
-      const subEv = (db.subs || []).find(x => x.date === dayISO && x.period === i && x.cls === cls);
       const isNow = nowInfo.state === 'now' && nowInfo.lesson && nowInfo.lesson.period === i;
-      const subj = en ? en.subj : (subEv ? subEv.subj : null);
+      const subj = en ? en.subj : null;
       if (!subj) return '';
-      const rmChip = en && en.room ? roomChip(en.room, 22) : '';
-      return '<div class="lesson' + (isNow ? ' now' : '') + (subEv ? ' sub' : '') + '">' +
-        '<span class="time">' + slot.s + '<br>' + slot.e + '</span>' + subjBadge(subj, 42) +
-        '<div class="grow"><div class="row-title">' + escapeHtml(SUBJECTS[subj].name) + '</div>' +
-        '<div class="row-sub">' + (subEv
-          ? '<span class="chip chip-warn">suplování · ' + escapeHtml(subEv.note || '') + '</span>'
-          : escapeHtml(cls + ' · ' + (i + 1) + '. hodina') + (rmChip ? '<span style="margin:0 0 0 7px">' + rmChip + '</span>' : '')) + '</div></div>' +
+      const chg = changeFor(cls, dayISO, i);
+      /* drobné ikonky před zkratkou předmětu: ✓ zapsáno v třídní knize · 📖 úkol · ! písemka */
+      const ics = [];
+      const cb = (db.classbook || []).find(r => r.cls === cls && r.date === dayISO && r.period === i);
+      if (cb) ics.push('<span class="l-ic g-ok" title="Hodina je už zapsaná v třídní knize">' + ic('check', 12) + '</span>');
+      const hw = (db.tasks || []).find(t => t.due === dayISO && t.subj === subj && (t.sid === mySid() || t.cls === cls));
+      if (hw) ics.push('<span class="l-ic g-book" title="Odevzdává se úkol: ' + escapeHtml(hw.title) + '">' + ic('book', 12) + '</span>');
+      const test = (db.columns || []).find(c => c.cls === cls && c.subj === subj && c.date === dayISO && Object.keys(c.cells || {}).some(sid2 => String(c.cells[sid2]).trim() === '?'));
+      if (test) ics.push('<span class="l-ic g-bad" title="Plánovaná písemka: ' + escapeHtml(test.title) + '">' + ic('alert', 12) + '</span>');
+      const icsHtml = (ics.length ? '<span class="l-ics" style="margin-right:4px">' + ics.join('') + '</span>' : '');
+      let rowCls = 'lesson' + (isNow ? ' now' : '') + (chg ? ' chg' : '');
+      let badge, title, subTxt;
+      if (chg && chg.kind === 'odpadla') {
+        badge = '<span class="subj-badge" style="width:42px;height:42px;background:var(--bad)" title="Odpadlá hodina">' + escapeHtml(subjShort(subj)) + '</span>';
+        title = '<span style="text-decoration:line-through">' + escapeHtml(SUBJECTS[subj].name) + '</span>';
+        subTxt = '<span class="chip chip-bad">odpadlá hodina</span>' + (chg.reason ? ' ' + escapeHtml(chg.reason) : '');
+      } else if (chg && chg.kind === 'mistnost') {
+        badge = '<span class="l-ics" style="margin-right:4px"><span class="l-ic g-bad" title="Změna místnosti">' + ic('swap', 12) + '</span></span>' + subjBadge(subj, 42);
+        title = escapeHtml(SUBJECTS[subj].name);
+        const nr = roomsList().find(x => x.id === chg.newRoom);
+        subTxt = '<span class="chip chip-bad">jiná místnost: ' + escapeHtml(nr ? nr.name : '?') + '</span>' + (chg.reason ? ' ' + escapeHtml(chg.reason) : '');
+      } else if (chg && chg.kind === 'ucitel') {
+        badge = '<span class="l-ics" style="margin-right:4px"><span class="l-ic g-bad" title="Změna učitele">' + ic('user', 12) + '</span></span>' + subjBadge(subj, 42);
+        title = escapeHtml(SUBJECTS[subj].name);
+        subTxt = '<span class="chip chip-bad">učitel: ' + escapeHtml(chg.newTeacher || '') + '</span>' + (chg.reason ? ' ' + escapeHtml(chg.reason) : '');
+      } else if (chg && chg.kind === 'predmet') {
+        const ns = chg.newSubj;
+        badge = '<span class="subj-badge" style="width:42px;height:42px;background:var(--bad)" title="Změna předmětu">' + (ns ? escapeHtml(subjShort(ns)) : '?') + '</span>';
+        title = escapeHtml(ns && SUBJECTS[ns] ? SUBJECTS[ns].name : '?');
+        subTxt = '<span class="chip chip-bad">' + escapeHtml(subjShort(subj)) + ' → ' + escapeHtml(ns ? subjShort(ns) : '?') + '</span>' + (chg.reason ? ' ' + escapeHtml(chg.reason) : '');
+      } else {
+        badge = icsHtml + subjBadge(subj, 42);
+        title = escapeHtml(SUBJECTS[subj].name);
+        const rmChip = en && en.room ? '<span style="margin:0 0 0 7px">' + roomChip(en.room, 22) + '</span>' : '';
+        subTxt = escapeHtml(cls + ' · ' + (i + 1) + '. hodina') + rmChip;
+      }
+      return '<div class="' + rowCls + '">' +
+        '<span class="time">' + slot.s + '<br>' + slot.e + '</span>' + badge +
+        '<div class="grow"><div class="row-title">' + title + '</div>' +
+        '<div class="row-sub">' + subTxt + '</div></div>' +
         (isNow ? '<div class="prog" style="width:' + nowInfo.prog + '%"></div>' : '') + '</div>';
     }).join('');
   }
@@ -231,12 +263,12 @@ function sRozvrh() {
   const noSchedule = !sc.days || Object.keys(sc.days).length === 0 || [1, 2, 3, 4, 5].every(d => !(sc.days[d] || []).some(en => en && en.subj));
   if (noSchedule) {
     return '' +
-      '<div class="page-head"><div><h1>Rozvrh</h1><div class="sub">' + escapeHtml(cls) + ' · suplování zvýrazněné, odpočet naživo</div></div></div>' +
+      '<div class="page-head"><div><h1>Rozvrh</h1><div class="sub">' + escapeHtml(cls) + ' · změny červeně, odpočet naživo</div></div></div>' +
       '<div class="empty" style="padding:60px 16px"><b>Rozvrh ještě není nastavený</b>Učitel ho teprve vyplní v záložce „Nastavit rozvrh“. Až bude hotový, uvidíš tady každý den i učebnu.</div>';
   }
 
   return '' +
-  '<div class="page-head"><div><h1>Rozvrh</h1><div class="sub">' + escapeHtml(cls) + ' · suplování zvýrazněné, odpočet naživo</div></div></div>' +
+  '<div class="page-head"><div><h1>Rozvrh</h1><div class="sub">' + escapeHtml(cls) + ' · změny červeně, odpočet naživo · ✓ zapsáno · 📖 úkol · ! písemka</div></div></div>' +
   '<div class="rcpt-row">' + weekDates.map(d =>
     '<button class="rcpt-pill' + (d === cur ? ' active' : '') + '" data-act="roz-den:' + d + '">' + WD_CS[weekdayOf(d) - 1] + ' ' + d.slice(8) + (d === todayISO() ? ' · dnes' : '') + '</button>'
   ).join('') + '</div>' +
@@ -251,12 +283,17 @@ function sRozvrh() {
   (weekdayOf(cur) >= 1 && weekdayOf(cur) <= 5 && !hasAnyLesson && lessonsToday.length === 0
     ? '<div class="empty"><b>Volný den</b>V tento den podle rozvrhu není žádné vyučování 🎈</div>'
     : (weekdayOf(cur) < 1 || weekdayOf(cur) > 5 ? '<div class="empty"><b>Víkend</b>Žádné vyučování 🎈</div>' : '')) +
-  '<div class="card" style="margin-top:18px"><div class="card-title">' + ic('bell', 16) + ' Změny rozvrhu (suplování)</div>' +
-    ((db.subs || []).length
-      ? '<div class="list">' + db.subs.filter(x => x.cls === cls).map(s =>
-          '<div class="list-row">' + subjBadge(s.subj, 34) + '<div class="grow"><div class="row-title">' + fmtDate(s.date) + ' · ' + (s.period + 1) + '. hodina · ' + escapeHtml(SUBJECTS[s.subj].name) + '</div>' +
-          '<div class="row-sub">' + escapeHtml(s.note || '') + '</div></div><span class="chip chip-warn">změna</span></div>'
-        ).join('') + '</div>'
+  '<div class="card" style="margin-top:18px"><div class="card-title">' + ic('bell', 16) + ' Změny rozvrhu</div>' +
+    (changesOfClass(cls).length
+      ? '<div class="list">' + changesOfClass(cls).slice().sort((a, b) => (a.date < b.date ? -1 : 1)).map(c => {
+          let detail = '';
+          if (c.kind === 'mistnost' && c.newRoom) { const r = roomsList().find(x => x.id === c.newRoom); detail = 'nová místnost: ' + (r ? r.name : '?'); }
+          else if (c.kind === 'ucitel' && c.newTeacher) detail = 'nový učitel: ' + c.newTeacher;
+          else if (c.kind === 'predmet' && c.newSubj) detail = 'náhrada: ' + subjectName(c.newSubj);
+          return '<div class="list-row"><span class="chip chip-bad">' + changeShortLabel(c) + '</span>' +
+            '<div class="grow"><div class="row-title">' + fmtDate(c.date) + ' · ' + (c.period + 1) + '. hodina</div>' +
+            '<div class="row-sub">' + escapeHtml([detail, c.reason].filter(Boolean).join(' · ')) + '</div></div></div>';
+        }).join('') + '</div>'
       : '<div class="empty">Žádné změny</div>') +
   '</div>';
 }
@@ -966,105 +1003,6 @@ function pDochazka() {
   dochazkaBodyHtml(cid);
 }
 
-/* ================= VYSVĚDČENÍ (pololetní klasifikace – žák i rodič) ================= */
-function vysvedceniView() {
-  clearTick();
-  const u = currentUser();
-  if (!u) return '';
-  const isRod = u.role === 'rodic';
-  let sid = null;
-  if (u.role === 'student') sid = u.studentId;
-  else {
-    const kids = parentChildren();
-    if (!kids.length) return '<div class="card"><div class="empty"><b>Nemáte propojené žádné dítě</b>Kontaktujte správce školy.</div></div>';
-    sid = parentCurChild();
-  }
-  const st = studentOf(sid);
-  if (!st) return '';
-  const clsId = st.cls;
-  const cls = classOf(clsId);
-  const sem = 1;
-  const rep = classReport(clsId, sem);
-  const closed = !!rep.closed;
-  const subs = classSubjects(clsId);
-  const syLbl = schoolYearLabel();
-  const metaTxt = '<div class="sub">' + (isRod ? 'Vysvědčení vašeho dítěte' : 'Tvoje vysvědčení') + ' · ' + escapeHtml(cls ? cls.name : clsId) + ' · ' + semLabel(sem) + ' ' + escapeHtml(syLbl) + '</div>';
-  const headTitle = '<h1>Vysvědčení</h1>';
-  /* rozvržení jako oficiální dokument */
-  const doc = '<div style="border:1px solid var(--border);border-radius:14px;background:linear-gradient(180deg,rgba(59,130,246,.05),transparent 60%);padding:22px 24px;max-width:720px">' +
-    '<div style="text-align:center"><div style="font-weight:900;font-size:17px;letter-spacing:.5px">Vysvědčení</div>' +
-    '<div style="font-size:12.5px;color:var(--muted);margin-top:3px">' + semLabel(sem) + ' · školní rok ' + escapeHtml(syLbl) + '</div></div>' +
-    '<div style="display:flex;flex-wrap:wrap;gap:6px 26px;margin:16px 0 4px;font-size:13.5px"><span><b>Žák:</b> ' + escapeHtml(st.first + ' ' + st.last) + '</span>' +
-    '<span><b>Třída:</b> ' + escapeHtml(cls ? cls.name : clsId) + '</span>' +
-    (rep.closedAt ? '<span><b>Vydáno:</b> ' + fmtDate(rep.closedAt) + '</span>' : '') + '</div>' +
-    '<table class="tbl" style="margin-top:10px"><thead><tr><th style="text-align:left">Předmět</th><th style="text-align:center;width:120px">Klasifikace</th><th style="text-align:center;width:110px">Průměr</th></tr></thead><tbody>' +
-    subs.map(sub => {
-      const g = (rep.checked[st.id] || {})[sub];
-      const a = semesterAvgOf(st.id, sub, sem);
-      const dec = a.avg !== null ? gradeFromAvg(a.avg).decide : false;
-      return '<tr><td><div style="display:flex;align-items:center;gap:9px">' + subjBadge(sub, 24) + '<b>' + escapeHtml(SUBJECTS[sub].name) + '</b></div></td>' +
-        '<td style="text-align:center">' + (g
-          ? '<span style="display:inline-grid;place-items:center;width:36px;height:36px;border-radius:10px;background:var(--surface-2);border:1px solid var(--border);font-weight:900;font-size:16px">' + escapeHtml(g) + '</span>'
-          : (a.avg !== null ? '<span class="chip chip-warn">rozhoduje učitel</span>' : '<span class="chip">bez hodnocení</span>')) + '</td>' +
-        '<td style="text-align:center;color:var(--muted);font-weight:700">' + (a.avg !== null ? a.avg.toFixed(2) : '—') + (dec && g ? ' <span class="small-note" style="margin:0">(rozhodl učitel)</span>' : '') + '</td></tr>';
-    }).join('') + '</tbody></table>' +
-    '<div style="margin-top:16px;font-size:13px;color:var(--muted)">' + (subs.length ? 'Výsledný prospěch: <b style="color:var(--text)">' + vysvedceniGradePhrase(sid, sem) + '</b>' : '') + '</div>' +
-    '</div>';
-  const kidsRow = isRod
-    ? (parentChildren().length > 1
-        ? '<div class="rcpt-row">' + parentChildren().map(k =>
-            '<button class="rcpt-pill' + (k.id === sid ? ' active' : '') + '" data-act="p-child:' + k.id + '">' +
-            '<span class="ava" style="width:24px;height:24px;font-size:11px">' + escapeHtml(k.first.charAt(0)) + '</span>' +
-            k.first + ' ' + k.last + '</button>').join('') + '</div>'
-        : '')
-    : '';
-  /* pochvaly + výchovná opatření: z průběžné klasifikace (db.records) a závažné
-     poznámky učitele (závažnost 3, db.notes) za dané pololetí */
-  const semRecs = recordsOf(sid).filter(r => (r.sem || semOfDate(r.date)) === sem);
-  const pochvaly = semRecs.filter(r => r.type.indexOf('pch-') === 0);
-  const opatreni = semRecs.filter(r => r.type.indexOf('pch-') !== 0);
-  const sev3notes = notesOf(sid).filter(n => Number(n.sev) === 3 && semOfDate(n.date) === sem);
-  const vyhRow = (labelHtml, sub) => '<div class="list-row" style="padding:9px 12px;margin-bottom:8px;align-items:flex-start"><div class="grow"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' + labelHtml + '</div>' +
-    (sub ? '<div class="row-sub" style="margin-top:3px;white-space:pre-wrap">' + escapeHtml(sub) + '</div>' : '') + '</div></div>';
-  const vyhSections = (pochvaly.length || opatreni.length || sev3notes.length)
-    ? '<div style="max-width:720px;margin-top:16px;display:grid;gap:14px">' +
-      (pochvaly.length
-        ? '<div style="border:1px solid var(--border);border-radius:14px;padding:14px 18px"><div class="card-title" style="margin-bottom:6px">' + ic('check', 16) + ' Pochvaly' +
-          '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">' + pochvaly.length + ' ' + csPlural(pochvaly.length, 'záznam', 'záznamy', 'záznamů') + '</span></div>' +
-          pochvaly.map(r => vyhRow(recChip(r.type), (r.reason ? r.reason + '\n' : '') + fmtDate(r.date))).join('') + '</div>'
-        : '') +
-      ((opatreni.length || sev3notes.length)
-        ? '<div style="border:1px solid var(--border);border-radius:14px;padding:14px 18px"><div class="card-title" style="margin-bottom:6px">' + ic('alert', 16) + ' Výchovná opatření' +
-          '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">' + (opatreni.length + sev3notes.length) + ' ' + csPlural(opatreni.length + sev3notes.length, 'záznam', 'záznamy', 'záznamů') + '</span></div>' +
-          opatreni.map(r => vyhRow(recChip(r.type), (r.reason ? r.reason + '\n' : '') + fmtDate(r.date))).join('') +
-          sev3notes.map(n => vyhRow('<span class="chip chip-bad" style="padding:2px 9px;font-size:11px">Závažná poznámka učitele</span> ' + escapeHtml(n.title || ''), (n.reason ? n.reason + '\n' : '') + fmtDate(n.date))).join('') +
-          '</div>'
-        : '') +
-      '</div>'
-    : '';
-  return '<div class="page-head"><div>' + headTitle + metaTxt + '</div></div>' +
-    kidsRow +
-    (closed
-      ? doc + vyhSections
-      : '<div class="card"><div class="empty"><b>Vysvědčení zatím není připravené</b>Učitel ho vystaví po uzavření pololetí – uvidíte ho tady.</div></div>');
-}
-/* slovní hodnocení celkového prospěchu z pololetních průměrů */
-function vysvedceniGradePhrase(sid, sem) {
-  const st = studentOf(sid);
-  if (!st) return '—';
-  const subs = classSubjects(st.cls);
-  const grades = [];
-  subs.forEach(sub => {
-    const g = (classReport(st.cls, sem).checked[sid] || {})[sub];
-    const n = Number(g);
-    if (g && !isNaN(n)) grades.push(n);
-  });
-  if (!grades.length) return '—';
-  const avg = grades.reduce((s, x) => s + x, 0) / grades.length;
-  if (grades.includes(5)) return 'neprospěl(a)';
-  if (avg <= 1.5 && !grades.some(g => g > 2)) return 'prospěl(a) s vyznamenáním';
-  return 'prospěl(a)';
-}
 /* ---------- OZNÁMENÍ (zprávy učitelů pro třídu) ---------- */
 function sOznameni() {
   const u = currentUser();
@@ -1088,7 +1026,8 @@ function sOznameni() {
         }).join('') + '</div>'
       : '<div class="card"><div class="empty"><b>Zatím žádná oznámení</b>Když učitel třídě něco vzkáže (písemka, akce…), objeví se to tady.</div></div>');
 }
-/* ================= PRŮBĚŽNÁ KLASIFIKACE (žák i rodič) ================= */
+
+/* ================= POLOLETNÍ KLASIFIKACE (žák i rodič) ================= */
 function prubeznaView() {
   clearTick();
   const u = currentUser();
@@ -1105,7 +1044,9 @@ function prubeznaView() {
   if (!st) return '';
   const subjects = classSubjects(st.cls);
   const cls = classOf(st.cls);
-  const myRecs = (db.records || []).filter(r => r.sid === sid).sort((a, z) => (a.date === z.date ? 0 : a.date < z.date ? 1 : -1));
+  const myRecs = (db.records || []).filter(r => r.sid === sid)
+    .concat(notesOf(sid).filter(n => Number(n.sev) === 3).map(n => ({ type: 'sev3', reason: (n.title ? n.title + '\n' : '') + (n.reason || ''), date: n.date, sem: semOfDate(n.date) })))
+    .sort((a, z) => (a.date === z.date ? 0 : a.date < z.date ? 1 : -1));
   const cell = sub => {
     let out = '';
     [1, 2].forEach(sem => {
@@ -1130,8 +1071,8 @@ function prubeznaView() {
         '<span class="ava" style="width:24px;height:24px;font-size:11px">' + escapeHtml(k.first.charAt(0)) + '</span>' +
         k.first + ' ' + k.last + '</button>').join('') + '</div>'
     : '') : '');
-  return '<div class="page-head"><div><h1>Průběžná klasifikace</h1>' +
-    '<div class="sub">' + (isRod ? 'Průběžné hodnocení vašeho dítěte' : 'Tvoje průběžné hodnocení') + ' · ' + escapeHtml(cls ? cls.name : st.cls) + '</div></div></div>' +
+  return '<div class="page-head"><div><h1>Pololetní klasifikace</h1>' +
+    '<div class="sub">' + (isRod ? 'Hodnocení vašeho dítěte za 1. a 2. pololetí' : 'Tvoje hodnocení za 1. a 2. pololetí') + ' · ' + escapeHtml(cls ? cls.name : st.cls) + '</div></div></div>' +
     headRow +
     '<div class="card"><div class="card-title">' + ic('list', 16) + ' Známky za pololetí' +
       '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">1. pol do 31. 1. · 2. pol od 1. 2.</span></div>' +
@@ -1144,28 +1085,61 @@ function prubeznaView() {
       : '<div class="empty">Zatím žádné předměty – známky se tu objeví, jakmile učitel začne zapisovat.</div>') +
     '</div>' +
     '<div class="card" style="margin-top:16px"><div class="card-title">' + ic('check', 16) + ' Pochvaly a výchovná opatření' +
-      '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">' + myRecs.length + ' záznamů</span></div>' +
+      '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">' + myRecs.length + ' ' + csPlural(myRecs.length, 'záznam', 'záznamy', 'záznamů') + '</span></div>' +
     (myRecs.length
-      ? '<div class="list">' + myRecs.map(r =>
-          '<div class="list-row"><span class="ava" style="background:' + ({ ok: 'linear-gradient(135deg,#10B981,#059669)', accent: 'linear-gradient(135deg,#3B82F6,#2563EB)', warn: 'linear-gradient(135deg,#F59E0B,#D97706)', bad: 'linear-gradient(135deg,#EF4444,#DC2626)' }[REC_BY_ID[r.type] && REC_BY_ID[r.type].tone] || 'linear-gradient(135deg,#64748B,#475569)') + '">' + ic({ ok: 'check', accent: 'check', warn: 'alert', bad: 'x' }[REC_BY_ID[r.type] && REC_BY_ID[r.type].tone] || 'flag', 16) + '</span>' +
-          '<div class="grow"><div class="row-title">' + recChip(r.type) + '</div>' +
-          '<div style="margin-top:3px">' + escapeHtml(r.reason || '') + '</div>' +
-          '<div class="row-sub">' + semLabel(r.sem || semOfDate(r.date)) + ' · ' + fmtDate(r.date) + '</div></div></div>').join('') + '</div>'
+      ? '<div class="list">' + myRecs.map(r => {
+          if (r.type === 'sev3') {
+            return '<div class="list-row"><span class="ava" style="background:linear-gradient(135deg,#EF4444,#DC2626)">' + ic('edit', 16) + '</span>' +
+              '<div class="grow"><div class="row-title">' + recChip('du-tu') + '</div>' +
+              '<div style="margin-top:3px">' + escapeHtml(r.reason || '') + '</div>' +
+              '<div class="row-sub">' + semLabel(r.sem || semOfDate(r.date)) + ' · ' + fmtDate(r.date) + '</div></div></div>';
+          }
+          return '<div class="list-row"><span class="ava" style="background:' + ({ ok: 'linear-gradient(135deg,#10B981,#059669)', accent: 'linear-gradient(135deg,#3B82F6,#2563EB)', warn: 'linear-gradient(135deg,#F59E0B,#D97706)', bad: 'linear-gradient(135deg,#EF4444,#DC2626)' }[REC_BY_ID[r.type] && REC_BY_ID[r.type].tone] || 'linear-gradient(135deg,#64748B,#475569)') + '">' + ic({ ok: 'check', accent: 'check', warn: 'alert', bad: 'x' }[REC_BY_ID[r.type] && REC_BY_ID[r.type].tone] || 'flag', 16) + '</span>' +
+            '<div class="grow"><div class="row-title">' + recChip(r.type) + '</div>' +
+            '<div style="margin-top:3px">' + escapeHtml(r.reason || '') + '</div>' +
+            '<div class="row-sub">' + semLabel(r.sem || semOfDate(r.date)) + ' · ' + fmtDate(r.date) + '</div></div></div>';
+        }).join('') + '</div>'
       : '<div class="empty"><b>Zatím žádné záznamy</b>Pochvaly a výchovná opatření tu zapisuje třídní učitel.</div>') +
     '</div>';
 }
+
+/* ================= VÝUKA (žák: probírané učivo podle předmětů) ================= */
+function sVyuka() {
+  clearTick();
+  const cls = myCls();
+  if (!cls) return '';
+  const recs = (db.classbook || []).filter(r => r.cls === cls);
+  const bySubj = {};
+  recs.forEach(r => { if (!r.subj) return; (bySubj[r.subj] = bySubj[r.subj] || []).push(r); });
+  const keys = mySubjKeys().filter(k => bySubj[k] && bySubj[k].length).concat(Object.keys(bySubj).filter(k => !mySubjKeys().includes(k)));
+  return '<div class="page-head"><div><h1>Výuka</h1>' +
+    '<div class="sub">Co se probíralo v jednotlivých předmětech – zápisy z třídní knihy</div></div></div>' +
+    (keys.length
+      ? keys.map(k => {
+          const list = bySubj[k].slice().sort((a, z) => (a.date === z.date ? (a.period - z.period) : (a.date < z.date ? 1 : -1)));
+          return '<div class="card" style="margin-bottom:16px"><div class="card-title">' + subjBadge(k, 30) + ' ' + escapeHtml(SUBJECTS[k] ? SUBJECTS[k].name : k) +
+            '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">' + list.length + ' ' + csPlural(list.length, 'zápis', 'zápisy', 'zápisů') + '</span></div>' +
+            '<div class="list">' + list.map(r =>
+              '<div class="list-row" style="align-items:flex-start"><span class="chip" style="flex:0 0 auto">' + fmtDate(r.date) + ' · ' + (r.period + 1) + '. hod.</span>' +
+              '<div class="grow"><div class="row-title">' + escapeHtml(r.tema || '—') + '</div>' +
+              (r.ucivo ? '<div class="row-sub">' + escapeHtml(r.ucivo) + '</div>' : '') +
+              (r.ukol ? '<div style="margin-top:3px;font-size:13px;color:var(--warn)"><b>Úkol:</b> ' + escapeHtml(r.ukol) + '</div>' : '') +
+              '</div></div>').join('') + '</div></div>';
+        }).join('')
+      : '<div class="card"><div class="empty"><b>Zatím žádné zápisy</b>Jakmile učitel zapíše první hodinu do třídní knihy, uvidíš tady, co se probíralo – rozdělené podle předmětů.</div></div>');
+}
+
 registerView('student', 'prehled', sPrehled);
 registerView('student', 'znamky', sZnamky);
-registerView('student', 'prubezna', prubeznaView);
-registerView('student', 'pololetka', vysvedceniView);
+registerView('student', 'pololetka', prubeznaView);
+registerView('student', 'vyuka', sVyuka);
 registerView('student', 'dochazka', sDochazka);
 registerView('student', 'rozvrh', sRozvrh);
 registerView('student', 'ukoly', sUkoly);
 registerView('student', 'zpravy', sZpravy);
 registerView('student', 'oznameni', sOznameni);
 registerView('rodic', 'prehled', pPrehled);
-registerView('rodic', 'prubezna', prubeznaView);
-registerView('rodic', 'pololetka', vysvedceniView);
+registerView('rodic', 'pololetka', prubeznaView);
 registerView('rodic', 'dochazka', pDochazka);
 registerView('rodic', 'omluvenky', pOmluvenky);
 registerView('rodic', 'zpravy', pZpravy);
@@ -1184,25 +1158,37 @@ function rodicPoznamkyView() {
   const sid = parentCurChild();
   const st = studentOf(sid);
   if (!st) return '';
-  const notes = notesOf(sid).slice().sort((a, z) => (a.date === z.date ? 0 : a.date < z.date ? 1 : -1));
+  const items = []
+    .concat(notesOf(sid).map(n => ({ k: 'note', date: n.date, n })))
+    .concat((db.records || []).filter(r => r.sid === sid).map(r => ({ k: 'rec', date: r.date, r })))
+    .sort((a, z) => (a.date === z.date ? 0 : a.date < z.date ? 1 : -1));
   const kidsRow = parentChildren().length > 1
     ? '<div class="rcpt-row">' + parentChildren().map(k =>
         '<button class="rcpt-pill' + (k.id === sid ? ' active' : '') + '" data-act="p-child:' + k.id + '">' +
         '<span class="ava" style="width:24px;height:24px;font-size:11px">' + escapeHtml(k.first.charAt(0)) + '</span>' +
         k.first + ' ' + k.last + '</button>').join('') + '</div>'
     : '';
-  return '<div class="page-head"><div><h1>Poznámky</h1>' +
-    '<div class="sub">Zápisky učitele k vašemu dítěti · ' + escapeHtml(st.first + ' ' + st.last) + '</div></div></div>' +
+  return '<div class="page-head"><div><h1>Výchovná opatření</h1>' +
+    '<div class="sub">Poznámky, pochvaly, napomenutí i dutky od učitelů · ' + escapeHtml(st.first + ' ' + st.last) + '</div></div></div>' +
     kidsRow +
-    '<div class="card"><div class="card-title">' + ic('edit', 16) + ' Poznámky učitele' +
-      '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">' + notes.length + ' ' + csPlural(notes.length, 'poznámka', 'poznámky', 'poznámek') + '</span></div>' +
-    (notes.length
-      ? '<div class="list">' + notes.map(n =>
-          '<div class="list-row" style="align-items:flex-start"><span class="ava" style="background:linear-gradient(135deg,#8B5CF6,#6D28D9)">' + ic('edit', 15) + '</span>' +
-          '<div class="grow"><div class="row-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' + escapeHtml(n.title || 'Poznámka') + noteSevChip(n.sev) + '</div>' +
-          (n.reason ? '<div style="margin-top:3px;white-space:pre-wrap">' + escapeHtml(n.reason) + '</div>' : '') +
-          '<div class="row-sub">' + fmtDate(n.date) + (Number(n.sev) === 3 ? ' · zapíše se do výchovných opatření na vysvědčení' : '') + '</div></div></div>').join('') + '</div>'
-      : '<div class="empty"><b>Zatím žádné poznámky</b>Když učitel k vašemu dítěti něco zapíše (pochvala, upozornění…), uvidíte to tady.</div>') +
+    '<div class="card"><div class="card-title">' + ic('edit', 16) + ' Záznamy učitelů' +
+      '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">' + items.length + ' ' + csPlural(items.length, 'záznam', 'záznamy', 'záznamů') + '</span></div>' +
+    (items.length
+      ? '<div class="list">' + items.map(it => {
+          if (it.k === 'rec') {
+            const r = it.r;
+            return '<div class="list-row" style="align-items:flex-start"><span class="ava" style="background:' + ({ ok: 'linear-gradient(135deg,#10B981,#059669)', accent: 'linear-gradient(135deg,#3B82F6,#2563EB)', warn: 'linear-gradient(135deg,#F59E0B,#D97706)', bad: 'linear-gradient(135deg,#EF4444,#DC2626)' }[REC_BY_ID[r.type] && REC_BY_ID[r.type].tone] || 'linear-gradient(135deg,#64748B,#475569)') + '">' + ic({ ok: 'check', accent: 'check', warn: 'alert', bad: 'x' }[REC_BY_ID[r.type] && REC_BY_ID[r.type].tone] || 'flag', 15) + '</span>' +
+              '<div class="grow"><div class="row-title">' + recChip(r.type) + '</div>' +
+              (r.reason ? '<div style="margin-top:3px;white-space:pre-wrap">' + escapeHtml(r.reason) + '</div>' : '') +
+              '<div class="row-sub">' + semLabel(r.sem || semOfDate(r.date)) + ' · ' + fmtDate(r.date) + '</div></div></div>';
+          }
+          const n = it.n;
+          return '<div class="list-row" style="align-items:flex-start"><span class="ava" style="background:linear-gradient(135deg,#8B5CF6,#6D28D9)">' + ic('edit', 15) + '</span>' +
+            '<div class="grow"><div class="row-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' + escapeHtml(n.title || 'Poznámka') + noteSevChip(n.sev) + '</div>' +
+            (n.reason ? '<div style="margin-top:3px;white-space:pre-wrap">' + escapeHtml(n.reason) + '</div>' : '') +
+            '<div class="row-sub">' + fmtDate(n.date) + (Number(n.sev) === 3 ? ' · patří do výchovných opatření v pololetní klasifikaci' : '') + '</div></div></div>';
+        }).join('') + '</div>'
+      : '<div class="empty"><b>Zatím žádné záznamy</b>Když učitel k vašemu dítěti něco zapíše (poznámku, pochvalu nebo důtku), uvidíte to tady.</div>') +
     '</div>';
 }
 
