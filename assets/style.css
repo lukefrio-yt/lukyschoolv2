@@ -415,10 +415,11 @@ textarea.ta { min-height: 44px; }
 /* schedule */
 .day-grid { display: grid; gap: 8px; }
 .lesson {
-  display: grid; grid-template-columns: 74px 1fr auto; gap: 14px; align-items: center;
+  display: grid; grid-template-columns: 74px auto minmax(0, 1fr); gap: 14px; align-items: center;
   background: var(--surface); border: 1px solid var(--border); border-radius: 13px; padding: 12px 16px;
   position: relative; overflow: hidden;
 }
+.lesson .grow { min-width: 0; }
 .lesson .time { font-size: 12px; color: var(--muted); font-weight: 700; line-height: 1.4; }
 .lesson .subj-badge { width: 42px; height: 42px; }
 .lesson.now { border-color: var(--accent); background: linear-gradient(90deg, rgba(59,130,246,0.12), var(--surface)); }
@@ -430,6 +431,7 @@ textarea.ta { min-height: 44px; }
 .lesson.chg { border-color: rgba(239,68,68,0.6); background: rgba(239,68,68,0.07); }
 .lesson.chg .prog { background: var(--bad); }
 /* drobné ikonky před zkratkou předmětu v rozvrhu: ✓ zapsáno, 📖 úkol, ! písemka */
+.l-badge-cell { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 0 0 auto; }
 .l-ics { display: flex; flex-direction: column; gap: 3px; flex: 0 0 auto; }
 .l-ic {
   width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center;
@@ -610,7 +612,7 @@ textarea.ta { min-height: 44px; }
   .field-row, .field-row-3 { grid-template-columns: 1fr; }
   .list-row { padding: 12px; gap: 10px; flex-wrap: wrap; }
   .list-row .row-title { font-size: 13.5px; }
-  .lesson { grid-template-columns: 56px 1fr auto; gap: 10px; padding: 12px 10px; }
+  .lesson { grid-template-columns: 56px auto minmax(0, 1fr); gap: 10px; padding: 12px 10px; }
   .lesson .time { font-size: 11px; }
   .lesson .subj-badge { width: 36px; height: 36px; }
   .tabs { margin-bottom: 14px; }

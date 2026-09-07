@@ -799,12 +799,6 @@ function tZpravy() {
             }).join('') +
           '</select></div>'
         : '') +
-      '<div class="field"><label>Šablona (volitelné)</label>' +
-        '<div class="rcpt-row" style="margin-top:2px">' +
-          (TMSG.who === 'student'
-            ? ['Pochvala za aktivitu', 'Zapomenuté pomůcky', 'Připomenutí úkolu', 'Pozvánka do kroužku']
-            : ['Pochvala za aktivitu', 'Upozornění na neprospěch', 'Zapomenuté pomůcky', 'Pozvánka na třídní schůzky']).map(t =>
-            '<button class="rcpt-pill" data-act="t-tpl:' + escapeHtml(t) + '" style="font-size:12px">' + escapeHtml(t) + '</button>').join('') + '</div></div>' +
       '<div class="field"><label>Předmět konverzace <span class="small-note" style="margin:0 0 0 4px">(volitelné – vytvoří samostatnou konverzaci s tímto předmětem)</span></label><input id="tmsg-subj" placeholder="Např. Konzultace, dotaz k písemce…"></div>' +
       '<div class="field"><label>Text zprávy</label><textarea class="ta" id="tmsg-text" rows="4" placeholder="' + (TMSG.who === 'student' ? 'Ahoj, … (žákovi)' : 'Dobrý den, …') + '"></textarea></div>' +
       '<div style="display:flex;gap:10px;flex-wrap:wrap">' +
@@ -913,30 +907,13 @@ onAct('t-msg-del:', el => {
     '<button class="btn btn-ghost" data-act="close-modal">Zrušit</button></div>');
 });
 onAct('t-msg-del-ok:', el => {
-  const id = el.getAttribute('data-act').slice(12);
+  const id = el.getAttribute('data-act').slice(13);
   delete db.threads[id];
   if (TMSG.thread === id) TMSG.thread = null;
   saveDB();
   closeModal();
   toast('Konverzace trvale odstraněna', 'bad');
   route();
-});
-onAct('t-tpl:', el => {
-  const ta = document.getElementById('tmsg-text');
-  if (!ta) return;
-  const tpl = el.getAttribute('data-act').slice(6);
-  const texts = {
-    'Pochvala za aktivitu': TMSG.who === 'student'
-      ? 'Ahoj, dnes jsi skvěle pracoval(a) – jen tak dál!'
-      : 'Dobrý den, chtěla bych vás pochválit – vaše dítě dnes skvěle pracovalo a zapojovalo se do diskuze. Děkujeme za spolupráci!',
-    'Upozornění na neprospěch': 'Dobrý den, rádi bychom vás informovali, že se vašemu dítěti v poslední době nedaří podle představ. Domluvme se prosím na dalším postupu – kdy vám to bude vyhovovat?',
-    'Zapomenuté pomůcky': 'Dobrý den, prosím o kontrolu, zda má vaše dítě do školy všechny pomůcky. Opakovaně zapomíná pracovní sešit. Děkuji.',
-    'Pozvánka na třídní schůzky': 'Dobrý den, srdečně vás zveme na třídní schůzky příští úterý od 17:00 v učebně č. 12. Těšíme se na setkání.',
-    'Připomenutí úkolu': 'Ahoj, připomínám, že úkol je potřeba odevzdat do konce týdne. Kdybys s něčím potřeboval(a) pomoct, stav se za mnou.',
-    'Pozvánka do kroužku': 'Ahoj, od příštího týdne startuje náš kroužek. Kdo má zájem, ať se mi ozve – míst je jen pár!'
-  };
-  ta.value = texts[tpl] || tpl;
-  ta.focus();
 });
 function sendTeacherMsg(text, who, mode, subject) {
   const u = currentUser();
@@ -1673,9 +1650,7 @@ function tOznameni() {
               '<div class="row-sub">' + escapeHtml((teacher ? teacher.name : 'Učitel') + ' · ' + annWhoLabel(a.who) + ' · ' + tsLabel(a.ts)) + '</div>' +
               '<div style="white-space:pre-wrap;margin-top:4px">' + escapeHtml(a.text) + '</div>' +
             '</div>' +
-            (a.teacherId === u.id
-              ? '<button class="icon-btn sm" style="color:var(--bad)" data-act="ann-del:' + a.id + '" title="Smazat oznámení">' + ic('trash', 15) + '</button>'
-              : '') +
+            '<button class="icon-btn sm" style="color:var(--bad)" data-act="ann-del:' + a.id + '" title="Smazat oznámení">' + ic('trash', 15) + '</button>' +
             '</div>';
         }).join('') + '</div>'
       : '<div class="empty"><b>Zatím žádná oznámení</b>První oznámení pošlete formulářem nahoře.</div>') +
@@ -1700,9 +1675,26 @@ onAct('ann-del:', el => {
   const id = el.getAttribute('data-act').slice(8);
   const a = (db.ann || []).find(x => x.id === id);
   const u = currentUser();
-  if (!a || !u || a.teacherId !== u.id) return;
+  if (!a || !u) return;
+  /* učitel smaže oznámení své třídy (i od kolegů, kteří ve třídě učí) */
+  const myClsIds = myClasses().map(c => c.id);
+  if (!myClsIds.includes(a.cls) && a.teacherId !== u.id) return;
+  const who = (db.users || []).find(x => x.id === a.teacherId);
+  openModal('<h3>Smazat oznámení?</h3>' +
+    '<p class="small-note" style="margin-bottom:14px">Oznámení od ' + escapeHtml(who ? who.name : 'učitele') + ' (' + fmtDate((a.ts || '').slice(0, 10)) + ') se trvale odstraní pro celou třídu.</p>' +
+    '<div style="display:flex;gap:10px"><button class="btn btn-bad" data-act="ann-del-ok:' + id + '">' + ic('trash', 14) + ' Ano, smazat</button>' +
+    '<button class="btn btn-ghost" data-act="close-modal">Zrušit</button></div>');
+});
+onAct('ann-del-ok:', el => {
+  const id = el.getAttribute('data-act').slice(11);
+  const a = (db.ann || []).find(x => x.id === id);
+  const u = currentUser();
+  if (!a || !u) return;
+  const myClsIds = myClasses().map(c => c.id);
+  if (!myClsIds.includes(a.cls) && a.teacherId !== u.id) return;
   db.ann = (db.ann || []).filter(x => x.id !== id);
   saveDB();
+  closeModal();
   toast('Oznámení smazáno', 'bad');
   route();
 });
