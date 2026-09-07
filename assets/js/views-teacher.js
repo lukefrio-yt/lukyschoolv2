@@ -515,10 +515,7 @@ function tKniha() {
   const existing = (db.classbook || []).find(c => c.date === date && c.period === period && c.cls === cid);
   const recs = (db.classbook || []).filter(r => r.cls === cid).slice().sort((a, b) => (a.date + a.period < b.date + b.period ? 1 : -1)).slice(0, 10);
 
-  return '' +
-  '<div class="page-head"><div><h1>Třídní kniha</h1><div class="sub">Téma z ŠVP · úkol se propíše žákům do „Moje úkoly“</div></div></div>' +
-  clsScopePills() +
-  '<div class="grid grid-2">' +
+  const secZapsat =
     '<div class="card">' +
       '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">' +
         '<input type="date" class="txt" value="' + date + '" data-chg="t-cb-date" style="width:160px">' +
@@ -531,16 +528,25 @@ function tKniha() {
       '<div class="field"><label>Probrané učivo</label><textarea class="ta" id="cb-ucivo" rows="2">' + escapeHtml((existing && existing.ucivo) || '') + '</textarea></div>' +
       '<div class="field"><label>Domácí úkol (propíše se do účtů žáků)</label><input class="txt" id="cb-ukol" value="' + escapeHtml((existing && existing.ukol) || '') + '" placeholder="Např. PS str. 42, cvičení 3"></div>' +
       '<button class="btn btn-primary" style="margin-top:8px" data-act="t-cb-save">' + ic('check', 16) + ' Uložit zápis</button>' +
-    '</div>' +
+    '</div>';
+  const secZapisy =
     '<div class="card"><div class="card-title">' + ic('clipboard', 16) + ' Poslední zápisy (' + escapeHtml(cls.name) + ')</div>' +
       (recs.length ? '<div class="list">' + recs.map(r =>
         '<div class="list-row" style="cursor:pointer" data-act="t-cb-load:' + r.date + ':' + r.period + '">' +
         '<div class="grow"><div class="row-title">' + fmtDate(r.date) + ' · ' + (r.period + 1) + '. hod. · ' + escapeHtml(r.tema) + '</div>' +
         '<div class="row-sub">' + escapeHtml(r.ucivo || '') + (r.ukol ? ' · úkol: ' + escapeHtml(r.ukol) : '') + '</div></div></div>'
       ).join('') + '</div>' : '<div class="empty">Zatím žádné zápisy</div>') +
-    '</div>' +
-  '</div>' +
-  cbAttendanceCard(cid, date, period, subjAuto);
+    '</div>';
+  const head = '' +
+    '<div class="page-head"><div><h1>Třídní kniha</h1><div class="sub">Téma z ŠVP · úkol se propíše žákům do „Moje úkoly“</div></div></div>' +
+    clsScopePills();
+  if (isAppMode()) {
+    const tabs = [{ k: 'zap', label: 'Zapsat hodinu' }, { k: 'zapisy', label: 'Poslední zápisy' }, { k: 'doch', label: 'Docházka hodiny' }];
+    const t = viewTab('kniha', tabs);
+    const secs = { zap: secZapsat, zapisy: secZapisy, doch: cbAttendanceCard(cid, date, period, subjAuto) };
+    return head + tabbarHtml('kniha', tabs, t) + secs[t];
+  }
+  return head + '<div class="grid grid-2">' + secZapsat + secZapisy + '</div>' + cbAttendanceCard(cid, date, period, subjAuto);
 }
 onAct('t-cb-date', el => { cbDropPend(); localStorage.setItem('t_cb_date', el.value); route(); });
 onAct('t-cb-period', el => { cbDropPend(); localStorage.setItem('t_cb_period', el.value); route(); });
@@ -778,10 +784,10 @@ function tZpravy() {
     { k: 'one', label: TMSG.who === 'rodic' ? 'Konkrétnímu rodiči' : (TMSG.who === 'student' ? 'Konkrétnímu žákovi' : 'Konkrétnímu příjemci') }
   ];
   const rcps = msgRecipients(cid, TMSG.who);
-  return '' +
+  const head = '' +
   '<div class="page-head"><div><h1>Zprávy</h1><div class="sub">Napište rodičům i žákům – hromadně nebo jednotlivě, s potvrzením o přečtení</div></div></div>' +
-  clsScopePills() +
-  '<div class="grid grid-2">' +
+  clsScopePills();
+  const secNova =
     '<div class="card">' +
       '<div class="card-title">' + ic('send', 16) + ' Nová zpráva</div>' +
       '<div class="field"><label>Komu chcete psát?</label>' +
@@ -806,7 +812,8 @@ function tZpravy() {
           (TMSG.mode === 'class' ? ' (' + rcps.length + (rcps.length === 1 ? ' příjemce' : ' příjemců') + ')' : '') + '</button>' +
         '<button class="btn btn-ghost btn-sm" data-act="t-msg-later">' + ic('clock', 14) + ' Naplánovat na 8:00</button>' +
       '</div>' +
-    '</div>' +
+    '</div>';
+  const secKonv =
     '<div class="card"><div class="card-title">' + ic('chat', 16) + ' Konverzace (' + escapeHtml(classOf(cid).name) + ')' +
       '<span style="margin-left:auto;font-size:11.5px;color:var(--muted);font-weight:700">' + convs.length + '</span></div>' +
       (convs.length
@@ -866,8 +873,13 @@ function tZpravy() {
               '<button class="btn btn-primary">' + ic('send', 16) + '</button></div></form>'
             : '<div class="warn-line" style="margin-top:12px">' + ic('lock', 15) + ' <span>Konverzaci jste uzavřeli – křížkem (✗) ji můžete znovu otevřít.</span></div>')
         : '') +
-    '</div>' +
-  '</div>';
+    '</div>';
+  if (isAppMode()) {
+    const tabs = [{ k: 'konv', label: 'Konverzace (' + convs.length + ')' }, { k: 'nova', label: 'Nová zpráva' }];
+    const t = viewTab('zpravy', tabs);
+    return head + tabbarHtml('zpravy', tabs, t) + (t === 'nova' ? secNova : secKonv);
+  }
+  return head + '<div class="grid grid-2">' + secNova + secKonv + '</div>';
 }
 onAct('t-msg-who:', el => { TMSG.who = el.getAttribute('data-act').slice(10); TMSG.thread = null; route(); });
 onAct('t-msg-scope:', el => { TMSG.mode = el.getAttribute('data-act').slice(12); route(); });
@@ -1492,12 +1504,11 @@ function tUkoly() {
         }).join('') + '</tbody></table></div>' +
       '</div>';
   };
-  return '' +
-  '<div class="page-head"><div><h1>Úkoly</h1><div class="sub">Domácí úkoly pro ' + escapeHtml(cls.name) + ' – žák je uvidí v „Moje úkoly“ a odškrtne splnění</div></div></div>' +
-  clsScopePills() +
-  '<div class="grid grid-2">' +
-    '<div>' +
-      '<div class="card"><div class="card-title">' + ic('plus', 16) + ' Nový úkol</div>' +
+  const head = '' +
+    '<div class="page-head"><div><h1>Úkoly</h1><div class="sub">Domácí úkoly pro ' + escapeHtml(cls.name) + ' – žák je uvidí v „Moje úkoly“ a odškrtne splnění</div></div></div>' +
+    clsScopePills();
+  const colNovy =
+    '<div class="card"><div class="card-title">' + ic('plus', 16) + ' Nový úkol</div>' +
         '<form data-form="tk-add">' +
           '<div class="field"><label>Předmět</label><select name="subj">' + subjectOpts + '</select></div>' +
           '<div class="field"><label>Pro koho</label><select name="who"><option value="">Celou třídu (' + escapeHtml(cls.name) + ')</option>' + stuOpts + '</select></div>' +
@@ -1510,21 +1521,24 @@ function tUkoly() {
         '</form>' +
         '<div class="small-note">Úkol zadaný v třídní knize (pole „Domácí úkol“) se sem zapíše sám.</div>' +
       '</div>' +
-      '<div class="card"><div class="card-title" style="color:var(--bad)">' + ic('alert', 16) + ' Po termínu (' + overdue.length + ')</div>' +
-        (overdue.length
-          ? '<div style="display:grid;gap:10px">' + overdue.map(card).join('') + '</div>'
-          : '<div class="empty">Žádný úkol po termínu</div>') +
-      '</div>' +
+    '<div class="card"><div class="card-title" style="color:var(--bad)">' + ic('alert', 16) + ' Po termínu (' + overdue.length + ')</div>' +
+      (overdue.length
+        ? '<div style="display:grid;gap:10px">' + overdue.map(card).join('') + '</div>'
+        : '<div class="empty">Žádný úkol po termínu</div>') +
+    '</div>';
+  const colSeznam =
+    '<div class="card"><div class="card-title">' + ic('list', 16) + ' Aktivní úkoly (' + open.length + ')</div>' +
+      (open.length ? '<div style="display:grid;gap:10px">' + open.map(card).join('') + '</div>' : '<div class="empty"><b>Žádné aktivní úkoly</b>Zadejte první úkol – žáci ho hned uvidí.</div>') +
     '</div>' +
-    '<div>' +
-      '<div class="card"><div class="card-title">' + ic('list', 16) + ' Aktivní úkoly (' + open.length + ')</div>' +
-        (open.length ? '<div style="display:grid;gap:10px">' + open.map(card).join('') + '</div>' : '<div class="empty"><b>Žádné aktivní úkoly</b>Zadejte první úkol – žáci ho hned uvidí.</div>') +
-      '</div>' +
-      (allDone.length
-        ? '<div class="card"><div class="card-title">' + ic('check', 16) + ' Splněno všemi (' + allDone.length + ')</div><div style="display:grid;gap:10px">' + allDone.map(card).join('') + '</div></div>'
-        : '') +
-    '</div>' +
-  '</div>';
+    (allDone.length
+      ? '<div class="card"><div class="card-title">' + ic('check', 16) + ' Splněno všemi (' + allDone.length + ')</div><div style="display:grid;gap:10px">' + allDone.map(card).join('') + '</div></div>'
+      : '');
+  if (isAppMode()) {
+    const tabs = [{ k: 'nove', label: 'Nový úkol' }, { k: 'seznam', label: 'Úkoly třídy' }];
+    const t = viewTab('ukoly', tabs);
+    return head + tabbarHtml('ukoly', tabs, t) + (t === 'nove' ? colNovy : colSeznam);
+  }
+  return head + '<div class="grid grid-2"><div>' + colNovy + '</div><div>' + colSeznam + '</div></div>';
 }
 onAct('form:tk-add', f => {
   const fd = new FormData(f);
@@ -1637,9 +1651,7 @@ function tOznameni() {
         '<button class="btn btn-primary">' + ic('send', 15) + ' Odeslat oznámení</button>' +
       '</form></div>'
     : '<div class="card" style="margin-bottom:16px"><div class="empty"><b>Nejste třídním učitelem žádné třídy</b>Oznámení se posílají třídě – nejdřív vám správce přiřadí třídu.</div></div>';
-  return '<div class="page-head"><div><h1>Oznámení</h1>' +
-    '<div class="sub">Pošlete žákům / rodičům třídy zprávu – třeba o písemce nebo třídní schůzce.</div></div></div>' +
-    compose +
+  const secList =
     '<div class="card"><div class="card-title">' + ic('bell', 15) + ' Odeslaná oznámení (' + list.length + ')</div>' +
     (list.length
       ? '<div class="list">' + list.map(a => {
@@ -1655,6 +1667,14 @@ function tOznameni() {
         }).join('') + '</div>'
       : '<div class="empty"><b>Zatím žádná oznámení</b>První oznámení pošlete formulářem nahoře.</div>') +
     '</div>';
+  const head = '<div class="page-head"><div><h1>Oznámení</h1>' +
+    '<div class="sub">Pošlete žákům / rodičům třídy zprávu – třeba o písemce nebo třídní schůzce.</div></div></div>';
+  if (isAppMode()) {
+    const tabs = [{ k: 'seznam', label: 'Odeslaná (' + list.length + ')' }, { k: 'nove', label: 'Nové oznámení' }];
+    const t = viewTab('oznameni', tabs);
+    return head + tabbarHtml('oznameni', tabs, t) + (t === 'nove' ? compose : secList);
+  }
+  return head + compose + secList;
 }
 onAct('form:ann-new', f => {
   const fd = new FormData(f);

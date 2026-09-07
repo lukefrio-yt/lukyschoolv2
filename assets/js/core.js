@@ -229,7 +229,7 @@ function navBadge(role, key, user) {
 /* ---------- shell ---------- */
 function shellHTML(user, activeKey) {
   const role = user.role;
-  const mob = isAppMode() && isFamilyRole(role);
+  const mob = isAppMode();
   const nav = navForUser(user);
   /* Ředitel (admin) má jen Správu – bez docku a bez badge. */
   const roleLabel = (role === 'ucitel' && user.isAdmin) ? 'Ředitel' : ROLES_CS[role];
@@ -271,12 +271,10 @@ function shellHTML(user, activeKey) {
 function route() {
   const user = currentUser();
   /* režim „aplikace“ se řídí šířkou + rolí (žák/rodič na telefonu i tabletu) */
-  const mob = isAppMode() && user && isFamilyRole(user.role);
-  document.body.dataset.mob = mob ? '1' : '0';
+  const mob = isAppMode() && !!user; // telefon/tablet = launcher pro všechny role (i učitele)
+  document.body.dataset.mob = (mob ? '1' : '0');
   if (!user) { renderLogin(); return; }
   const role = user.role;
-  /* učitel na telefonu: až po přihlášení dostane výraznou obrazovku, že musí použít počítač */
-  if (isMobile() && role === 'ucitel') { showTeacherMobileBlock(); return; }
   let h = location.hash.replace(/^#\/?/, '');
   const parts = h.split('/');
   // povolíme parametr za „|" (např. #/student/znamky|M) – base klíč pro lookup
@@ -550,9 +548,12 @@ const MOBILE_TILE_BG = {
   znamky: 'linear-gradient(135deg,#3B82F6,#2563EB)', pololetka: 'linear-gradient(135deg,#8B5CF6,#6D28D9)',
   dochazka: 'linear-gradient(135deg,#14B8A6,#0F766E)', rozvrh: 'linear-gradient(135deg,#F59E0B,#D97706)',
   vyuka: 'linear-gradient(135deg,#6366F1,#4338CA)', poznamky: 'linear-gradient(135deg,#F43F5E,#BE123C)',
-  planakci: 'linear-gradient(135deg,#10B981,#059669)', ukoly: 'linear-gradient(135deg,#06B6D4,#0E7490)',
+  planakci: 'linear-gradient(135deg,#10B981,#059669)',  ukoly: 'linear-gradient(135deg,#06B6D4,#0E7490)',
   zpravy: 'linear-gradient(135deg,#EC4899,#BE185D)', oznameni: 'linear-gradient(135deg,#F97316,#C2410C)',
-  omluvenky: 'linear-gradient(135deg,#84CC16,#4D7C0F)'
+  omluvenky: 'linear-gradient(135deg,#84CC16,#4D7C0F)',
+  klasifikace: 'linear-gradient(135deg,#0EA5E9,#0369A1)', kniha: 'linear-gradient(135deg,#F43F5E,#BE123C)',
+  predmety: 'linear-gradient(135deg,#22D3EE,#0E7490)', ucebny: 'linear-gradient(135deg,#A78BFA,#6D28D9)',
+  hesla: 'linear-gradient(135deg,#FBBF24,#D97706)', zmenyrozvrh: 'linear-gradient(135deg,#FB7185,#E11D48)'
 };
 const MOBILE_TILE_FALLBACK = ['linear-gradient(135deg,#3B82F6,#2563EB)', 'linear-gradient(135deg,#8B5CF6,#6D28D9)', 'linear-gradient(135deg,#10B981,#059669)', 'linear-gradient(135deg,#F59E0B,#D97706)', 'linear-gradient(135deg,#EC4899,#BE185D)', 'linear-gradient(135deg,#06B6D4,#0E7490)'];
 function mobileHomeHTML(user) {
@@ -574,6 +575,16 @@ function mobileHomeHTML(user) {
     '<div class="m-grid">' + grid + '</div>' +
   '</div>';
 }
+/* záložky uvnitř pohledů (mobil/tablet) – „jako u Rozvrhu“ */
+function viewTab(key, tabs) {
+  const a = localStorage.getItem('ls_tab_' + key);
+  return tabs.some(t => t.k === a) ? a : tabs[0].k;
+}
+function tabbarHtml(key, tabs, active) {
+  return '<div class="rcpt-row" style="flex-wrap:nowrap;overflow-x:auto;padding-bottom:6px">' +
+    tabs.map(t => '<button class="rcpt-pill' + (t.k === active ? ' active' : '') + '" data-act="v-tab:' + key + ':' + t.k + '" style="flex:0 0 auto">' + t.label + '</button>').join('') + '</div>';
+}
+onAct('v-tab:', el => { const p = el.getAttribute('data-act').split(':'); localStorage.setItem('ls_tab_' + p[1], p[2]); route(); });
 window.addEventListener('resize', () => { if (String(isAppMode()) !== (document.body.dataset.mobAt || '0')) location.reload(); });
 
 /* ---------- start ---------- */
