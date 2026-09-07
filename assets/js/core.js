@@ -35,6 +35,7 @@ const I = {
   lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
   phone: '<rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/>',
   arrowR: '<path d="M5 12h14M12 5l7 7-7 7"/>',
+  back: '<path d="M19 12H5M12 19l-7-7 7-7"/>',
   chevUp: '<path d="m18 15-6-6-6 6"/>',
   chevDown: '<path d="m6 9 6 6 6-6"/>',
   flag: '<path d="M4 22V4c0-.5.5-1 1-1h11l-2 4 2 4H5"/>',
@@ -228,6 +229,7 @@ function navBadge(role, key, user) {
 /* ---------- shell ---------- */
 function shellHTML(user, activeKey) {
   const role = user.role;
+  const mob = isAppMode() && isFamilyRole(role);
   const nav = navForUser(user);
   /* Ředitel (admin) má jen Správu – bez docku a bez badge. */
   const roleLabel = (role === 'ucitel' && user.isAdmin) ? 'Ředitel' : ROLES_CS[role];
@@ -238,7 +240,12 @@ function shellHTML(user, activeKey) {
   return '' +
     '<header class="topbar">' +
       '<span class="brand"><span class="logo">' + ic('home', 15) + '</span>Luky<small>School</small></span>' +
-      '<button type="button" class="icon-btn nav-menu-btn" data-act="nav-menu" aria-label="Menu" title="Menu">' + ic('menu', 19) + '</button>' +
+      /* v režimu aplikace místo ☰ tlačítko Zpět na launcher (na launcheru žádné) */
+      (mob
+        ? (activeKey !== 'prehled'
+            ? '<button type="button" class="icon-btn" data-act="goto:#/' + role + '/prehled" aria-label="Zpět" title="Zpět na přehled">' + ic('back', 19) + '</button>'
+            : '')
+        : '<button type="button" class="icon-btn nav-menu-btn" data-act="nav-menu" aria-label="Menu" title="Menu">' + ic('menu', 19) + '</button>') +
       '<div class="user-pill">' + bell +
         '<button class="icon-btn" data-act="ch-pass" title="Změnit heslo">' + ic('lock', 17) + '</button>' +
         '<button class="icon-btn" data-act="theme" title="Přepnout tmavý / světlý režim">' + ic(document.documentElement.getAttribute('data-theme') === 'light' ? 'moon' : 'sun', 17) + '</button>' +
@@ -263,6 +270,9 @@ function shellHTML(user, activeKey) {
 /* ---------- router ---------- */
 function route() {
   const user = currentUser();
+  /* režim „aplikace“ se řídí šířkou + rolí (žák/rodič na telefonu i tabletu) */
+  const mob = isAppMode() && user && isFamilyRole(user.role);
+  document.body.dataset.mob = mob ? '1' : '0';
   if (!user) { renderLogin(); return; }
   const role = user.role;
   /* učitel na telefonu: až po přihlášení dostane výraznou obrazovku, že musí použít počítač */
@@ -284,8 +294,8 @@ function route() {
   }
   if (!useKey) useKey = defKeyFor(user);
   const app = document.getElementById('app');
-  /* mobilní launcher: přehled se na telefonu zobrazí jako ikonky „aplikací“ */
-  if (isMobile() && (role === 'student' || role === 'rodic') && useKey === 'prehled') {
+  /* mobilní/tabletový launcher: přehled se zobrazí jako ikonky „aplikací“ */
+  if (mob && useKey === 'prehled') {
     app.innerHTML = shellHTML(user, 'prehled');
     document.body.classList.remove('nav-open', 'dock-open');
     renderBell();
@@ -520,6 +530,9 @@ function bindView() { /* hook pro views */ }
 
 /* ---------- mobilní režim: žák/rodič = launcher dlaždic, učitel = pouze počítač ---------- */
 function isMobile() { return window.innerWidth < 768; }
+/* režim „aplikace“: telefon i tablet (pod 1024 px) – žák/rodič dostane launcher */
+function isAppMode() { return window.innerWidth < 1024; }
+function isFamilyRole(r) { return r === 'student' || r === 'rodic'; }
 function showTeacherMobileBlock() {
   const app = document.getElementById('app');
   document.body.classList.remove('nav-open', 'dock-open');
@@ -561,14 +574,15 @@ function mobileHomeHTML(user) {
     '<div class="m-grid">' + grid + '</div>' +
   '</div>';
 }
-window.addEventListener('resize', () => { if (String(isMobile()) !== (document.body.dataset.mob || '0')) location.reload(); });
+window.addEventListener('resize', () => { if (String(isAppMode()) !== (document.body.dataset.mobAt || '0')) location.reload(); });
 
 /* ---------- start ---------- */
 function boot() {
   loadDB();
   loadSession();
   themeInit();
-  document.body.dataset.mob = isMobile() ? '1' : '0';
+  document.body.dataset.mob = '0';
+  document.body.dataset.mobAt = isAppMode() ? '1' : '0';
   const app = document.getElementById('app');
   if (!app) return;
   if (!location.hash) {
