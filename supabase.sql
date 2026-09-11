@@ -1,5 +1,5 @@
 -- ============================================================
--- LukySchool – cloudová synchronizace (Supabase)
+-- SchoolSys – cloudová synchronizace (Supabase)
 -- Celá škola se ukládá jako JEDEN řádek tabulky school_state
 -- (sloupec payload = celý JSON databáze aplikace).
 --

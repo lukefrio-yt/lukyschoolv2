@@ -1,6 +1,8 @@
 /* ============================================================
-   LukySchool — jádro: router, přihlášení, shell, tmavý režim,
+   SchoolSys — jádro: router, přihlášení, shell, tmavý režim,
    toasty, modály, ikony a globální dispatcher akcí.
+   Organizace: kontaktní účet (isOrgContact) = jen PC, hlavní admin
+   (isRoot) spravuje žádosti i organizace, každý si mění heslo.
    ============================================================ */
 'use strict';
 
@@ -128,6 +130,8 @@ const VIEWS = {}; // role -> { key: renderFn }
 function registerView(role, key, fn) { (VIEWS[role] = VIEWS[role] || {})[key] = fn; }
 
 const ROLES_CS = { ucitel: 'Učitel', student: 'Žák', rodic: 'Rodič', admin: 'Správce' };
+/* kontaktní účet organizace je přístupný POUZE na počítači */
+function contactPcBlocked(u) { return isContactUser(u) && isAppMode(); }
 const ADMIN_NAV = [{ key: 'sprava', icon: 'users', label: 'Správa školy' }];
 const ROLE_NAV = {
   admin: [
@@ -183,10 +187,14 @@ const DEFAULT_KEY = { ucitel: 'prehled', student: 'prehled', rodic: 'prehled', a
 function navForUser(user) {
   if (user.isAdmin && user.role === 'ucitel') return ADMIN_NAV;
   const base = ROLE_NAV[user.role] || [];
-  return base.filter(n => n.key !== 'sprava');
+  const nav = base.filter(n => n.key !== 'sprava');
+  /* kontaktní účet organizace: správa vlastní organizace + učitelské moduly svých tříd */
+  if (isContactUser(user)) return [{ key: 'sprava', icon: 'users', label: 'Správa organizace' }].concat(nav);
+  return nav;
 }
 function defKeyFor(user) {
   if (user && user.isAdmin && user.role === 'ucitel') return 'sprava';
+  if (user && isContactUser(user)) return 'sprava';
   return DEFAULT_KEY[user.role] || 'prehled';
 }
 
@@ -232,14 +240,16 @@ function shellHTML(user, activeKey) {
   const mob = isAppMode();
   const nav = navForUser(user);
   /* Ředitel (admin) má jen Správu – bez docku a bez badge. */
-  const roleLabel = (role === 'ucitel' && user.isAdmin) ? 'Ředitel' : ROLES_CS[role];
+  const roleLabel = (role === 'ucitel' && user.isAdmin) ? 'Ředitel'
+    : isContactUser(user) ? 'Kontakt · ' + orgLabel(user.orgId)
+    : ROLES_CS[role];
   const bell = (role === 'student' || role === 'rodic')
     ? '<button class="icon-btn" data-act="bell" id="bell-btn" style="position:relative">' + ic('bell', 18) +
       (notifUnreadFor(user.id) ? '<span style="position:absolute;top:-2px;right:-2px;background:var(--bad);color:#fff;border-radius:99px;min-width:15px;height:15px;font-size:10px;font-weight:900;display:grid;place-items:center;padding:0 3px">' + notifUnreadFor(user.id) + '</span>' : '') + '</button>'
     : '';
   return '' +
     '<header class="topbar">' +
-      '<span class="brand"><span class="logo">' + ic('home', 15) + '</span>Luky<small>School</small></span>' +
+      '<span class="brand"><span class="logo">' + ic('home', 15) + '</span>School<small>Sys</small></span>' +
       /* v režimu aplikace místo ☰ tlačítko Zpět na launcher (na launcheru žádné) */
       (mob
         ? (activeKey !== 'prehled'
@@ -273,15 +283,21 @@ function route() {
   /* režim „aplikace“ se řídí šířkou + rolí (žák/rodič na telefonu i tabletu) */
   const mob = isAppMode() && !!user; // telefon/tablet = launcher pro všechny role (i učitele)
   document.body.dataset.mob = (mob ? '1' : '0');
-  if (!user) { renderLogin(); return; }
-  const role = user.role;
+  if (!user) {
+    if (location.hash.replace(/^#\/?/, '') === 'org-request') { routeOrgRequest(); return; }
+    renderLogin(); return;
+  }
+  const role = user.isAdmin ? 'admin' : user.role;   /* admin i kontakt = rozhoduje isAdmin, ne role */
+  const isContact = isContactUser(user);
+  /* kontaktní účet na mobilu/tabletu = zámek s vysvětlením */
+  if (isContact && isAppMode()) { showContactMobileBlock(user); return; }
   let h = location.hash.replace(/^#\/?/, '');
   const parts = h.split('/');
   // povolíme parametr za „|" (např. #/student/znamky|M) – base klíč pro lookup
   const rawKey = parts.length > 1 && parts[0] === role ? parts[1] : null;
   const baseKey = rawKey ? rawKey.split('|')[0] : null;
   const navKeys = VIEWS[role] || {};
-  const onlyAdmin = user.isAdmin && user.role === 'ucitel'; // ředitel vidí jen Správu
+  const onlyAdmin = !!user.isAdmin && !isContact; // admin bez kontaktu vidí jen Správu; kontakt má i Správu organizace
   let useKey;
   if (baseKey && navKeys[baseKey] && (!onlyAdmin || baseKey === 'sprava')) {
     useKey = baseKey;
@@ -314,7 +330,7 @@ function renderLogin() {
   const remHtml = rememberedLoginHtml();
   app.innerHTML =
     '<div class="login-wrap"><div class="login-card card">' +
-      '<div class="login-brand"><span class="brand"><span class="logo" style="width:44px;height:44px;border-radius:13px;font-size:22px">' + ic('home', 20) + '</span><span style="font-size:26px">Luky<small style="color:var(--accent)">School</small></span></span></div>' +
+      '<div class="login-brand"><span class="brand"><span class="logo" style="width:44px;height:44px;border-radius:13px;font-size:22px">' + ic('home', 20) + '</span><span style="font-size:26px">School<small style="color:var(--accent)">Sys</small></span></span></div>' +
       '<h1>Vítejte zpět 👋</h1>' +
       '<p class="login-sub">Přihlaste se do aplikace.</p>' +
       '<form data-form="login">' +
@@ -324,6 +340,9 @@ function renderLogin() {
         '<button class="btn btn-primary" style="width:100%;margin-top:6px">' + ic('arrowR', 16) + ' Přihlásit se</button>' +
       '</form>' +
       '<button type="button" class="btn btn-ghost btn-sm" style="width:100%;margin-top:10px" data-act="forgot-pass">' + ic('zap', 15) + ' Zapomněl jsem heslo</button>' +
+      (window.innerWidth >= 1024
+        ? '<button type="button" class="btn btn-soft btn-sm" style="width:100%;margin-top:8px" data-act="goto:#/org-request">' + ic('plus', 15) + ' Založit organizaci</button>'
+        : '') +
       (remHtml ? remHtml : '') +
       '<p class="small-note" style="text-align:center;margin-top:14px">Učitelé, žáci a rodiče se přihlásí údaji, které jim správce vygeneroval.</p>' +
     '</div></div>';
@@ -332,8 +351,12 @@ function renderLogin() {
 function tryLogin(user, pass) {
   const u = (db.users || []).find(x => x.username === user && x.pass === pass);
   if (!u) { toast('Nesprávné uživatelské jméno nebo heslo', 'bad'); return false; }
+  if (contactPcBlocked(u)) {
+    toast('Kontaktní účet organizace je dostupný pouze na počítači 🖥️', 'bad');
+    return false;
+  }
   saveSession({ user: u.username });
-  location.hash = '#/' + u.role + '/' + defKeyFor(u);
+  location.hash = '#/' + (u.isAdmin ? 'admin' : u.role) + '/' + defKeyFor(u);
   route();
   return true;
 }
@@ -376,8 +399,9 @@ onAct('quick-login:', el => {
   const username = el.getAttribute('data-act').slice(12);
   const u = (db.users || []).find(x => x.username === username);
   if (!u) { forgetAccount(username); route(); toast('Účet už neexistuje – odebrán ze seznamu', 'bad'); return; }
+  if (contactPcBlocked(u)) { toast('Kontaktní účet organizace je dostupný pouze na počítači 🖥️', 'bad'); return; }
   saveSession({ user: u.username });
-  location.hash = '#/' + u.role + '/' + defKeyFor(u);
+  location.hash = '#/' + (u.isAdmin ? 'admin' : u.role) + '/' + defKeyFor(u);
   route();
   toast('Přihlášeno jako ' + escapeHtml(u.name), 'ok');
 });
@@ -435,6 +459,7 @@ onAct('form:pass-change', f => {
   if (!u) return;
   if (applyPassError(String(fd.get('new1') || ''), String(fd.get('new2') || ''))) return;
   u.pass = String(fd.get('new1'));
+  u.passChanged = true; /* generované heslo už nikdo neuvidí – jen uživatel */
   saveDB();
   closeModal();
   toast('Heslo změněno ✓', 'ok');
@@ -459,6 +484,92 @@ onAct('form:forgot-send', f => {
   saveDB();
   closeModal();
   toast('Žádost odeslána správci ✓ – nové heslo vám předá třídní učitel', 'ok');
+});
+
+/* ============================================================
+   ŽÁDOST O ZALOŽENÍ ORGANIZACE (pouze PC)
+   Formulář: Jméno, Příjmení zakladatele, Jméno organizace, Telefon,
+   Email na kontakt a kontaktní účet (username + heslo).
+   Žádost se odešle hlavnímu adminovi k přijetí/odmítnutí.
+   ============================================================ */
+const ORGREQ_FIELDS = ['first', 'last', 'orgName', 'phone', 'email', 'username', 'pass'];
+function draftOrgReqGet() { try { return JSON.parse(localStorage.getItem('ss.orgreq.draft') || 'null'); } catch (e) { return null; } }
+function draftOrgReqSet(d) { try { localStorage.setItem('ss.orgreq.draft', JSON.stringify(d)); } catch (e) { /* noop */ } }
+function draftOrgReqClear() { try { localStorage.removeItem('ss.orgreq.draft'); } catch (e) { /* noop */ } }
+function orgReqRender(mode, draft) {
+  const app = document.getElementById('app');
+  document.body.classList.remove('nav-open', 'dock-open');
+  const d = draft || {};
+  const val = k => d[k] ? escapeHtml(String(d[k])) : '';
+  const pcOnly = mode !== 'mobile';
+  app.innerHTML =
+    '<div class="login-wrap"><div class="login-card card">' +
+      '<div class="login-brand"><span class="brand"><span class="logo" style="width:44px;height:44px;border-radius:13px;font-size:22px">' + ic('home', 20) + '</span><span style="font-size:26px">School<small style="color:var(--accent)">Sys</small></span></span></div>' +
+      '<h1>Založit organizaci 🏫</h1>' +
+      '<p class="login-sub">Odešlete žádost správci SchoolSys – po schválení dostanete vlastní správu tříd a loginů.</p>' +
+      (!pcOnly
+        ? '<div class="card" style="border-color:var(--warn);margin-bottom:14px"><b>🖥️ Pouze na počítači</b><p class="small-note" style="margin:6px 0 0">Žádost o založení organizace lze odeslat jen z počítače. Otevřete SchoolSys na PC.</p></div>'
+        : '') +
+      '<form data-form="org-request"' + (pcOnly ? '' : ' data-disabled="1"') + '>' +
+        '<div class="field-row">' +
+          '<div class="field"><label>Jméno zakladatele *</label><input name="first" required value="' + val('first') + '" placeholder="Jan"' + (pcOnly ? '' : ' disabled') + '></div>' +
+          '<div class="field"><label>Příjmení zakladatele *</label><input name="last" required value="' + val('last') + '" placeholder="Novák"' + (pcOnly ? '' : ' disabled') + '></div>' +
+        '</div>' +
+        '<div class="field"><label>Jméno organizace *</label><input name="orgName" required value="' + val('orgName') + '" placeholder="např. ZŠ Hvezda"' + (pcOnly ? '' : ' disabled') + '></div>' +
+        '<div class="field-row">' +
+          '<div class="field"><label>Telefon na kontakt *</label><input name="phone" required value="' + val('phone') + '" placeholder="+420 …"' + (pcOnly ? '' : ' disabled') + '></div>' +
+          '<div class="field"><label>Email na kontakt *</label><input name="email" type="email" required value="' + val('email') + '" placeholder="kontakt@organizace.cz"' + (pcOnly ? '' : ' disabled') + '></div>' +
+        '</div>' +
+        '<div class="field-row">' +
+          '<div class="field"><label>Uživatelské jméno pro kontakt *</label><input name="username" required value="' + val('username') + '" placeholder="např. jan.novak" style="font-family:monospace"' + (pcOnly ? '' : ' disabled') + '></div>' +
+          '<div class="field"><label>Heslo pro kontakt *</label><input name="pass" type="password" required value="" placeholder="min. 8 znaků a 1 číslice"' + (pcOnly ? '' : ' disabled') + '></div>' +
+        '</div>' +
+        '<p class="small-note" style="margin:4px 0 10px">Na kontaktní účet se přihlásíte až po schválení žádosti (přihlášení funguje jen na PC).</p>' +
+        (pcOnly ? '<button class="btn btn-primary" style="width:100%">' + ic('send', 16) + ' Odeslat žádost správci</button>' : '') +
+      '</form>' +
+      '<button type="button" class="btn btn-ghost btn-sm" style="width:100%;margin-top:10px" data-act="goto:#/login">Zpět na přihlášení</button>' +
+      '<p class="small-note" style="text-align:center;margin-top:14px">Správce žádost posoudí a schválený kontaktní účet dostane správu tříd a loginů své organizace.</p>' +
+    '</div></div>';
+}
+function routeOrgRequest() {
+  const pc = !isAppMode();
+  orgReqRender(pc ? 'pc' : 'mobile', pc ? draftOrgReqGet() : null);
+  if (!pc) draftOrgReqClear();
+}
+function normalizeOrgReq(d) {
+  const out = {};
+  ORGREQ_FIELDS.forEach(k => { out[k] = String(d && d[k] || '').trim(); });
+  return out;
+}
+onAct('form:org-request', f => {
+  const d = normalizeOrgReq(Object.fromEntries(new FormData(f).entries()));
+  if (!d.first || !d.last || !d.orgName || !d.phone || !d.email) { toast('Vyplňte prosím všechna pole žádosti', 'bad'); return; }
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.email)) { toast('Zadejte platný email', 'bad'); return; }
+  if (!d.username) { toast('Zvolte uživatelské jméno pro kontakt', 'bad'); return; }
+  const err = passErr(d.pass);
+  if (err) { toast(err, 'bad'); return; }
+  if (usernameTaken(d.username)) { toast('Uživatelské jméno „' + escapeHtml(d.username) + '“ je už zabrané', 'bad'); return; }
+  if (d.username.length < 3) { toast('Uživatelské jméno musí mít alespoň 3 znaky', 'bad'); return; }
+  if (orgRequestsList().some(r => r.status === 'ceka' && r.username.toLowerCase() === d.username.toLowerCase())) {
+    toast('Pro toto uživatelské jméno už čeká žádost na vyřízení', 'bad'); return;
+  }
+  const req = {
+    id: uid(), first: d.first, last: d.last, orgName: d.orgName, phone: d.phone, email: d.email,
+    username: d.username, pass: d.pass, status: 'ceka', ts: nowISO()
+  };
+  orgRequestsList().push(req);
+  draftOrgReqClear();
+  saveDB();
+  /* notifikace pro zakladatele aplikace (isRoot/admin) */
+  (db.users || []).filter(u => u.isRoot || u.isAdmin).forEach(u => {
+    db.notifs.push({ userId: u.id, type: 'orgreq', text: 'Nová žádost o organizaci: ' + req.orgName + ' (' + req.username + ')', ts: nowISO(), route: 'sprava' });
+  });
+  saveDB();
+  route();
+  openModal(
+    '<h3>' + ic('check', 18) + ' Žádost odeslána</h3>' +
+    '<p class="small-note" style="margin-bottom:12px">Žádost pro organizaci <b>' + escapeHtml(req.orgName) + '</b> byla odeslána správci SchoolSys. Až ji schválí, přihlásíte se na PC kontaktním účtem <code class="mono">' + escapeHtml(req.username) + '</code>.</p>' +
+    '<button class="btn btn-primary" style="width:100%" data-act="goto:#/login">Hotovo – zpět na přihlášení</button>');
 });
 
 /* ---------- téma ---------- */
@@ -515,6 +626,7 @@ onAct('notif-go:prubezna', () => { closeBell(); const u = currentUser(); gotoHas
 /* ostatní route notifikací (dochazka, rozvrh, oznameni…) řešíme genericky přes existující view */
 onAct('notif-go:dochazka', () => { closeBell(); const u = currentUser(); gotoHash('#/' + u.role + '/dochazka'); });
 onAct('notif-go:oznameni', () => { closeBell(); const u = currentUser(); gotoHash('#/' + u.role + '/oznameni'); });
+onAct('notif-go:sprava', () => { closeBell(); const u = currentUser(); gotoHash('#/' + (u.isAdmin ? 'admin' : u.role) + '/sprava'); });
 function closeBell() {
   const box = document.getElementById('notif-box');
   if (box) box.style.display = 'none';
@@ -539,6 +651,19 @@ function showTeacherMobileBlock() {
       '<div class="tb-ring">' + ic('home', 30) + '</div>' +
       '<h1>Pro učitele jen na počítači</h1>' +
       '<p>Tato verze aplikace je na telefonu určena <b>pro žáky a rodiče</b>.<br>Učitelská rozhraní (třídní kniha, známkování, docházka…) otevřete prosím na počítači nebo tabletu.</p>' +
+      '<button class="btn btn-ghost tb-btn" data-act="logout">' + ic('logout', 16) + ' Zpět na přihlášení</button>' +
+    '</div></div>';
+  document.body.classList.add('device-locked');
+}
+/* kontaktní účet organizace: přihlášení a správa jen z počítače */
+function showContactMobileBlock(user) {
+  const app = document.getElementById('app');
+  document.body.classList.remove('nav-open', 'dock-open');
+  if (app) app.innerHTML =
+    '<div class="teacher-block"><div class="teacher-block-in">' +
+      '<div class="tb-ring">' + ic('home', 30) + '</div>' +
+      '<h1>Kontaktní účet je jen pro počítač 🖥️</h1>' +
+      '<p>Účet kontaktu organizace <b>' + escapeHtml(user ? orgLabel(user.orgId) : '') + '</b> funguje pouze na počítači.<br>Přihlaste se na něm k správě tříd a loginů své organizace.</p>' +
       '<button class="btn btn-ghost tb-btn" data-act="logout">' + ic('logout', 16) + ' Zpět na přihlášení</button>' +
     '</div></div>';
   document.body.classList.add('device-locked');
@@ -596,9 +721,9 @@ function boot() {
   document.body.dataset.mobAt = isAppMode() ? '1' : '0';
   const app = document.getElementById('app');
   if (!app) return;
-  if (!location.hash) {
+  if (!location.hash || location.hash === '#/org-request') {
     const u = currentUser();
-    location.hash = u ? '#/' + u.role + '/' + defKeyFor(u) : '#/login';
+    location.hash = u ? '#/' + (u.isAdmin ? 'admin' : u.role) + '/' + defKeyFor(u) : '#/login';
   }
   window.addEventListener('hashchange', route);
   route();

@@ -1,5 +1,5 @@
 /* ============================================================
-   LukySchool — pohledy ŽÁKA a RODIČE (v5, sloupcový známkovač)
+   SchoolSys — pohledy ŽÁKA a RODIČE (sloupcový známkovač)
    ============================================================ */
 'use strict';
 
@@ -280,11 +280,15 @@ function sRozvrh() {
       '<div class="empty" style="padding:60px 16px"><b>Rozvrh ještě není nastavený</b>Učitel ho teprve vyplní v záložce „Nastavit rozvrh“. Až bude hotový, uvidíš tady každý den i učebnu.</div>';
   }
 
+  const inWeek = weekDates.indexOf(cur) > -1;
   return '' +
   '<div class="page-head"><div><h1>Rozvrh</h1><div class="sub">' + escapeHtml(cls) + ' · změny červeně, odpočet naživo · ✓ zapsáno · 📖 úkol · ! písemka</div></div></div>' +
-  '<div class="rcpt-row">' + weekDates.map(d =>
+  '<div class="rcpt-row day-pills">' + weekDates.map(d =>
     '<button class="rcpt-pill' + (d === cur ? ' active' : '') + '" data-act="roz-den:' + d + '">' + WD_CS[weekdayOf(d) - 1] + ' ' + d.slice(8) + (d === todayISO() ? ' · dnes' : '') + '</button>'
-  ).join('') + '</div>' +
+  ).join('') +
+    '<button class="rcpt-pill' + (!inWeek ? ' active' : '') + '" data-act="roz-custom" title="Vybrat vlastní datum v kalendáři">' + ic('calendar', 13) + ' Vlastní' + (!inWeek ? ' · ' + fmtDate(cur) : '') + '</button>' +
+    '<input type="date" id="roz-date" class="txt" data-chg="roz-date-set" value="' + cur + '" style="display:none;width:auto;padding:7px 10px;font-size:13px">' +
+  '</div>' +
   (isToday && info.state === 'now'
     ? '<div class="card" style="margin-bottom:16px"><div class="card-title">' + ic('zap', 16) + ' Právě probíhá: ' + escapeHtml(SUBJECTS[info.lesson.subj].name) + '</div>' +
       '<div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">' +
@@ -311,6 +315,20 @@ function sRozvrh() {
   '</div>';
 }
 onAct('roz-den:', el => { localStorage.setItem('ls_rozvrh_den', el.getAttribute('data-act').slice(8)); route(); });
+/* „Vlastní“ datum: vyjede kalendář (native date picker) – funguje v mobilu i na PC */
+onAct('roz-custom', () => {
+  const inp = document.getElementById('roz-date');
+  if (!inp) return;
+  inp.style.display = 'inline-block';
+  inp.focus();
+  try { if (inp.showPicker) inp.showPicker(); } catch (e) { /* Safari: otevře se při tapu */ }
+});
+onAct('roz-date-set', el => {
+  const v = el.value;
+  if (!v) return;
+  localStorage.setItem('ls_rozvrh_den', v);
+  route();
+});
 
 function cdTick() {
   const cls = myClassId();

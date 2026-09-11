@@ -1,5 +1,5 @@
 /* ============================================================
-   LukySchool — učitelský modul (v5)
+   SchoolSys — učitelský modul
    Rozsah = třídy přiřazené učiteli. Známkování = TABULKA:
    sloupce (testy) s vahou a datem, buňky = známky.
    ============================================================ */
@@ -8,6 +8,15 @@
 /* Docházka: učitel zapisuje ÚČAST ✓ přítomen / ✗ nepřítomen / D dočasně.
    Štítek omluvení A/Č/N se odvozuje v data.js (absenceMark) z omluvenek
    rodičů a je jen pro učitele, vpravo – nelze ho ručně nastavit. */
+/* mobile/tablet zámek: tyto moduly jsou jen pro počítač */
+function pcOnlyView(title) {
+  return '<div class="teacher-block"><div class="teacher-block-in">' +
+    '<div class="tb-ring">' + ic('home', 30) + '</div>' +
+    '<h1>' + escapeHtml(title) + ' – jen na počítači 🖥️</h1>' +
+    '<p>Tato funkce je dostupná <b>pouze na počítačích</b>. Otevřete SchoolSys na PC a proveďte zápis tam.</p>' +
+    '<button class="btn btn-ghost tb-btn" data-act="goto:#/' + (currentUser() && currentUser().isAdmin ? 'admin' : 'ucitel') + '/prehled">' + ic('back', 16) + ' Zpět na přehled</button>' +
+  '</div></div>';
+}
 function clsScopePills() {
   const list = myClasses();
   const act = activeClsId();
@@ -18,12 +27,47 @@ function clsScopePills() {
 onAct('t-cls:', el => { localStorage.setItem('t_cls', el.getAttribute('data-act').slice(6)); route(); });
 function noClassPrompt() {
   const u = currentUser();
+  /* třídy i žáky si nyní zakládá učitel sám – ale jen na počítači */
+  if (u && !u.isAdmin && !isContactUser(u) && isAppMode()) {
+    return '<div class="card"><div class="empty"><b>Nemáte přiřazenou žádnou třídu</b>' +
+      'Třídu a žáky si vytvoříte na <b>počítači</b> v záložce Známkování („Přidat žáka“) – na mobilu to není dostupné. 🖥️' +
+      '</div></div>';
+  }
+  if (u && !u.isAdmin && !isContactUser(u)) {
+    return '<div class="card"><div class="empty"><b>Nemáte přiřazenou žádnou třídu</b>' +
+      'Vytvořte si ji: v záložce <b>Známkování</b> klikněte na „Přidat žáka“ a třídu založíte rovnou v dialogu, nebo ji zřiďte ve Správě školy.' +
+      '<div style="margin-top:12px"><button class="btn btn-primary btn-sm" data-act="t-cls-create-prompt">' + ic('plus', 15) + ' Vytvořit první třídu</button></div>' +
+      '</div></div>';
+  }
   return '<div class="card"><div class="empty"><b>Nemáte přiřazenou žádnou třídu</b>' +
     (u && u.isAdmin
       ? 'Třídu si přiřaďte ve Správě školy (Třídy → Třídní učitel).'
       : 'Kontaktujte správce školy, aby vám třídu přiřadil.') +
     '</div></div>';
 }
+/* vytvoření třídy přímo z učitelského rozhraní (jen PC) */
+onAct('t-cls-create-prompt', () => {
+  if (isAppMode()) { toast('Třídy se zakládají jen na počítači 🖥️', 'bad'); return; }
+  openModal(
+    '<h3>Nová třída</h3>' +
+    '<form data-form="t-cls-create">' +
+      '<div class="field"><label>Název třídy</label><input name="name" placeholder="Např. 1. A" required autofocus></div>' +
+      '<button class="btn btn-primary">Vytvořit třídu</button>' +
+    '</form>');
+});
+onAct('form:t-cls-create', f => {
+  const name = String(new FormData(f).get('name')).trim();
+  if (!name) { toast('Zadejte název třídy', 'bad'); return; }
+  const id = db.classes.some(c => c.id === name) ? uid() : name;
+  const me = currentUser();
+  const c = { id, name, orgId: me.orgId || null, teacherIds: [me.id], mainTeacher: me.id };
+  db.classes.push(c);
+  localStorage.setItem('t_cls', id);
+  saveDB();
+  closeModal();
+  toast('Třída „' + escapeHtml(name) + '“ vytvořena ✓ – teď do ní přidejte žáky', 'ok');
+  route();
+});
 function flushScheduled() {
   if (!db.scheduledMsgs) db.scheduledMsgs = [];
   const due = db.scheduledMsgs.filter(m => new Date(m.sendAt).getTime() <= Date.now());
@@ -73,7 +117,7 @@ function tPrehled() {
         return '<div class="lesson"><span class="time">' + p.t.s + '<br>' + p.t.e + '</span>' +
           subjBadge(p.subj, 40) + '<div class="grow"><div class="row-title">' + escapeHtml(SUBJECTS[p.subj].name) + '</div>' +
           '<div class="row-sub">' + escapeHtml([who, p.cls].filter(Boolean).join(' · ')) + (rmChip ? '<span style="margin:0 0 0 7px">' + rmChip + '</span>' : '') + '</div></div>' +
-          '<button class="btn btn-soft btn-sm" data-act="goto:#/ucitel/kniha">' + ic('edit', 14) + ' Zápis</button></div>';
+          (!isAppMode() ? '<button class="btn btn-soft btn-sm" data-act="goto:#/ucitel/kniha">' + ic('edit', 14) + ' Zápis</button>' : '') + '</div>';
       }).join('') : '<div class="empty">Dnes nemáte výuku</div>') + '</div>' +
     '</div>' +
     '<div>' +
@@ -193,6 +237,7 @@ function tDochazka() {
 let GB = { subj: 'M' };
 function tKlasifikace() {
   clearTick();
+  if (isAppMode()) return pcOnlyView('Známkování');
   if (!myClasses().length) return noClassPrompt();
   const cid = activeClsId();
   const cls = classOf(cid);
@@ -258,7 +303,10 @@ function tKlasifikace() {
     : '');
 }
 onAct('t-subj:', el => { GB.subj = el.getAttribute('data-act').slice(7); route(); });
-onAct('t-stud-add', () => openAddStudentModal(activeClsId()));
+onAct('t-stud-add', () => {
+  if (isAppMode()) { toast('Přidávání žáků je dostupné jen na počítači 🖥️', 'bad'); return; }
+  openAddStudentModal(activeClsId());
+});
 onAct('t-col-add', () => {
   const cid = activeClsId();
   const n = (db.columns || []).filter(c => c.cls === cid && c.subj === GB.subj).length + 1;
@@ -377,6 +425,7 @@ onAct('t-export', () => {
 let KLS = { sem: 1 };
 function tPololetka() {
   clearTick();
+  if (isAppMode()) return pcOnlyView('Pololetní klasifikace');
   if (!myClasses().length) return noClassPrompt();
   const cid = activeClsId();
   const cls = classOf(cid);
@@ -1106,7 +1155,7 @@ function rzDenHtml(cid) {
   const lessons = plan.filter(p => p.type !== 'volno');
   const today = todayISO();
   const isToday = sel === today;
-  return '<div class="rcpt-row">' + weekDates.map(d =>
+  return '<div class="rcpt-row day-pills">' + weekDates.map(d =>
     '<button class="rcpt-pill' + (d === sel ? ' active' : '') + '" data-act="t-plan:' + d + '">' + WD_CS[weekdayOf(d) - 1] + ' ' + d.slice(8) + (d === today ? ' · dnes' : '') + '</button>').join('') + '</div>' +
   '<div class="card"><div class="card-title">' + ic('clock', 16) + ' ' + (isToday ? 'Dnes' : fmtDateLong(sel)) + ' – ' + escapeHtml(cls.name) + '</div>' +
     '<div class="day-grid">' + (lessons.length ? lessons.map(p => {
@@ -1116,7 +1165,7 @@ function rzDenHtml(cid) {
       return '<div class="lesson"><span class="time">' + p.t.s + '<br>' + p.t.e + '</span>' + subjBadge(p.subj, 40) +
         '<div class="grow"><div class="row-title">' + escapeHtml(SUBJECTS[p.subj].name) + '</div>' +
         '<div class="row-sub">' + escapeHtml(meta || p.cls) + (rmChip ? '<span style="margin:0 0 0 7px">' + rmChip + '</span>' : '') + '</div></div>' +
-        '<button class="btn btn-soft btn-sm" data-act="goto:#/ucitel/kniha">' + ic('edit', 14) + ' Zápis</button></div>';
+        (!isAppMode() ? '<button class="btn btn-soft btn-sm" data-act="goto:#/ucitel/kniha">' + ic('edit', 14) + ' Zápis</button>' : '') + '</div>';
     }).join('') : '<div class="empty"><b>Rozvrh zatím není nastaven</b>Vyplňte ho v záložce „Nastavit rozvrh“.</div>') + '</div>' +
   '</div>';
 }
@@ -1234,7 +1283,7 @@ function tPredmety() {
     '<div class="row-sub">kód: <code class="mono">' + escapeHtml(s.code) + '</code> · ' + escapeHtml(s.color) +
       (subjectUsageCount(s.code) ? ' · použito na ' + subjectUsageCount(s.code) + ' ' + csPlural(subjectUsageCount(s.code), 'místě', 'místech', 'místech') : '') + '</div></div>' +
     '<div style="display:flex;gap:6px">' +
-      '<button class="btn btn-soft btn-sm" data-act="sub-edit:' + s.code + '">' + ic('edit', 13) + ' Upravit</button>' +
+      '<button class="icon-btn sm" data-act="sub-edit:' + s.code + '" title="Upravit předmět">' + ic('edit', 15) + '</button>' +
       '<button class="icon-btn sm" data-act="sub-del:' + s.code + '" title="Smazat předmět" style="color:var(--bad)">' + ic('trash', 15) + '</button>' +
     '</div>' +
     '</div>';
@@ -1365,7 +1414,7 @@ function tUcebny() {
       '<div class="grow"><div class="row-title">' + escapeHtml(r.name) + '</div>' +
       '<div class="row-sub">zkratka v rozvrhu: <code class="mono">' + escapeHtml(short) + '</code> · ' + escapeHtml(r.color || ROOM_DEF_COLOR) + (n ? ' · použita v rozvrhu na ' + n + ' místech' : '') + '</div></div>' +
       '<div style="display:flex;gap:6px">' +
-        '<button class="btn btn-soft btn-sm" data-act="rm-edit:' + r.id + '">' + ic('edit', 13) + ' Upravit</button>' +
+        '<button class="icon-btn sm" data-act="rm-edit:' + r.id + '" title="Upravit učebnu">' + ic('edit', 15) + '</button>' +
         '<button class="icon-btn sm" data-act="rm-del:' + r.id + '" title="Smazat učebnu" style="color:var(--bad)">' + ic('trash', 15) + '</button>' +
       '</div>' +
     '</div>';

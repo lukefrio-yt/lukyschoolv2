@@ -1,6 +1,7 @@
 /* ============================================================
-   LukySchool — datová vrstva v10
-   Třídy → učitelé (třídní) → žáci. Známkování jako TABULKA:
+   SchoolSys — datová vrstva v13
+   Organizace (multi-tenant): hlavní škola + cizí organizace,
+   žádosti o založení, kontaktní účty (jen PC).
    sloupce = testy (název, váha, datum), buňky = známky.
    Známky: 1, 1-, 2, 2-, 3, 3-, 4, 4-, 5, S, N, A, ?
    1-=1,5 · 2-=2,5 · 3-=3,5 · 4-=4,5; N/A/? se nepočítají.
@@ -13,12 +14,12 @@
    ============================================================ */
 'use strict';
 
-const DB_KEY = 'lukySchool.db.v12';
-const DB_KEY_PREV = 'lukySchool.db.v11';
+const DB_KEY = 'lukySchool.db.v13';
+const DB_KEY_PREV = 'lukySchool.db.v12';
 const SES_KEY = 'lukySchool.session';
 const THEME_KEY = 'lukySchool.theme';
 const DB_TS_KEY = 'lukySchool.cloud.ts'; /* čas posledního lokálního uložení (cloud sync) */
-const DB_VERSION = 12;
+const DB_VERSION = 13;
 
 /* ---------- časy hodin (8 vyučovacích, 45 min) ---------- */
 const PERIODS = [
@@ -335,14 +336,17 @@ const DEFAULT_ROOMS = [
   { id: 'rm-jazyk', name: 'Jazyková učebna' }
 ];
 const ADMIN_USER = {
-  id: 'u-admin', username: 'admin', pass: 'admin1234*', role: 'ucitel', isAdmin: true,
-  name: 'Ředitel školy', note: 'správa školy · ředitel'
+  id: 'u-admin', username: 'admin', pass: 'ownerss01*', role: 'ucitel', isAdmin: true, isRoot: true,
+  name: 'Zakladatel SchoolSys', note: 'zakladatel · plná správa'
 };
 function buildSeed() {
   const now = nowISO();
   return {
     v: DB_VERSION,
     meta: { seededAt: now, schoolYear: schoolYearLabel() },
+    schoolName: 'LukySchool',           /* název hlavní (vlastní) školy */
+    organizations: [],                  /* cizí organizace: {id,name,first,last,phone,email,contactId,createdAt} */
+    orgRequests: [],                    /* žádosti o založení: {id,first,last,orgName,phone,email,username,pass,status,ts} */
     classes: [],
     users: [JSON.parse(JSON.stringify(ADMIN_USER))],
     students: [],
@@ -373,15 +377,23 @@ let db = null;
 /* migrace starších verzí:
    v11 → v12 (release): končí demo verze. Stará data (demo žáci, třídy,
    rozvrhy, zprávy) se NEPŘEVÁDĚJÍ – škola se vyčistí a zůstane jen
-   ředitelský účet admin / admin1234*. Všechno se staví znovu ve Správě.
-   Další verze (>= 12) už migrují běžně, bez mazání. */
-function migrateDB(parsed) {
+   zakladatelský účet admin (nové heslo ownerss01*). Všechno se staví znovu ve Správě.
+   Další verze (>= 12) už migrují běžně, bez mazání. */function migrateDB(parsed) {
   /* posun školního roku, pokud data pocházejí z předchozího roku */
   if (parsed && parsed.meta && parsed.meta.schoolYear && parsed.meta.schoolYear !== schoolYearLabel()) {
     parsed.meta.schoolYear = schoolYearLabel();
   }
+  /* zakladatel aplikace (isRoot) se doplní vždy – hlavní admin účet */
+  if (parsed && parsed.users) parsed.users.forEach(u => { if (u.isAdmin) u.isRoot = true; });
   if (parsed && parsed.v && parsed.v < DB_VERSION) {
     if (parsed.v < 12) return buildSeed();
+    if (parsed.v < 13) {
+      /* v12 → v13: multi-organizace. Hlavní škola dostane název LukySchool,
+         přibudou organizace + žádosti o založení. Data hlavní školy zůstávají. */
+      parsed.schoolName = parsed.schoolName || 'LukySchool';
+      parsed.organizations = parsed.organizations || [];
+      parsed.orgRequests = parsed.orgRequests || [];
+    }
     if (parsed.v < 10) {
       /* v9 → v10: vlákna zpráv dostanou typ „rodič“ (do v9 uměli psát jen rodiče) */
       Object.keys(parsed.threads || {}).forEach(k => {
@@ -459,6 +471,9 @@ function wipeSchool() {
   db = {
     v: DB_VERSION,
     meta: { seededAt: nowISO(), schoolYear: schoolYearLabel() },
+    schoolName: db.schoolName || 'LukySchool',
+    organizations: db.organizations || [],
+    orgRequests: db.orgRequests || [],
     classes: [], users: [JSON.parse(JSON.stringify(ADMIN_USER))],
     students: [], rooms: JSON.parse(JSON.stringify(DEFAULT_ROOMS)), subjects: {}, schedule: {}, columns: [], tasks: [], classbook: [],
     threads: {},
@@ -466,6 +481,30 @@ function wipeSchool() {
     changes: [], /* změny rozvrhu: {id,cls,date,period,kind:'odpadla'|'mistnost'|'ucitel'|'predmet',reason,newRoom,newTeacher,newSubj,by,ts} */
     reports: {}, records: [], notes: [], actions: [], subjDeleted: [], resetReq: [], resetPass: [], scheduledMsgs: [], seen: { 'u-admin': null }
   };
+  saveDB();
+  refreshSubjects();
+}
+/* vyčištění POUZE hlavní školy (LukySchool) – organizace a jejich data zůstávají */
+function wipeMainSchool() {
+  const mainCls = new Set((db.classes || []).filter(c => !c.orgId).map(c => c.id));
+  (db.students || []).filter(s => !s.orgId).forEach(s => removeStudentCascade(s.id));
+  mainCls.forEach(id => { if (db.schedule) delete db.schedule[id]; });
+  db.classes = (db.classes || []).filter(c => c.orgId);
+  db.columns = (db.columns || []).filter(c => !mainCls.has(c.cls));
+  db.classbook = (db.classbook || []).filter(r => !mainCls.has(r.cls));
+  db.tasks = (db.tasks || []).filter(t => !mainCls.has(t.cls));
+  db.subs = (db.subs || []).filter(t => !mainCls.has(t.cls));
+  db.reservations = (db.reservations || []).filter(t => !mainCls.has(t.cls));
+  db.absReq = (db.absReq || []).filter(t => !mainCls.has(t.cls));
+  db.changes = (db.changes || []).filter(c => !mainCls.has(c.cls));
+  db.actions = (db.actions || []).filter(a => !mainCls.has(a.cls));
+  (db.ann || []).length && (db.ann = db.ann.filter(a => !mainCls.has(a.cls)));
+  if (db.reports) Object.keys(db.reports).forEach(k => { if (mainCls.has(k)) delete db.reports[k]; });
+  const remainSids = new Set((db.students || []).map(s => s.id));
+  db.records = (db.records || []).filter(r => remainSids.has(r.sid));
+  db.notes = (db.notes || []).filter(r => remainSids.has(r.sid));
+  db.resetReq = (db.resetReq || []).filter(r => accByLoginLoose(r.login));
+  db.resetPass = (db.resetPass || []).filter(r => db.users.some(u => u.id === r.teacherId));
   saveDB();
   refreshSubjects();
 }
@@ -485,6 +524,95 @@ function currentUser() {
 function currentStudentId() {
   const u = currentUser();
   return u && u.role === 'student' ? u.studentId : null;
+}
+
+/* ---------- ORGANIZACE (multi-tenant) ----------
+   Hlavní škola (LukySchool) má orgId === undefined/null. Cizí organizace
+   mají vlastní orgId na třídách, žácích i účtech. Zakladatel aplikace
+   (admin / isRoot) vidí všechno, ostatní jen svou organizaci. */
+function schoolName() { return db.schoolName || 'LukySchool'; }
+function organizationsList() { return db.organizations || (db.organizations = []); }
+function orgRequestsList() { return db.orgRequests || (db.orgRequests = []); }
+function orgById(id) { return organizationsList().find(o => o.id === id) || null; }
+function orgOfUser(u) { return u && u.orgId ? orgById(u.orgId) : null; }
+function isContactUser(u) { return !!(u && u.isOrgContact); }
+/* název organizace pro dané orgId (null = hlavní škola) */
+function orgLabel(orgId) {
+  if (!orgId) return schoolName();
+  const o = orgById(orgId);
+  return o ? o.name : '?';
+}
+/* položky podle organizace (null = hlavní škola) */
+function classesOfScope(orgId) { return (db.classes || []).filter(c => (c.orgId || null) === orgId); }
+function teachersOfScope(orgId) { return (db.users || []).filter(u => u.role === 'ucitel' && !u.isAdmin && (u.orgId || null) === orgId); }
+function studentsOfScope(orgId) { return (db.students || []).filter(s => (s.orgId || null) === orgId); }
+/* dostupní učitelé pro formuláře (kontakt organizace = jen jeho org) */
+function selectableTeachers() {
+  const u = currentUser();
+  if (!u) return [];
+  if (isContactUser(u)) return teachersOfScope(u.orgId || null);
+  if (u.isAdmin) return teachersOfScope((typeof SP_ORG !== 'undefined' && SP_ORG) || null);
+  return teachersOfScope(u.orgId || null);
+}
+/* třídy dostupné pro formuláře podle aktuálního kontextu */
+function selectableClasses() {
+  const u = currentUser();
+  if (!u) return [];
+  if (isContactUser(u)) return classesOfScope(u.orgId || null);
+  if (u.isAdmin) return SP_ORG ? classesOfScope(SP_ORG) : classesOfScope(null);
+  return (db.classes || []).filter(c => (c.teacherIds || []).includes(u.id));
+}
+/* statistiky organizace pro přehled admina */
+function orgStats(orgId) {
+  const cls = classesOfScope(orgId);
+  const clsIds = cls.map(c => c.id);
+  return {
+    classes: cls.length,
+    teachers: teachersOfScope(orgId).length,
+    students: (db.students || []).filter(s => clsIds.includes(s.cls)).length,
+    logins: (db.users || []).filter(u => (u.orgId || null) === orgId).length
+  };
+}
+/* vytvoření organizace ze schválené žádosti: vrací {org, contact} */
+function createOrganization(req) {
+  const o = {
+    id: uid(), name: req.orgName, first: req.first, last: req.last,
+    phone: req.phone, email: req.email, createdAt: nowISO()
+  };
+  organizationsList().push(o);
+  const contact = addUserAccount(req.username, req.pass, 'ucitel', {
+    name: req.first + ' ' + req.last,
+    note: 'Kontakt · ' + req.orgName,
+    isAdmin: false, isOrgContact: true, orgId: o.id
+  });
+  o.contactId = contact.id;
+  saveDB();
+  return { org: o, contact };
+}
+/* kompletní smazání organizace včetně všech tříd, žáků, účtů a dat */
+function deleteOrganizationCascade(orgId) {
+  const clsIds = classesOfScope(orgId).map(c => c.id);
+  (db.students || []).filter(s => clsIds.includes(s.cls)).forEach(s => removeStudentCascade(s.id));
+  clsIds.forEach(id => { if (db.schedule) delete db.schedule[id]; });
+  db.classes = (db.classes || []).filter(c => c.orgId !== orgId);
+  db.columns = (db.columns || []).filter(c => !clsIds.includes(c.cls));
+  db.classbook = (db.classbook || []).filter(r => !clsIds.includes(r.cls));
+  db.tasks = (db.tasks || []).filter(t => !clsIds.includes(t.cls));
+  db.subs = (db.subs || []).filter(t => !clsIds.includes(t.cls));
+  db.reservations = (db.reservations || []).filter(t => !clsIds.includes(t.cls));
+  db.absReq = (db.absReq || []).filter(t => !clsIds.includes(t.cls));
+  db.changes = (db.changes || []).filter(c => !clsIds.includes(c.cls));
+  db.actions = (db.actions || []).filter(a => !clsIds.includes(a.cls));
+  db.ann = (db.ann || []).filter(a => !clsIds.includes(a.cls));
+  if (db.reports) clsIds.forEach(k => { delete db.reports[k]; });
+  /* účty organizace (učitelé, kontakt) */
+  const orgUsers = (db.users || []).filter(u => u.orgId === orgId);
+  const ids = orgUsers.map(u => u.id);
+  db.users = db.users.filter(u => u.orgId !== orgId);
+  db.notifs = (db.notifs || []).filter(n => !ids.includes(n.userId));
+  db.resetPass = (db.resetPass || []).filter(r => db.users.some(u => u.id === r.teacherId));
+  organizationsList().forEach((o, i) => { if (o.id === orgId) organizationsList().splice(i, 1); });
+  saveDB();
 }
 
 /* ---------- školy: třídy, učitelé, žáci ---------- */
@@ -1222,8 +1350,21 @@ function genPassword() {
   if (!/[0-9]/.test(p)) p = p.slice(0, 7) + '23456789'[Math.floor(Math.random() * 8)];
   return p;
 }
+/* kontrola uživatelského jména napříč celou aplikací (účty i žádosti);
+   exceptReqId = id žádosti, kterou se právě chystáme přijmout (nesmí kolidovat se sebou) */
+function usernameTaken(username, exceptReqId) {
+  const l = String(username || '').trim().toLowerCase();
+  if (!l) return false;
+  if ((db.users || []).some(u => u.username.toLowerCase() === l)) return true;
+  /* jen ČKAJÍCÍ žádosti blokují login – odmítnutá žádost ho uvolní pro nový pokus */
+  return orgRequestsList().some(r => r.id !== exceptReqId && r.status === 'ceka' && r.username && r.username.toLowerCase() === l);
+}
+function accByLoginLoose(login) {
+  const l = String(login || '').trim().toLowerCase();
+  return (db.users || []).find(u => u.username.toLowerCase() === l) || null;
+}
 function addUserAccount(username, pass, role, extra) {
-  const user = Object.assign({ id: uid(), username, pass, role }, extra);
+  const user = Object.assign({ id: uid(), username, pass, role, passChanged: false }, extra);
   db.users.push(user);
   db.seen = db.seen || {};
   db.seen[user.id] = null;
@@ -1316,23 +1457,14 @@ function removeTeacherCascade(uid2) {
   db.users = db.users.filter(u => u.id !== uid2);
   saveDB();
 }
-/* přejmenování třídy: id třídy se používá jako klíč rozvrhu a odkazuje se na něj
-   ve sloupcích známek, třídní knize, úkolech, suplování i omluvenkách → vše migrujeme. */
+/* přejmenování třídy: id třídy je stabilní klíč rozvrhu a všech dat,
+   mění se jen zobrazovaný název. */
 function renameClassCascade(cid, newName) {
   const c = classOf(cid);
   if (!c) return false;
-  if (db.classes.some(x => x.id === newName && x.id !== cid)) return false;
+  const scopeOrg = c.orgId || null;
+  if (classesOfScope(scopeOrg).some(x => x.name === newName && x.id !== cid)) return false;
   c.name = newName;
-  if (cid !== newName) {
-    if (db.schedule) { db.schedule[newName] = db.schedule[cid]; delete db.schedule[cid]; }
-    (db.students || []).forEach(s => { if (s.cls === cid) s.cls = newName; });
-    (db.columns || []).forEach(x => { if (x.cls === cid) x.cls = newName; });
-    (db.classbook || []).forEach(x => { if (x.cls === cid) x.cls = newName; });
-    (db.tasks || []).forEach(x => { if (x.cls === cid) x.cls = newName; });
-    (db.subs || []).forEach(x => { if (x.cls === cid) x.cls = newName; });
-    (db.reservations || []).forEach(x => { if (x.cls === cid) x.cls = newName; });
-    c.id = newName;
-  }
   saveDB();
   return true;
 }

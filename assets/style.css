@@ -1,5 +1,5 @@
 /* ============================================================
-   LukySchool — design system
+   SchoolSys — design system
    Dark: bg #0F172A · cards #1E293B · accent #3B82F6
    Light: bg #F1F5F9 · cards #FFFFFF · border #E2E8F0
    ============================================================ */
@@ -411,6 +411,11 @@ textarea.ta { min-height: 44px; }
 }
 .rcpt-pill.active { background: rgba(59,130,246,0.16); border-color: var(--accent); color: var(--accent); }
 .rcpt-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+
+/* schedule day pills: swipeable single row (no orphaned wrap on mobile) */
+.day-pills { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; padding-bottom: 4px; margin-bottom: 10px; }
+.day-pills::-webkit-scrollbar { display: none; }
+.day-pills .rcpt-pill { flex: 0 0 auto; white-space: nowrap; }
 
 /* schedule */
 .day-grid { display: grid; gap: 8px; }

@@ -1,7 +1,7 @@
-# LukySchool – návod k databázi a publikaci
+# SchoolSys – návod k databázi a publikaci
 
 Tento dokument popisuje, **jak dnes aplikace ukládá data**, co to znamená pro
-více zařízení/uživatelů a **co je potřeba udělat**, aby LukySchool běžela na
+více zařízení/uživatelů a **co je potřeba udělat**, aby SchoolSys běžel na
 opravdové databázi a šla zveřejnit (např. na GitHub Pages).
 
 ---
@@ -35,20 +35,24 @@ Aplikace je čistě frontend: tři HTML/JS/CSS soubory, žádný server. Vešker
 žijí v prohlížeči v **localStorage** pod klíčem:
 
 ```
-lukySchool.db.v12
+lukySchool.db.v13
 ```
 
 Klíč končí verzí schématu. Při každém načtení aplikace proběhne `migrateDB()`
 v `assets/js/data.js` – starší verze se buď převedou, nebo (u velkého
-přechodu v12) smažou. Staré klíče se automaticky uklidí.
+přechodu v12) smažou. Přechod na v13 (multi-organizace) proběhl bez ztráty
+dat hlavní školy. Staré klíče se automaticky uklidí.
 
 ### Tvar databáze (jeden velký JSON objekt)
 
 | Klíč objektu | Obsah |
 |---|---|
-| `v` | verze schématu (teď 12) |
+| `v` | verze schématu (teď 13) |
 | `meta` | kdy byla založena, školní rok |
-| `classes` | třídy `{ id, name, teacherIds[], mainTeacher }` |
+| `schoolName` | název hlavní školy (LukySchool) |
+| `organizations` | cizí organizace `{ id, name, first, last, phone, email, contactId, createdAt }` |
+| `orgRequests` | žádosti o založení `{ id, first, last, orgName, phone, email, username, pass, status }` |
+| `classes` | třídy `{ id, name, orgId?, teacherIds[], mainTeacher }` – `orgId` jen u tříd organizací |
 | `users` | všechny účty `{ id, username, pass, role, isAdmin, name, … }` |
 | `students` | žáci `{ id, first, last, cls, ivp? }` |
 | `rooms` | učebny pro rezervace |
@@ -162,7 +166,7 @@ První kroky v Supabase dashboardu:
 ### Varianta B: Vlastní API (Node.js + Express)
 
 ```
-LukySchool/
+SchoolSys/
   index.html, app.html, assets/…   ← frontend (hostujete na Pages)
   server/                          ← nově: vlastní backend
     package.json
@@ -210,7 +214,7 @@ Než databázi rozjedete, vyexportujte si obsah localStorage:
 
 ```js
 // spusťte v konzoli prohlížeče na app.html
-const data = JSON.parse(localStorage.getItem('lukySchool.db.v12'));
+const data = JSON.parse(localStorage.getItem('lukySchool.db.v13'));
 console.log(JSON.stringify(data));   // zkopírujte a uložte jako backup.json
 ```
 
@@ -225,7 +229,7 @@ převede na `class_id`.
 | Dnes (prototyp) | Před zveřejněním |
 |---|---|
 | hesla plaintext v localStorage | hash (bcrypt/argon2) na serveru, token v session |
-| admin `admin / admin1234*` | **ihned změňte**, ideálně přes proměnnou prostředí |
+| admin `admin / ownerss01*` (zakladatel) | heslo lze změnit přímo v aplikaci (ikona zámku vpravo nahoře) |
 | každý si může otevřít konzoli a číst data | server ověřuje práva (učitel = jen své třídy) |
 | tlačítko „Ředitel“ na přihlašovací stránce | na veřejném webu schovejte – přihlašování přes formulář |
 | sdílení = jeden prohlížeč | databáze + API (kapitola 2) |

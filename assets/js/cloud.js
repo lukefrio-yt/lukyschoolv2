@@ -1,5 +1,5 @@
 /* ============================================================
-   LukySchool – cloudová synchronizace přes Supabase (PostgREST)
+   SchoolSys – cloudová synchronizace přes Supabase (PostgREST)
 
    Celá škola se ukládá jako JEDEN řádek tabulky school_state
    (sloupec payload = celý JSON aplikace, viz supabase.sql).
