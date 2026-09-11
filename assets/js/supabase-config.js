@@ -1,5 +1,4 @@
-/* ============================================================
-   LukySchool – konfigurace Supabase (veřejné údaje)
+/* ============================================================    SchoolSys – konfigurace Supabase (veřejné údaje)
    Publishable klíč je určený pro frontend (nahrazuje starý „anon“
    klíč) – bezpečnost zajišťují pravidla RLS na serveru, viz
    soubor supabase.sql. Secret klíč sem NIKDY nepatří.
