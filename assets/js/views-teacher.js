@@ -230,7 +230,7 @@ function tDochazka() {
       }).join('') + '</tbody></table></div>' +
       atLegend() +
     '</div>'
-    : '<div class="card"><div class="empty"><b>Ve třídě zatím nejsou žáci</b>Přidejte je ve Správě školy.</div></div>') + '';
+    : '<div class="card"><div class="empty"><b>Ve třídě zatím nejsou žáci</b>Přidejte je v Známkování („Přidat žáka“) nebo v Údaje.</div></div>') + '';
 }
 
 /* ================= ZNÁMKOVÁNÍ (tabulka) ================= */
@@ -2062,7 +2062,7 @@ function tPoznamky() {
           }).join('') + '</div>'
         : '<div class="empty"><b>Zatím žádné záznamy</b>Přidejte první poznámku, pochvalu nebo důtku k žákovi – rodiče dostanou oznámení.</div>') +
       '</div>'
-    : '<div class="card"><div class="empty"><b>Ve třídě zatím nejsou žáci</b>Přidejte je ve Správě školy.</div></div>');
+    : '<div class="card"><div class="empty"><b>Ve třídě zatím nejsou žáci</b>Přidejte je v Známkování („Přidat žáka“) nebo v Údaje.</div></div>');
 }
 function tNoteModalFor(noteId) {
   const cid = activeClsId();
