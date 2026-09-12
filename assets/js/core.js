@@ -337,7 +337,7 @@ function renderLogin() {
       '<p class="login-sub">Přihlaste se do aplikace.</p>' +
       '<form data-form="login">' +
         '<div class="field"><label>Uživatelské jméno</label><input name="user" autocomplete="username" placeholder="admin" required></div>' +
-        '<div class="field"><label>Heslo</label><input name="pass" type="password" autocomplete="current-password" placeholder="••••••••" required></div>' +
+        '<div class="field"><label>Heslo</label><div class="pass-wrap"><input name="pass" type="password" autocomplete="current-password" placeholder="••••••••" required>' + passEyeHtml('pass') + '</div></div>' +
         '<label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;margin:10px 0 2px"><input type="checkbox" name="remember" style="width:16px;height:16px;accent-color:var(--accent)"> Zapamatovat si účet (rychlé přihlášení)</label>' +
         '<button class="btn btn-primary" style="width:100%;margin-top:6px">' + ic('arrowR', 16) + ' Přihlásit se</button>' +
       '</form>' +
@@ -429,18 +429,37 @@ onAct('nav-close', () => document.body.classList.remove('nav-open'));
 document.addEventListener('keydown', e => { if (e.key === 'Escape') document.body.classList.remove('nav-open'); });
 
 /* ---------- hesla: změna vlastního + zapomenuté heslo ---------- */
-function passErr(p) {
+/* Politika: min. 8 znaků, min. 1 velké + 1 malé písmeno + 1 číslo;
+   učitelé (a kontaktní účty) navíc min. 1 speciální znak. */
+function passErr(p, role) {
   if (!p || p.length < 8) return 'Heslo musí mít alespoň 8 znaků.';
+  if (!/[A-Z]/.test(p)) return 'Heslo musí obsahovat alespoň 1 velké písmeno.';
+  if (!/[a-z]/.test(p)) return 'Heslo musí obsahovat alespoň 1 malé písmeno.';
   if (!/[0-9]/.test(p)) return 'Heslo musí obsahovat alespoň 1 číslici.';
+  if ((role === 'ucitel' || role === 'orgcontact') && !/[^A-Za-z0-9]/.test(p)) return 'Heslo učitele musí obsahovat i speciální znak (např. * / #).';
   return null;
 }
-function passFieldsHtml(hidden) {
+function passFieldsHtml(hidden, role) {
+  const hint = (role === 'ucitel') ? 'min. 8 znaků, velké + malé písmeno, číslice a speciální znak' : 'min. 8 znaků, velké + malé písmeno a číslice';
+  const eye = passEyeHtml('new1');
   return (hidden || '') +
-    '<div class="field"><label>Nové heslo</label><input name="new1" autocomplete="new-password" required placeholder="min. 8 znaků a alespoň 1 číslice"></div>' +
-    '<div class="field"><label>Potvrzení hesla</label><input name="new2" autocomplete="new-password" required placeholder="stejné heslo znovu"></div>';
+    '<div class="field"><label>Nové heslo</label><div class="pass-wrap"><input name="new1" autocomplete="new-password" required placeholder="' + hint + '">' + eye + '</div></div>' +
+    '<div class="field"><label>Potvrzení hesla</label><div class="pass-wrap"><input name="new2" autocomplete="new-password" required placeholder="stejné heslo znovu">' + passEyeHtml('new2') + '</div></div>';
 }
-function applyPassError(p1, p2) {
-  const err = passErr(p1);
+function passEyeHtml(nameAttr) {
+  return '<button type="button" class="pass-eye" data-act="pass-eye" title="Zobrazit / skrýt heslo">' + ic('eye', 16) + '</button>';
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('.pass-eye');
+  if (!b) return;
+  e.preventDefault();
+  const inp = b.parentElement.querySelector('input');
+  if (!inp) return;
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+  b.style.color = inp.type === 'text' ? 'var(--accent)' : '';
+});
+function applyPassError(p1, p2, role) {
+  const err = passErr(p1, role);
   if (err) { toast(err, 'bad'); return true; }
   if (p1 !== p2) { toast('Hesla se neshodují', 'bad'); return true; }
   return false;
@@ -459,7 +478,7 @@ onAct('form:pass-change', f => {
   const fd = new FormData(f);
   const u = currentUser();
   if (!u) return;
-  if (applyPassError(String(fd.get('new1') || ''), String(fd.get('new2') || ''))) return;
+  if (applyPassError(String(fd.get('new1') || ''), String(fd.get('new2') || ''), u.role)) return;
   u.pass = hashPassword(String(fd.get('new1')));
   u.passChanged = true; /* generované heslo už nikdo neuvidí – jen uživatel */
   delete u.genPass;   /* třídní už původní heslo neuvidí */
@@ -556,17 +575,17 @@ function orgReqRender(mode, draft) {
         : '') +
       '<form data-form="org-request"' + (pcOnly ? '' : ' data-disabled="1"') + '>' +
         '<div class="field-row">' +
-          '<div class="field"><label>Jméno zakladatele *</label><input name="first" required value="' + val('first') + '" placeholder="Jan"' + (pcOnly ? '' : ' disabled') + '></div>' +
-          '<div class="field"><label>Příjmení zakladatele *</label><input name="last" required value="' + val('last') + '" placeholder="Novák"' + (pcOnly ? '' : ' disabled') + '></div>' +
+          '<div class="field"><label>Jméno zakladatele *</label><input name="first" required maxlength="40" value="' + val('first') + '" placeholder="Jan"' + (pcOnly ? '' : ' disabled') + '></div>' +
+          '<div class="field"><label>Příjmení zakladatele *</label><input name="last" required maxlength="40" value="' + val('last') + '" placeholder="Novák"' + (pcOnly ? '' : ' disabled') + '></div>' +
         '</div>' +
-        '<div class="field"><label>Jméno organizace *</label><input name="orgName" required value="' + val('orgName') + '" placeholder="např. ZŠ Hvezda"' + (pcOnly ? '' : ' disabled') + '></div>' +
+        '<div class="field"><label>Jméno organizace *</label><input name="orgName" required maxlength="60" value="' + val('orgName') + '" placeholder="např. ZŠ Hvezda"' + (pcOnly ? '' : ' disabled') + '></div>' +
         '<div class="field-row">' +
           '<div class="field"><label>Telefon na kontakt *</label><input name="phone" required value="' + val('phone') + '" placeholder="+420 …"' + (pcOnly ? '' : ' disabled') + '></div>' +
           '<div class="field"><label>Email na kontakt *</label><input name="email" type="email" required value="' + val('email') + '" placeholder="kontakt@organizace.cz"' + (pcOnly ? '' : ' disabled') + '></div>' +
         '</div>' +
         '<div class="field-row">' +
-          '<div class="field"><label>Uživatelské jméno pro kontakt *</label><input name="username" required value="' + val('username') + '" placeholder="např. jan.novak" style="font-family:monospace"' + (pcOnly ? '' : ' disabled') + '></div>' +
-          '<div class="field"><label>Heslo pro kontakt *</label><input name="pass" type="password" required value="" placeholder="min. 8 znaků a 1 číslice"' + (pcOnly ? '' : ' disabled') + '></div>' +
+          '<div class="field"><label>Uživatelské jméno pro kontakt *</label><input name="username" required maxlength="30" value="' + val('username') + '" placeholder="např. jan.novak" style="font-family:monospace"' + (pcOnly ? '' : ' disabled') + '></div>' +
+          '<div class="field"><label>Heslo pro kontakt *</label><div class="pass-wrap"><input name="pass" type="password" required value="" placeholder="min. 8 znaků, velké + malé písmeno, číslice, speciální znak"' + (pcOnly ? '' : ' disabled') + '>' + passEyeHtml('pass') + '</div></div>' +
         '</div>' +
         '<p class="small-note" style="margin:4px 0 10px">Přihlášení až po schválení žádosti (jen na PC)</p>' +
         (pcOnly ? '<button class="btn btn-primary" style="width:100%">' + ic('send', 16) + ' Odeslat žádost správci</button>' : '') +
@@ -587,10 +606,13 @@ function normalizeOrgReq(d) {
 }
 onAct('form:org-request', f => {
   const d = normalizeOrgReq(Object.fromEntries(new FormData(f).entries()));
+  /* limity znaků */
+  d.first = d.first.slice(0, 40); d.last = d.last.slice(0, 40);
+  d.orgName = d.orgName.slice(0, 60); d.username = d.username.slice(0, 30);
   if (!d.first || !d.last || !d.orgName || !d.phone || !d.email) { toast('Vyplňte prosím všechna pole žádosti', 'bad'); return; }
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.email)) { toast('Zadejte platný email', 'bad'); return; }
   if (!d.username) { toast('Zvolte uživatelské jméno pro kontakt', 'bad'); return; }
-  const err = passErr(d.pass);
+  const err = passErr(d.pass, 'orgcontact');
   if (err) { toast(err, 'bad'); return; }
   if (usernameTaken(d.username)) { toast('Uživatelské jméno „' + escapeHtml(d.username) + '“ je už zabrané', 'bad'); return; }
   if (d.username.length < 3) { toast('Uživatelské jméno musí mít alespoň 3 znaky', 'bad'); return; }

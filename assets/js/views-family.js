@@ -181,9 +181,8 @@ function zkPredHtml(sid) {
       ? '<div class="zk-list">' +
           preds.map((p, i) =>
             '<div class="zk-row"><span class="zk-grade sm ' + (tokenCounted(p.g) ? gradeColor(p.g) : '') + '">' + p.g + '</span>' +
-              '<div class="zk-mid"><div class="zk-title">Předvídač</div></div>' +
-              '<div class="zk-meta"><div class="zk-w">Váha: ' + p.w + '</div>' +
-              '<button class="icon-btn sm" data-act="zk-pred-del:' + i + '" title="Odebrat" style="color:var(--bad)">' + ic('x', 14) + '</button></div></div>').join('') +
+              '<div class="zk-mid"><div class="zk-title">Předvídač</div><div class="zk-note">Váha: ' + p.w + ' · klepnutím odeberete</div></div>' +
+              '<div class="zk-meta"><button class="btn btn-soft btn-sm" data-act="zk-pred-del:' + i + '">' + ic('x', 13) + ' Odebrat</button></div></div>').join('') +
           numericGradesOf(sid, sel).map(g =>
             '<div class="zk-row"><span class="zk-grade sm ' + gradeColor(g.v) + '">' + escapeHtml(tokenShort(g.v)) + '</span>' +
               '<div class="zk-mid"><div class="zk-title">' + escapeHtml(g.title) + '</div></div>' +
@@ -639,8 +638,10 @@ onAct('form:pass-child', f => {
   const sid = String(fd.get('sid'));
   const acc = (db.users || []).find(u => u.role === 'student' && u.studentId === sid);
   if (!acc) { toast('Žákovský účet se nenašel', 'bad'); return; }
-  if (applyPassError(String(fd.get('new1') || ''), String(fd.get('new2') || ''))) return;
-  acc.pass = String(fd.get('new1'));
+  if (applyPassError(String(fd.get('new1') || ''), String(fd.get('new2') || ''), 'student')) return;
+  acc.pass = hashPassword(String(fd.get('new1')));
+  acc.passChanged = true;
+  delete acc.genPass;
   saveDB();
   closeModal();
   toast('Heslo žáka změněno ✓', 'ok');

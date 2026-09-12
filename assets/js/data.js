@@ -1479,12 +1479,24 @@ function genUsername(first, last) {
   while (db.users.some(u => u.username === uname)) { uname = base + (i++); }
   return uname;
 }
-function genPassword() {
-  const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
-  let p = '';
-  for (let i = 0; i < 8; i++) p += chars[Math.floor(Math.random() * chars.length)];
-  /* generovaná hesla taky splňují podmínku „alespoň 1 číslice“ */
-  if (!/[0-9]/.test(p)) p = p.slice(0, 7) + '23456789'[Math.floor(Math.random() * 8)];
+function genPassword(role) {
+  /* politika: min. 8 znaků = 1 velké + 1 malé + 1 číslice; učitel/kontakt navíc 1 speciální znak */
+  const lower = 'abcdefghjkmnpqrstuvwxyz';
+  const upper = 'ABCDEFGHJKMNPQRSTUVWXYZ';
+  const nums = '23456789';
+  const spec = '*/#?!+-';
+  const pick = set => set[Math.floor(Math.random() * set.length)];
+  let p = pick(upper) + pick(lower) + pick(nums);
+  if (role === 'ucitel' || role === 'orgcontact') p += pick(spec);
+  const pool = role === 'ucitel' || role === 'orgcontact' ? lower + upper + nums + spec : lower + upper + nums;
+  while (p.length < 10) p += pick(pool);
+  /* promíchání, aby první znaky nebyly vždy stejné kategorie */
+  p = p.split('').sort(() => Math.random() - 0.5).join('');
+  /* pojistka: doplň chybějící kategorie, pokud je náhoda připravila o */
+  if (!/[A-Z]/.test(p)) p = p.slice(0, -1) + pick(upper);
+  if (!/[a-z]/.test(p)) p = p.slice(0, -1) + pick(lower);
+  if (!/[0-9]/.test(p)) p = p.slice(0, -1) + pick(nums);
+  if ((role === 'ucitel' || role === 'orgcontact') && !/[^A-Za-z0-9]/.test(p)) p = p.slice(0, -1) + pick(spec);
   return p;
 }
 /* kontrola uživatelského jména napříč celou aplikací (účty i žádosti);
