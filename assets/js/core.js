@@ -188,8 +188,8 @@ function navForUser(user) {
   if (user.isAdmin && user.role === 'ucitel') return ADMIN_NAV;
   const base = ROLE_NAV[user.role] || [];
   const nav = base.filter(n => n.key !== 'sprava');
-  /* kontaktní účet organizace: správa vlastní organizace + učitelské moduly svých tříd */
-  if (isContactUser(user)) return [{ key: 'sprava', icon: 'users', label: 'Správa organizace' }].concat(nav);
+  /* kontaktní účet organizace: správa vlastní organizace + učitelské moduly svých tříd (bez Resetování hesel) */
+  if (isContactUser(user)) return [{ key: 'sprava', icon: 'users', label: 'Správa organizace' }].concat(nav.filter(n => n.key !== 'hesla'));
   return nav;
 }
 function defKeyFor(user) {
@@ -467,7 +467,7 @@ onAct('form:pass-change', f => {
 onAct('forgot-pass', () => {
   openModal(
     '<h3>Zapomněli jste heslo?</h3>' +
-    '<p class="small-note" style="margin-bottom:12px">Zadejte své přihlašovací jméno. Správci přijde žádost a po obnovení vám nové heslo předá třídní učitel.</p>' +
+    '<p class="small-note" style="margin-bottom:12px">Zadejte své přihlašovací jméno – žádost dorazí tomu, kdo ji může vyřídit (třídní učitel žáka/rodiče, správce organizace učitelům, zakladatel aplikace správci).</p>' +
     '<form data-form="forgot-send">' +
       '<div class="field"><label>Přihlašovací jméno</label><input name="login" required autocomplete="username" placeholder="např. hana.dostupilova" style="font-family:monospace"></div>' +
       '<button class="btn btn-primary">' + ic('arrowR', 15) + ' Odeslat žádost</button>' +
@@ -476,14 +476,55 @@ onAct('forgot-pass', () => {
 onAct('form:forgot-send', f => {
   const login = String(new FormData(f).get('login') || '').trim();
   if (!login) { toast('Zadejte přihlašovací jméno', 'bad'); return; }
+  const acc = accByLoginLoose(login);
+  /* admin (zakladatel aplikace) nemá kdo resetovat – heslo si mění jen v aplikaci */
+  if (acc && acc.isRoot) {
+    closeModal();
+    toast('Heslo správce aplikace se žádostí resetovat nedá – přihlaste se a změňte ho přes 🔒', 'bad');
+    return;
+  }
+  /* kontaktní účet organizace (zakladatel školy) → řeší jen hlavní admin aplikace */
+  if (acc && acc.isOrgContact) {
+    db.resetReq = db.resetReq || [];
+    if (db.resetReq.some(r => r.status === 'ceka' && r.login.toLowerCase() === login.toLowerCase())) {
+      toast('Žádost pro tento účet už čeká na vyřízení', 'bad'); return;
+    }
+    db.resetReq.push({ id: uid(), login, status: 'ceka', ts: nowISO() });
+    (db.users || []).filter(u => u.isRoot || u.isAdmin).forEach(adm => {
+      db.notifs = db.notifs || [];
+      db.notifs.push({ userId: adm.id, type: 'reset', text: 'Žádost o reset hesla zakladatele organizace: ' + login, ts: nowISO(), route: 'sprava' });
+    });
+    saveDB();
+    closeModal();
+    toast('Žádost odeslána ✓ – heslo vám po ověření resetuje zakladatel aplikace (admin)', 'ok');
+    return;
+  }
   db.resetReq = db.resetReq || [];
   if (db.resetReq.some(r => r.status === 'ceka' && r.login.toLowerCase() === login.toLowerCase())) {
     toast('Žádost pro tento účet už čeká na vyřízení', 'bad'); return;
   }
   db.resetReq.push({ id: uid(), login, status: 'ceka', ts: nowISO() });
+  /* upozorníme řešitele podle hierarchie (třídní / kontakt / admin) */
+  try {
+    const res = resetResolverOf(acc);
+    if (res.kind === 'teacher') {
+      db.notifs = db.notifs || [];
+      db.notifs.push({ userId: res.teacherId, type: 'reset', text: 'Nová žádost o reset hesla: ' + login, ts: nowISO(), route: 'hesla' });
+    } else if (res.kind === 'contact') {
+      (db.users || []).filter(x => x.isOrgContact && x.orgId === res.orgId).forEach(x => {
+        db.notifs = db.notifs || [];
+        db.notifs.push({ userId: x.id, type: 'reset', text: 'Nová žádost o reset hesla: ' + login, ts: nowISO(), route: 'sprava' });
+      });
+    } else if (res.kind === 'root') {
+      (db.users || []).filter(x => x.isRoot || x.isAdmin).forEach(x => {
+        db.notifs = db.notifs || [];
+        db.notifs.push({ userId: x.id, type: 'reset', text: 'Nová žádost o reset hesla: ' + login, ts: nowISO(), route: 'sprava' });
+      });
+    }
+  } catch (e) { /* resolver není načtený – žádost zůstane vidět v seznamu */ }
   saveDB();
   closeModal();
-  toast('Žádost odeslána správci ✓ – nové heslo vám předá třídní učitel', 'ok');
+  toast('Žádost odeslána ✓ – nové heslo vám předá třídní učitel', 'ok');
 });
 
 /* ============================================================
@@ -627,6 +668,7 @@ onAct('notif-go:prubezna', () => { closeBell(); const u = currentUser(); gotoHas
 onAct('notif-go:dochazka', () => { closeBell(); const u = currentUser(); gotoHash('#/' + u.role + '/dochazka'); });
 onAct('notif-go:oznameni', () => { closeBell(); const u = currentUser(); gotoHash('#/' + u.role + '/oznameni'); });
 onAct('notif-go:sprava', () => { closeBell(); const u = currentUser(); gotoHash('#/' + (u.isAdmin ? 'admin' : u.role) + '/sprava'); });
+onAct('notif-go:hesla', () => { closeBell(); gotoHash('#/ucitel/hesla'); });
 function closeBell() {
   const box = document.getElementById('notif-box');
   if (box) box.style.display = 'none';

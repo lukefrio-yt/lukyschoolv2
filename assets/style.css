@@ -565,14 +565,15 @@ textarea.ta { min-height: 44px; }
   .mock-chip.c3 { left: calc(50% - 92px); bottom: -10px; }
   .demo-acts .btn { flex: 1 1 auto; justify-content: center; }
 
-  /* horní lišta – kompaktní, jméno schováme, notifikace zůstává */
-  .topbar { padding: 8px 10px; gap: 8px; }
-  .topbar .brand { font-size: 15px; }
+  /* horní lišta – kompaktní; při velkém množství ikonek se zalomí na 2. řádek,
+     nikdy se nepřekrývají */
+  .topbar { padding: 6px 8px; gap: 6px; row-gap: 6px; flex-wrap: wrap; }
+  .topbar .brand { font-size: 15px; flex-shrink: 1; min-width: 0; }
   .topbar .brand .logo { width: 27px; height: 27px; }
-  .user-pill { gap: 7px; }
+  .user-pill { gap: 5px; flex-shrink: 0; margin-left: auto; }
   .user-meta { display: none; }
-  .ava { width: 29px; height: 29px; font-size: 12px; }
-  .icon-btn { width: 40px; height: 40px; }
+  .ava { width: 28px; height: 28px; font-size: 12px; }
+  .icon-btn { width: 35px; height: 35px; }
 
   /* navigace = zásuvka zleva; otevře ji ☰ vedle loga, zavře křížek/pozadí/Esc */
   .nav-menu-btn { display: inline-flex; }

@@ -1642,10 +1642,37 @@ function tHesla() {
   const list = (db.resetPass || []).filter(r => r.teacherId === u.id).sort((a, b) => (a.ts < b.ts ? 1 : -1));
   list.forEach(r => { if (!r.read) { r.read = true; dirty = true; } });
   if (dirty) saveDB();
+  /* žáci a rodiče mých tříd – třídní je spravuje sám, bez admina */
+  const myClsIds = myClasses().map(c => c.id);
+  const myStudents = (db.students || []).filter(s => myClsIds.includes(s.cls));
+  const rows = myStudents.map(s => {
+    const acc = (db.users || []).find(x => x.role === 'student' && x.studentId === s.id);
+    const par = parentOfStudent(s.id);
+    return { s, acc, par };
+  }).filter(r => r.acc || r.par);
+  /* čekající žádosti z „Zapomněl jsem heslo“, které má vyřídit třídní */
+  const reqs = (db.resetReq || []).filter(r => {
+    if (r.status !== 'ceka') return false;
+    const acc = accByLogin(r.login);
+    return acc && resetResolverOf(acc).kind === 'teacher' && resetResolverOf(acc).teacherId === u.id;
+  });
   return '<div class="page-head"><div><h1>Resetování hesel</h1>' +
-    '<div class="sub">Když správce vygeneruje nové heslo, přijde vám upozornění – heslo ale z bezpečnostních důvodů nikde neukládáme. Předá ho uživatelovi správce, nebo si ho uživatel nastaví sám přes 🔒 Změnit heslo.</div></div></div>' +
+    '<div class="sub">Jako třídní spravujete přihlášky žáků a rodičů svých tříd: vytvoříte je při zakládání žáka, heslo resetujete tady. Učitelům a správě organizace hesla resetuje zakladatel organizace, jemu samotnému zakladatel aplikace.</div></div></div>' +
+    (reqs.length
+      ? '<div class="card" style="margin-bottom:16px;border-color:var(--warn)"><div class="card-title">' + ic('zap', 16) + ' Čekající žádosti o reset</div>' +
+        '<div class="list">' + reqs.map(r => {
+          const acc = accByLogin(r.login);
+          return '<div class="list-row">' +
+            '<span class="ava" style="background:linear-gradient(135deg,#3B82F6,#8B5CF6)">' + ic('zap', 16) + '</span>' +
+            '<div class="grow"><div class="row-title"><code class="mono">' + escapeHtml(r.login) + '</code>' + (acc ? ' · ' + escapeHtml(acc.name) : '') + '</div>' +
+            '<div class="row-sub">' + (acc ? escapeHtml(resetWhoText(acc)) : '') + ' · ' + tsLabel(r.ts) + '</div></div>' +
+            '<button class="btn btn-primary btn-sm" data-act="t-req-reset:' + r.id + '">' + ic('zap', 13) + ' Resetovat</button>' +
+          '</div>';
+        }).join('') + '</div></div>'
+      : '') +
     (list.length
-      ? '<div class="list">' + list.map(r =>
+      ? '<div class="card" style="margin-bottom:16px"><div class="card-title">' + ic('bell', 16) + ' Upozornění na reset od správce</div>' +
+        '<div class="list">' + list.map(r =>
           '<div class="list-row">' +
             '<span class="ava" style="background:linear-gradient(135deg,#F59E0B,#EF4444)">' + ic('zap', 16) + '</span>' +
             '<div class="grow"><div class="row-title">' + escapeHtml(r.who) + '</div>' +
@@ -1653,9 +1680,65 @@ function tHesla() {
               '<div style="font-size:11px;color:var(--muted)">' + tsLabel(r.ts) + '</div></div>' +
             '<button class="icon-btn sm" style="color:var(--bad)" data-act="t-res-hide:' + r.id + '" title="Smazat upozornění">' + ic('trash', 15) + '</button>' +
           '</div>'
+        ).join('') + '</div></div>'
+      : '') +
+    '<div class="card"><div class="card-title">' + ic('users', 16) + ' Žáci a rodiče mých tříd</div>' +
+    (rows.length
+      ? '<div class="list">' + rows.map(r =>
+          '<div class="list-row">' +
+            '<span class="ava">' + escapeHtml(r.s.first.charAt(0)) + '</span>' +
+            '<div class="grow"><div class="row-title">' + escapeHtml(r.s.first + ' ' + r.s.last) + '</div>' +
+              '<div class="row-sub">' +
+                (r.acc ? 'žák: <code class="mono">' + escapeHtml(r.acc.username) + '</code>' : '<span style="color:var(--warn)">žák bez účtu</span>') +
+                (r.par ? ' · rodič: <code class="mono">' + escapeHtml(r.par.username) + '</code>' : '') +
+              '</div></div>' +
+            '<div style="display:flex;gap:6px">' +
+              (r.acc ? '<button class="btn btn-soft btn-sm" data-act="t-pass-reset:' + r.acc.id + '">' + ic('zap', 13) + ' Reset žák</button>' : '') +
+              (r.par ? '<button class="btn btn-soft btn-sm" data-act="t-pass-reset:' + r.par.id + '">' + ic('zap', 13) + ' Reset rodič</button>' : '') +
+            '</div>' +
+          '</div>'
         ).join('') + '</div>'
-      : '<div class="empty"><b>Žádná upozornění</b>Když správce resetuje heslo žáka nebo rodiče z vaší třídy, objeví se tady informace k předání.</div>');
+      : '<div class="empty"><b>Žádní žáci</b>Žáky zakládáte v Známkování („Přidat žáka“) – tady pak resetujete jejich hesla a hesla rodičů.</div>') +
+    '</div>';
 }
+/* vyřízení žádosti z „Zapomněl jsem heslo“ – smí jen ten, komu patří */
+onAct('t-req-reset:', el => {
+  const id = el.getAttribute('data-act').slice(12);
+  const r = (db.resetReq || []).find(x => x.id === id);
+  if (!r || r.status !== 'ceka') return;
+  const acc = accByLogin(r.login);
+  if (!acc) return;
+  if (typeof viewerCanResolve === 'function' ? !viewerCanResolve(acc) : true) { toast('Tuto žádost nemůžete vyřídit', 'bad'); return; }
+  const np = genPassword();
+  acc.pass = hashPassword(np);
+  acc.passChanged = false;
+  setPendingPass(acc.id, np);
+  r.status = 'vyrizeno';
+  r.doneTs = nowISO();
+  saveDB();
+  showCreds(acc);
+  toast('Heslo resetováno ✓ – předajte ho uživateli osobně', 'ok');
+  route();
+});
+/* třídní resetuje heslo žákovi/rodiči své třídy – nové heslo vidí jednorázově */
+onAct('t-pass-reset:', el => {
+  const id = el.getAttribute('data-act').slice(13);
+  const target = (db.users || []).find(x => x.id === id);
+  if (!target) return;
+  if (target.isAdmin || target.isOrgContact || target.role === 'ucitel') { toast('Tohle nejde – učitele řeší zakladatel organizace, admina nikdo', 'bad'); return; }
+  const u = currentUser();
+  /* žák/rodič musí patřit do jedné z mých tříd */
+  const sid = target.role === 'student' ? target.studentId : (target.children || [])[0];
+  const st = sid ? studentOf(sid) : null;
+  if (!st || !myClasses().some(c => c.id === st.cls)) { toast('Tento účet není z vaší třídy', 'bad'); return; }
+  const np = genPassword();
+  target.pass = hashPassword(np);
+  target.passChanged = false;
+  setPendingPass(target.id, np);
+  saveDB();
+  showCreds(target);
+  toast('Heslo resetováno ✓ – nové heslo předajte žákovi/rodiči osobně', 'ok');
+});
 onAct('t-res-hide:', el => {
   const id = el.getAttribute('data-act').slice(11);
   db.resetPass = (db.resetPass || []).filter(r => r.id !== id);

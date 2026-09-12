@@ -81,6 +81,20 @@ jen `lukySchool.session` s uživatelským jménem. Po přihlášení čte `curre
 > získat zpět. Pro skutečný provoz se ale stejně doporučuje serverové ověření
 > (bcrypt/argon2 na serveru, viz kapitola 3).
 
+### Hierarchie resetů hesel
+
+- **Žák / rodič** → resetuje **třídní učitel** (záložka „Resetování hesel“,
+  nové heslo jednorázově; nemá-li žák třídního, vyřídí to kontakt organizace
+  přes žádosti, ve hlavní škole admin).
+- **Učitel** → resetuje **zakladatel organizace** (kontaktní účet, tlačítko
+  „Reset“ u učitele / žádosti); učitele hlavní školy resetuje **admin**.
+- **Zakladatel organizace** (kontaktní účet) → při zapomenutém heslu žádá na
+  loginu („Zapomněl jsem heslo“) a vyřizuje **výhradně zakladatel aplikace**
+  (admin) – nikdo jiný tuto žádost nevidí jako svou.
+- **Admin (zakladatel aplikace)** → heslo se žádostí resetovat **nedá**;
+  mění si ho jen sám po přihlášení (🔒). Žádost pro admina aplikace odmítne
+  s vysvětlením.
+
 ### Co to znamená v praxi
 
 - Data jsou **vázaná na jeden prohlížeč** – učitel na svém počítači nevidí,
