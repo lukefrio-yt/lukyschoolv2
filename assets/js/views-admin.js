@@ -394,6 +394,15 @@ onAct('form:sp-stud-create', f => {
     localStorage.setItem('t_cls', clsId);
   }
   if (!clsId) { toast('Nejdřív vytvořte třídu', 'bad'); return; }
+  /* práva: učitel smí jen do SVÝCH tříd; kontakt do libovolné třídy své organizace; admin kamkoli (v rámci rozkliknuté org) */
+  const me2 = currentUser();
+  const targetCls = classOf(clsId);
+  if (me2 && !me2.isAdmin) {
+    const allowed = isContactUser(me2)
+      ? targetCls && (targetCls.orgId || null) === (me2.orgId || null)          /* zakladatel org: celá jeho organizace */
+      : targetCls && (targetCls.teacherIds || []).includes(me2.id);             /* učitel: jen třídy, kde učí */
+    if (!allowed) { toast('Do této třídy nemůžete přidávat žáky', 'bad'); return; }
+  }
   const { acc } = createStudent(first, last, clsId, String(fd.get('username')).trim(), String(fd.get('pass')).trim(), String(fd.get('ivp')) === '1');
   closeModal();
   showCreds(acc);
