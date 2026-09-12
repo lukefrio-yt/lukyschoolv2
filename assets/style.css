@@ -533,6 +533,11 @@ textarea.ta { min-height: 44px; }
 
   /* aplikace: jedna sloupec, navigace = pás pod horní lištou */
   .layout { grid-template-columns: 1fr; }
+  /* horní lišta se v užším okně zalomí – ikonky se nikdy nepřekrývají (i na PC/tabletu) */
+  .topbar { flex-wrap: wrap; row-gap: 6px; padding: 8px 12px; gap: 8px; }
+  .topbar .brand { flex-shrink: 1; min-width: 0; white-space: nowrap; }
+  .user-pill { flex-shrink: 0; margin-left: auto; }
+  .icon-btn { width: 36px; height: 36px; }
   .sidebar {
     position: sticky; top: 57px; z-index: 30; height: auto;
     display: flex; align-items: center; gap: 4px;
