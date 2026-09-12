@@ -514,6 +514,9 @@ function showCreds(user) {
     '</div>' +
     '<div style="display:flex;gap:10px;flex-wrap:wrap">' +
       '<button class="btn btn-soft" data-act="sp-pass-reset:' + user.id + '">' + ic('zap', 14) + ' Vygenerovat nové heslo</button>' +
+      (user.role === 'student' || user.role === 'rodic'
+        ? '<button class="btn btn-soft" data-act="t-print:' + user.id + '">' + ic('print', 14) + ' Vytisknout</button>'
+        : '') +
       '<button class="btn btn-primary" data-act="close-modal">Hotovo</button>' +
     '</div>');
 }

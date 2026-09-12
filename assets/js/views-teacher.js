@@ -1666,6 +1666,7 @@ function tUdaje() {
         '</div></div>' +
       '<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">' +
         (r.acc ? '<button class="btn btn-soft btn-sm" data-act="t-creds:' + r.acc.id + '">' + ic('eye', 13) + ' Údaje</button>' : '') +
+        (r.acc ? '<button class="btn btn-soft btn-sm" data-act="t-print:' + r.acc.id + '" title="Vytisknout údaje žáka a rodiče">' + ic('print', 13) + ' Tisk</button>' : '') +
         (!r.par ? '<button class="btn btn-soft btn-sm" data-act="t-par-new:' + r.s.id + '">' + ic('users', 13) + ' Rodič</button>' : '') +
       '</div></div>';
   };
@@ -1684,6 +1685,77 @@ function tUdaje() {
 onAct('t-udaje-add', () => {
   if (isAppMode()) { toast('Přidávání žáků je dostupné jen na počítači 🖥️', 'bad'); return; }
   openAddStudentModal(activeClsId());
+});
+/* ---------- TISK údajů: dvě karty (žák + rodič), tisk/Uložit jako PDF ---------- */
+function printStudentCreds(studentAccId) {
+  const stAcc = (db.users || []).find(x => x.id === studentAccId && x.role === 'student');
+  if (!stAcc) return;
+  const st = studentOf(stAcc.studentId);
+  if (!st || !myClasses().some(c => c.id === st.cls)) { toast('Žák není z vaší třídy', 'bad'); return; }
+  const parAcc = parentOfStudent(st.id);
+  const cls = classOf(st.cls);
+  const school = schoolName();
+  const card = (title, subtitle, acc, pass) => {
+    const passHtml = pass
+      ? '<div class="pc-row"><span>Heslo</span><code>' + escapeHtml(pass) + '</code></div>'
+      : '<div class="pc-row"><span>Heslo</span><i>' + (acc && acc.passChanged ? 'změněno uživatelem' : 'nezobrazuje se') + '</i></div>';
+    return '<div class="print-card">' +
+      '<div class="pc-head">' +
+        '<div class="pc-logo">' +
+          '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10 12 5 2 10l10 5 10-5z"/><path d="M6 12v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5"/></svg>' +
+        '</div>' +
+        '<div><div class="pc-brand">School<b>Sys</b></div><div class="pc-school">' + escapeHtml(school) + (cls && cls.name ? ' · třída ' + escapeHtml(cls.name) : '') + '</div></div>' +
+      '</div>' +
+      '<h2>' + escapeHtml(title) + '</h2>' +
+      (subtitle ? '<div class="pc-sub">' + escapeHtml(subtitle) + '</div>' : '') +
+      '<div class="pc-row"><span>Přihlašovací jméno</span><code>' + escapeHtml(acc ? acc.username : '—') + '</code></div>' +
+      passHtml +
+      '<div class="pc-note">Website: přihlaste se na stránce aplikace SchoolSys. Heslo si po prvním přihlášení změňte (ikona 🔒 vpravo nahoře) – po změně už ho nikdo jiný neuvidí. Tento papier s údaji uchovejte v bezpečí.</div>' +
+    '</div>';
+  };
+  const stPass = visibleGenPass(stAcc);
+  const parPass = parAcc ? visibleGenPass(parAcc) : null;
+  const w = window.open('', '_blank', 'width=860,height=900');
+  if (!w) { toast('Povolte prosím vyskakovací okna pro tisk', 'bad'); return; }
+  w.document.write('<!DOCTYPE html><html lang="cs"><head><meta charset="UTF-8"><title>Údaje – ' + escapeHtml(st.first + ' ' + st.last) + '</title>' +
+    '<style>' +
+      '* { box-sizing: border-box; margin: 0; padding: 0; }' +
+      'body { font-family: "Segoe UI", Arial, sans-serif; background: #EEF2F7; padding: 24px; color: #0F172A; }' +
+      '.cards { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; max-width: 900px; margin: 0 auto; }' +
+      '.print-card { background: #fff; border: 1.5px solid #CBD5E1; border-radius: 14px; padding: 18px 20px; page-break-inside: avoid; }' +
+      '.pc-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }' +
+      '.pc-logo { width: 40px; height: 40px; border-radius: 11px; background: linear-gradient(135deg,#3B82F6,#8B5CF6); display: grid; place-items: center; }' +
+      '.pc-brand { font-size: 17px; font-weight: 900; letter-spacing: -0.02em; } .pc-brand b { color: #3B82F6; }' +
+      '.pc-school { font-size: 11.5px; color: #64748B; font-weight: 600; }' +
+      'h2 { font-size: 18px; margin: 6px 0 2px; }' +
+      '.pc-sub { font-size: 12.5px; color: #64748B; margin-bottom: 10px; }' +
+      '.pc-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid #E2E8F0; background: #F8FAFC; border-radius: 9px; padding: 9px 12px; margin: 7px 0; }' +
+      '.pc-row span { font-size: 12px; font-weight: 700; color: #64748B; }' +
+      '.pc-row code { font-family: Consolas, monospace; font-size: 14.5px; font-weight: 700; letter-spacing: 0.02em; }' +
+      '.pc-row i { color: #94A3B8; font-size: 13px; }' +
+      '.pc-note { font-size: 11px; color: #64748B; margin-top: 10px; line-height: 1.5; border-top: 1px dashed #E2E8F0; padding-top: 8px; }' +
+      '.print-actions { max-width: 900px; margin: 0 auto 16px; display: flex; gap: 10px; justify-content: flex-end; }' +
+      '.print-actions button { padding: 10px 18px; border-radius: 9px; border: 0; font-weight: 800; font-size: 14px; cursor: pointer; background: #2563EB; color: #fff; }' +
+      '.print-actions button.ghost { background: #E2E8F0; color: #0F172A; }' +
+      '@media print {' +
+        'body { background: #fff; padding: 0; }' +
+        '.print-actions { display: none; }' +
+        '.cards { grid-template-columns: 1fr 1fr; gap: 12px; max-width: none; }' +
+        '.print-card { border-color: #94A3B8; }' +
+        '@page { margin: 12mm; }' +
+      '}' +
+    '</style></head><body>' +
+    '<div class="print-actions"><button class="ghost" onclick="window.close()">Zavřít</button><button onclick="window.print()">🖨️ Tisknout / Uložit jako PDF</button></div>' +
+    '<div class="cards">' +
+      card('Žák · ' + st.first + ' ' + st.last, 'Přihlašovací údaje do aplikace SchoolSys', stAcc, stPass) +
+      (parAcc ? card('Rodič · ' + st.first + ' ' + st.last, 'Přihlašovací údaje do aplikace SchoolSys', parAcc, parPass) : '') +
+    '</div>' +
+    '<scr' + 'ipt>setTimeout(function(){ window.focus(); }, 300);</scr' + 'ipt>' +
+    '</body></html>');
+  w.document.close();
+}
+onAct('t-print:', el => {
+  printStudentCreds(el.getAttribute('data-act').slice(8));
 });
 /* údaje žáka/rodiče – login + heslo (viditelné do vlastní změny) */
 onAct('t-creds:', el => {
