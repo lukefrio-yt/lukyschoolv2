@@ -189,8 +189,8 @@ function navForUser(user) {
   if (user.isAdmin && user.role === 'ucitel') return ADMIN_NAV;
   const base = ROLE_NAV[user.role] || [];
   const nav = base.filter(n => n.key !== 'sprava');
-  /* kontaktní účet organizace: správa vlastní organizace + učitelské moduly svých tříd (bez Resetování hesel) */
-  if (isContactUser(user)) return [{ key: 'sprava', icon: 'users', label: 'Správa organizace' }].concat(nav.filter(n => n.key !== 'hesla'));
+  /* kontaktní účet organizace: POUZE Správa organizace (žádné učitelské moduly) */
+  if (isContactUser(user)) return [{ key: 'sprava', icon: 'users', label: 'Správa organizace' }];
   return nav;
 }
 function defKeyFor(user) {
@@ -298,9 +298,10 @@ function route() {
   const rawKey = parts.length > 1 && parts[0] === role ? parts[1] : null;
   const baseKey = rawKey ? rawKey.split('|')[0] : null;
   const navKeys = VIEWS[role] || {};
-  const onlyAdmin = !!user.isAdmin && !isContact; // admin bez kontaktu vidí jen Správu; kontakt má i Správu organizace
+  const onlyAdmin = !!user.isAdmin && !isContact; // admin bez kontaktu vidí jen Správu
+  const contactSpravaOnly = isContact;           /* kontaktní účet organizace = POUZE Správa organizace (žádné učitelské moduly jako docházka/známkování) */
   let useKey;
-  if (baseKey && navKeys[baseKey] && (!onlyAdmin || baseKey === 'sprava')) {
+  if (baseKey && navKeys[baseKey] && (!onlyAdmin || baseKey === 'sprava') && (!contactSpravaOnly || baseKey === 'sprava')) {
     useKey = baseKey;
     if (!rawKey.includes('|')) location.hash = '#/' + role + '/' + baseKey; // normalizace
   } else {

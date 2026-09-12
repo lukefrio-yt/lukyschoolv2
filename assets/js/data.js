@@ -19,7 +19,7 @@ const DB_KEY_PREV = 'lukySchool.db.v13';
 const SES_KEY = 'lukySchool.session';
 const THEME_KEY = 'lukySchool.theme';
 const DB_TS_KEY = 'lukySchool.cloud.ts'; /* čas posledního lokálního uložení (cloud sync) */
-const DB_VERSION = 15;
+const DB_VERSION = 16;
 
 /* ---------- hashování hesel ----------
    Hesla se nikdy neukládají v čitelné podobě – v localStorage ani v cloudu.
@@ -111,10 +111,10 @@ function decPass(uidStr, enc) {
     return out;
   } catch (e) { return null; }
 }
-/* vygenerované heslo, které je stále viditelné (jen žák/rodič bez vlastní změny) */
+/* vygenerované heslo, které je stále viditelné (žák/rodič/učitel bez vlastní změny) */
 function visibleGenPass(u) {
   if (!u || u.passChanged || !u.genPass) return null;
-  if (u.role !== 'student' && u.role !== 'rodic') return null;
+  if (u.role !== 'student' && u.role !== 'rodic' && u.role !== 'ucitel') return null;
   return decPass(u.id, u.genPass);
 }
 /* jednorázové předání vygenerovaného hesla: existuje POUZE v paměti (nikdy v db,
@@ -122,9 +122,9 @@ function visibleGenPass(u) {
 const PENDING_PASS = {};
 function setPendingPass(userId, plain) { PENDING_PASS[userId] = plain; }
 function takePendingPass(userId) { const p = PENDING_PASS[userId] || null; delete PENDING_PASS[userId]; return p; }
-/* zápis šifrovaného „pamětního“ hesla k účtu (jen žák/rodič) */
+/* zápis šifrovaného „pamětního“ hesla k účtu (žák/rodič/učitel) */
 function rememberGenPass(u, plain) {
-  if (!u || (u.role !== 'student' && u.role !== 'rodic')) return;
+  if (!u || (u.role !== 'student' && u.role !== 'rodic' && u.role !== 'ucitel')) return;
   u.genPass = encPass(u.id, plain);
 }
 
@@ -516,6 +516,15 @@ let db = null;
          u ostatních rolí a u účtů, které si heslo už změnily. */
       (parsed.users || []).forEach(u => {
         if (u.passChanged || (u.role !== 'student' && u.role !== 'rodic')) delete u.genPass;
+      });
+    }
+    if (parsed.v < 16) {
+      /* v15 → v16: hesla učitelů jsou nově viditelná kontaktu organizace/adminovi
+         (zašifrovaně, do první vlastní změny). Existujícím učitelům se pole
+         doplnit nedá (hash nejde zpětně dešifrovat) – uvidí se až u nově
+         zakládaných/resetovaných účtů; změněná hesla se nezobrazují. */
+      (parsed.users || []).forEach(u => {
+        if (u.role === 'ucitel' && !u.passChanged && !u.genPass) { /* bez genPass – heslo uživatelů starších instalací se nezobrazí, jen „nezobrazuje se“ */ }
       });
     }
     if (parsed.v < 10) {

@@ -62,9 +62,13 @@ function spravaHome() {
       '<span class="small-note" style="margin:0">Spravujete cizí organizaci <b>' + escapeHtml(org.name) + '</b> – změny se týkají jen jejích dat.</span>' +
       '<button class="btn btn-ghost btn-sm" style="margin-left:auto" data-act="sp-org-exit">' + ic('back', 14) + ' Zpět na LukySchool</button></div>'
     : '';
+  const renameBtn = (org && (isRoot || contact))
+    ? '<button class="btn btn-ghost btn-sm" data-act="sp-org-rename" title="Přejmenovat organizaci">' + ic('edit', 14) + ' Přejmenovat</button>'
+    : '';
   return '' +
     '<div class="page-head"><div><h1>' + headTitle + '</h1>' +
-      '<div class="sub">' + headSub + '</div></div></div>' +
+      '<div class="sub">' + headSub + '</div></div>' +
+      (renameBtn ? '<div class="page-acts">' + renameBtn + '</div>' : '') + '</div>' +
     ctxBanner +
     '<div class="grid grid-4" style="margin-bottom:16px">' +
       '<div class="stat"><span class="s-ic" style="background:rgba(59,130,246,.14);color:var(--accent)">' + ic('home', 20) + '</span><div><b>' + cls.length + '</b><span>tříd</span></div></div>' +
@@ -83,6 +87,37 @@ function spravaHome() {
       : spData());
 }
 onAct('sp-tab:', el => { SP_TAB = el.getAttribute('data-act').slice(7); localStorage.setItem('sprava_tab', SP_TAB); route(); });
+/* přejmenování organizace (kontakt i admin v rozkliknuté org) */
+onAct('sp-org-rename', () => {
+  const u = currentUser();
+  const orgId = u && u.isOrgContact ? u.orgId : (typeof SP_ORG !== 'undefined' && SP_ORG) || null;
+  const org = orgById(orgId);
+  if (!org) { toast('Organizace nenalezena', 'bad'); return; }
+  openModal(
+    '<h3>Přejmenovat organizaci</h3>' +
+    '<form data-form="sp-org-rename-save">' +
+      '<input type="hidden" name="oid" value="' + org.id + '">' +
+      '<div class="field"><label>Název organizace</label><input name="name" value="' + escapeHtml(org.name) + '" required></div>' +
+      '<button class="btn btn-primary">Uložit název</button>' +
+    '</form>');
+});
+onAct('form:sp-org-rename-save', f => {
+  const fd = new FormData(f);
+  const org = orgById(String(fd.get('oid')));
+  if (!org) return;
+  const u = currentUser();
+  if (!(u.isRoot || (u.isOrgContact && u.orgId === org.id))) { toast('Na přejmenování nemáte právo', 'bad'); return; }
+  const name = String(fd.get('name') || '').trim();
+  if (!name) { toast('Zadejte název', 'bad'); return; }
+  const old = org.name;
+  org.name = name;
+  /* aktualizace poznámky kontaktnímu účtu */
+  (db.users || []).forEach(x => { if (x.isOrgContact && x.orgId === org.id) x.note = 'Kontakt · ' + name; });
+  saveDB();
+  closeModal();
+  toast('Organizace přejmenována: ' + old + ' → ' + name + ' ✓', 'ok');
+  route();
+});
 
 /* ---------- TŘÍDY ---------- */
 function spClasses(canManage) {
@@ -209,10 +244,13 @@ function spTeachers() {
     (ts.length
       ? '<div class="list">' + ts.map(t => {
           const clsTaught = (db.classes || []).filter(c => (c.teacherIds || []).includes(t.id));
+          const genTw = visibleGenPass(t);
           return '<div class="list-row">' +
             '<span class="ava" style="background:linear-gradient(135deg,#8B5CF6,#3B82F6)">' + escapeHtml(t.name.charAt(0)) + '</span>' +
             '<div class="grow"><div class="row-title">' + escapeHtml(t.name) + (t.isAdmin ? ' <span class="chip chip-accent" style="padding:0 7px;font-size:10px">správce</span>' : '') + (t.isOrgContact ? ' <span class="chip chip-info" style="padding:0 7px;font-size:10px">kontakt · jen PC</span>' : '') + '</div>' +
-            '<div class="row-sub">přihlášení: <code class="mono">' + escapeHtml(t.username) + '</code> · učí: ' + (clsTaught.length ? clsTaught.map(c => escapeHtml(c.name)).join(', ') : '<span style="color:var(--warn)">zatím žádnou třídu</span>') + '</div></div>' +
+            '<div class="row-sub">přihlášení: <code class="mono">' + escapeHtml(t.username) + '</code>' +
+              (genTw ? ' · heslo: <code class="mono">' + escapeHtml(genTw) + '</code>' : (t.passChanged ? ' · <span style="color:var(--muted)">heslo změněno</span>' : '')) +
+              ' · učí: ' + (clsTaught.length ? clsTaught.map(c => escapeHtml(c.name)).join(', ') : '<span style="color:var(--warn)">zatím žádnou třídu</span>') + '</div></div>' +
             '<button class="btn btn-soft btn-sm" data-act="sp-creds:' + t.username + '">' + ic('eye', 14) + ' Přihlášení</button>' +
             (!t.isRoot && !(t.isAdmin && !t.isOrgContact && !t.orgId) ? '<button class="btn btn-soft btn-sm" data-act="sp-teach-reset:' + t.id + '">' + ic('zap', 13) + ' Reset</button>' : '') +
             (!t.isAdmin && !t.isOrgContact ? '<button class="icon-btn sm" data-act="sp-teach-del:' + t.id + '" style="color:var(--bad)">' + ic('trash', 15) + '</button>' : '') +
@@ -252,6 +290,7 @@ onAct('form:sp-teach-create', f => {
     'ucitel',
     { name: first + ' ' + last, note: 'učitel', isAdmin: false, orgId: spScopeOrg() || null }
   );
+  rememberGenPass(user, plainPass);   /* heslo učitele viditelné kontaktu/adminovi do první změny */
   setPendingPass(user.id, plainPass);
   if (clsId) {
     const c = classOf(clsId);
@@ -278,6 +317,7 @@ onAct('sp-teach-reset:', el => {
   const np = genPassword();
   t.pass = hashPassword(np);
   t.passChanged = false;
+  rememberGenPass(t, np);   /* heslo učitele zůstane viditelné do vlastní změny */
   setPendingPass(t.id, np);
   saveDB();
   showCreds(t);
@@ -303,6 +343,8 @@ onAct('sp-teach-del-ok:', el => {
 
 /* ---------- ŽÁCI ---------- */
 function spStudents(canManage) {
+  const u = currentUser();
+  const contactView = !!(u && isContactUser(u));   /* kontakt: vidí loginy+hesla, ale přidávat žáky nesmí */
   if (canManage === undefined) canManage = true;
   const groups = {};
   classesOfScope(spScopeOrg()).forEach(c => {
@@ -312,10 +354,12 @@ function spStudents(canManage) {
     const ca = classOf(a), cb = classOf(b);
     return (ca ? ca.name : a).localeCompare(cb ? cb.name : b, 'cs');
   });
-  return (canManage
-    ? '<div class="page-acts" style="margin-bottom:14px"><button class="btn btn-primary btn-sm" data-act="sp-stud-add">' + ic('plus', 15) + ' Přidat žáka</button></div>'
-    : '<div class="card" style="border-color:var(--warn);margin-bottom:14px"><b>' + ic('lock', 15) + ' Pouze na počítači</b><p class="small-note" style="margin:6px 0 0">Žáky a jejich loginy zakládá učitel na počítači ve svém známkování („Přidat žáka“).</p></div>') +
-    (clsNames.length
+  const topBar = contactView
+    ? '<div class="card" style="border-color:var(--info);margin-bottom:14px"><b>' + ic('shield', 15) + ' Žáky zakládá třídní učitel</b><p class="small-note" style="margin:6px 0 0">Loginy a hesla žáků tady vidíte (dokud si je uživatel nezmění) a můžete je resetovat. Přidávat žáky ale může jen třídní učitel na počítači.</p></div>'
+    : (canManage
+      ? '<div class="page-acts" style="margin-bottom:14px"><button class="btn btn-primary btn-sm" data-act="sp-stud-add">' + ic('plus', 15) + ' Přidat žáka</button></div>'
+      : '<div class="card" style="border-color:var(--warn);margin-bottom:14px"><b>' + ic('lock', 15) + ' Pouze na počítači</b><p class="small-note" style="margin:6px 0 0">Žáky a jejich loginy zakládá učitel na počítači ve svém známkování („Přidat žáka“).</p></div>');
+  return topBar + (clsNames.length
       ? clsNames.map(cl => {
           const c = classOf(cl);
           return '<div class="card"><div class="card-title">' + ic('home', 16) + ' ' + escapeHtml(c ? c.name : cl) +
@@ -324,8 +368,11 @@ function spStudents(canManage) {
             groups[cl].map(s => {
               const acc = (db.users || []).find(u => u.role === 'student' && u.studentId === s.id);
               const par = parentOfStudent(s.id);
+              const genPw = acc ? visibleGenPass(acc) : null;
               return '<tr><td>' + escapeHtml(s.first + ' ' + s.last) + '</td>' +
-                '<td><code class="mono">' + escapeHtml(acc ? acc.username : '—') + '</code>' + (acc ? ' <button class="btn btn-soft btn-sm" data-act="sp-creds:' + acc.username + '" title="Přihlášení žáka">' + ic('eye', 13) + '</button>' : '') + '</td>' +
+                '<td><code class="mono">' + escapeHtml(acc ? acc.username : '—') + '</code>' +
+                  (genPw ? '<br><span style="font-size:11px;color:var(--muted)">heslo: <code class="mono">' + escapeHtml(genPw) + '</code></span>' : '') +
+                  (acc ? ' <button class="btn btn-soft btn-sm" data-act="sp-creds:' + acc.username + '" title="Přihlášení žáka">' + ic('eye', 13) + '</button>' : '') + '</td>' +
                 '<td>' + (s.ivp ? '<span class="chip chip-info">IVP</span>' : '') + '</td>' +
                 '<td style="text-align:right;white-space:nowrap">' +
                   '<button class="btn btn-soft btn-sm" data-act="sp-par:' + s.id + '" title="' + (par ? 'Přihlášení rodiče (' + escapeHtml(par.username) + ')' : 'Vytvořit rodičovský účet') + '">' + ic(par ? 'eye' : 'users', 13) + ' <span style="font-size:12px">' + (par ? 'Rodič ✓' : 'Rodič') + '</span></button>' +
@@ -360,6 +407,9 @@ function openAddStudentModal(defaultCls) {
     '</form>');
 }
 onAct('sp-stud-add', () => {
+  const u = currentUser();
+  /* žáky zakládá TŘÍDNÍ UČITEL (na PC) nebo admin – nikoli kontakt organizace */
+  if (u && isContactUser(u)) { toast('Žáky a jejich loginy zakládá třídní učitel (na počítači)', 'bad'); return; }
   if (!spCanManage()) { toast('Žáky zakládá učitel jen na počítači 🖥️', 'bad'); return; }
   openAddStudentModal(null);
 });
@@ -377,6 +427,7 @@ function createStudent(first, last, clsId, usernameIn, passIn, ivp) {
   return { st, acc };
 }
 onAct('form:sp-stud-create', f => {
+  if (currentUser() && isContactUser(currentUser())) { toast('Žáky a jejich loginy zakládá třídní učitel (na počítači)', 'bad'); return; }
   if (isAppMode() && !currentUser().isAdmin) { toast('Žáky zakládejte na počítači 🖥️', 'bad'); return; }
   const fd = new FormData(f);
   const first = String(fd.get('first')).trim();
