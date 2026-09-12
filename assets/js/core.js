@@ -349,8 +349,8 @@ function renderLogin() {
 }
 
 function tryLogin(user, pass) {
-  const u = (db.users || []).find(x => x.username === user && x.pass === pass);
-  if (!u) { toast('Nesprávné uživatelské jméno nebo heslo', 'bad'); return false; }
+  const u = (db.users || []).find(x => x.username === user);
+  if (!u || !verifyPassword(u, pass)) { toast('Nesprávné uživatelské jméno nebo heslo', 'bad'); return false; }
   if (contactPcBlocked(u)) {
     toast('Kontaktní účet organizace je dostupný pouze na počítači 🖥️', 'bad');
     return false;
@@ -458,7 +458,7 @@ onAct('form:pass-change', f => {
   const u = currentUser();
   if (!u) return;
   if (applyPassError(String(fd.get('new1') || ''), String(fd.get('new2') || ''))) return;
-  u.pass = String(fd.get('new1'));
+  u.pass = hashPassword(String(fd.get('new1')));
   u.passChanged = true; /* generované heslo už nikdo neuvidí – jen uživatel */
   saveDB();
   closeModal();
@@ -494,7 +494,7 @@ onAct('form:forgot-send', f => {
    ============================================================ */
 const ORGREQ_FIELDS = ['first', 'last', 'orgName', 'phone', 'email', 'username', 'pass'];
 function draftOrgReqGet() { try { return JSON.parse(localStorage.getItem('ss.orgreq.draft') || 'null'); } catch (e) { return null; } }
-function draftOrgReqSet(d) { try { localStorage.setItem('ss.orgreq.draft', JSON.stringify(d)); } catch (e) { /* noop */ } }
+function draftOrgReqSet(d) { try { const c = Object.assign({}, d); delete c.pass; /* heslo se v draftu ukládat nikdy nebude */ localStorage.setItem('ss.orgreq.draft', JSON.stringify(c)); } catch (e) { /* noop */ } }
 function draftOrgReqClear() { try { localStorage.removeItem('ss.orgreq.draft'); } catch (e) { /* noop */ } }
 function orgReqRender(mode, draft) {
   const app = document.getElementById('app');
@@ -555,7 +555,7 @@ onAct('form:org-request', f => {
   }
   const req = {
     id: uid(), first: d.first, last: d.last, orgName: d.orgName, phone: d.phone, email: d.email,
-    username: d.username, pass: d.pass, status: 'ceka', ts: nowISO()
+    username: d.username, pass: hashPassword(d.pass), status: 'ceka', ts: nowISO()
   };
   orgRequestsList().push(req);
   draftOrgReqClear();

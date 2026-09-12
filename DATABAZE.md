@@ -35,19 +35,20 @@ Aplikace je čistě frontend: tři HTML/JS/CSS soubory, žádný server. Vešker
 žijí v prohlížeči v **localStorage** pod klíčem:
 
 ```
-lukySchool.db.v13
+lukySchool.db.v14
 ```
 
 Klíč končí verzí schématu. Při každém načtení aplikace proběhne `migrateDB()`
 v `assets/js/data.js` – starší verze se buď převedou, nebo (u velkého
 přechodu v12) smažou. Přechod na v13 (multi-organizace) proběhl bez ztráty
-dat hlavní školy. Staré klíče se automaticky uklidí.
+dat hlavní školy, přechod na v14 (hashování hesel) zahashoval všechna
+dosavadní hesla. Staré klíče se automaticky uklidí.
 
 ### Tvar databáze (jeden velký JSON objekt)
 
 | Klíč objektu | Obsah |
 |---|---|
-| `v` | verze schématu (teď 13) |
+| `v` | verze schématu (teď 14) |
 | `meta` | kdy byla založena, školní rok |
 | `schoolName` | název hlavní školy (LukySchool) |
 | `organizations` | cizí organizace `{ id, name, first, last, phone, email, contactId, createdAt }` |
@@ -71,11 +72,14 @@ třída → `studentsOfClass`, učitel → `myClasses()` atd.).
 
 ### Přihlašování dnes
 
-Účet = záznam v `db.users`, heslo je **v plaintextu** (`u.pass`). Relace je jen
-`lukySchool.session` s uživatelským jménem. Po přihlášení čte `currentUser()`.
+Účet = záznam v `db.users`. Heslo se ukládá **hashované** (`ss1$salt$hash`,
+SHA-256 s náhodným saltem) – v čitelné podobě existuje jen chvíli v paměti,
+zobrazí se jednorázově při vytvoření účtu / vygenerování nového hesla. Relace je
+jen `lukySchool.session` s uživatelským jménem. Po přihlášení čte `currentUser()`.
 
-> Tohle je v pořádku pro prototyp/demo na jednom počítači, **ne** pro
-> skutečný provoz, kde se každý přihlašuje ze svého zařízení (viz kapitola 3).
+> Hash chrání hesla i v localStorage a v cloudu – z hashování se heslo nedá
+> získat zpět. Pro skutečný provoz se ale stejně doporučuje serverové ověření
+> (bcrypt/argon2 na serveru, viz kapitola 3).
 
 ### Co to znamená v praxi
 
@@ -214,7 +218,7 @@ Než databázi rozjedete, vyexportujte si obsah localStorage:
 
 ```js
 // spusťte v konzoli prohlížeče na app.html
-const data = JSON.parse(localStorage.getItem('lukySchool.db.v13'));
+const data = JSON.parse(localStorage.getItem('lukySchool.db.v14'));
 console.log(JSON.stringify(data));   // zkopírujte a uložte jako backup.json
 ```
 
@@ -226,9 +230,9 @@ převede na `class_id`.
 
 ## 3. Bezpečnost, kterou nesmíte přeskočit
 
-| Dnes (prototyp) | Před zveřejněním |
+| Dnes | Před zveřejněním |
 |---|---|
-| hesla plaintext v localStorage | hash (bcrypt/argon2) na serveru, token v session |
+| hesla hashovaná (salt + SHA-256) v localStorage | hash (bcrypt/argon2) na serveru, token v session |
 | admin `admin / ownerss01*` (zakladatel) | heslo lze změnit přímo v aplikaci (ikona zámku vpravo nahoře) |
 | každý si může otevřít konzoli a číst data | server ověřuje práva (učitel = jen své třídy) |
 | tlačítko „Ředitel“ na přihlašovací stránce | na veřejném webu schovejte – přihlašování přes formulář |

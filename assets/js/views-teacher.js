@@ -1643,25 +1643,24 @@ function tHesla() {
   list.forEach(r => { if (!r.read) { r.read = true; dirty = true; } });
   if (dirty) saveDB();
   return '<div class="page-head"><div><h1>Resetování hesel</h1>' +
-    '<div class="sub">Po žádosti o zapomenuté heslo tu najdete nové heslo – předejte ho žákovi / rodiči osobně.</div></div></div>' +
+    '<div class="sub">Když správce vygeneruje nové heslo, přijde vám upozornění – heslo ale z bezpečnostních důvodů nikde neukládáme. Předá ho uživatelovi správce, nebo si ho uživatel nastaví sám přes 🔒 Změnit heslo.</div></div></div>' +
     (list.length
       ? '<div class="list">' + list.map(r =>
           '<div class="list-row">' +
             '<span class="ava" style="background:linear-gradient(135deg,#F59E0B,#EF4444)">' + ic('zap', 16) + '</span>' +
             '<div class="grow"><div class="row-title">' + escapeHtml(r.who) + '</div>' +
-              '<div class="row-sub">přihlášení: <code class="mono">' + escapeHtml(r.login) + '</code> · nové heslo: <code class="mono">' + escapeHtml(r.newPass) + '</code></div>' +
+              '<div class="row-sub">přihlášení: <code class="mono">' + escapeHtml(r.login) + '</code> · heslo z bezpečnostních důvodů nezobrazujeme</div>' +
               '<div style="font-size:11px;color:var(--muted)">' + tsLabel(r.ts) + '</div></div>' +
-            '<button class="btn btn-soft btn-sm" data-act="copy:' + escapeHtml(r.newPass) + '">' + ic('check', 13) + ' Kopírovat</button>' +
-            '<button class="icon-btn sm" style="color:var(--bad)" data-act="t-res-hide:' + r.id + '" title="Smazat po předání">' + ic('trash', 15) + '</button>' +
+            '<button class="icon-btn sm" style="color:var(--bad)" data-act="t-res-hide:' + r.id + '" title="Smazat upozornění">' + ic('trash', 15) + '</button>' +
           '</div>'
         ).join('') + '</div>'
-      : '<div class="empty"><b>Žádná nová hesla</b>Když správce resetuje zapomenuté heslo žáka nebo rodiče, objeví se nové heslo tady k předání.</div>');
+      : '<div class="empty"><b>Žádná upozornění</b>Když správce resetuje heslo žáka nebo rodiče z vaší třídy, objeví se tady informace k předání.</div>');
 }
 onAct('t-res-hide:', el => {
   const id = el.getAttribute('data-act').slice(11);
   db.resetPass = (db.resetPass || []).filter(r => r.id !== id);
   saveDB();
-  toast('Smazáno – heslo jste předali', 'bad');
+  toast('Upozornění smazáno', 'bad');
   route();
 });
 registerView('ucitel', 'prehled', tPrehled);
