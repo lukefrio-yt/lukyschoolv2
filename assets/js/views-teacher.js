@@ -103,10 +103,10 @@ function tPrehled() {
     '<button class="btn btn-ghost btn-sm" data-act="goto:#/ucitel/dochazka">' + ic('calendar', 15) + ' Docházka</button></div></div>' +
   clsScopePills() +
   '<div class="grid grid-4">' +
-    '<div class="stat"><span class="s-ic" style="background:rgba(59,130,246,.14);color:var(--accent)">' + ic('calendar', 20) + '</span><div><b>' + lessons.length + '</b><span>hodin dnes</span></div></div>' +
-    '<div class="stat"><span class="s-ic" style="background:rgba(245,158,11,.14);color:var(--warn)">' + ic('shield', 20) + '</span><div><b>' + pending.length + '</b><span>omluvenek ke schválení</span></div></div>' +
-    '<div class="stat"><span class="s-ic" style="background:rgba(16,185,129,.14);color:var(--ok)">' + ic('chat', 20) + '</span><div><b>' + unread + '</b><span>nepřečtených zpráv</span></div></div>' +
-    '<div class="stat"><span class="s-ic" style="background:rgba(239,68,68,.14);color:var(--bad)">' + ic('alert', 20) + '</span><div><b>' + risk.length + '</b><span>ohrožených žáků</span></div></div>' +
+    '<div class="stat"><span class="s-ic" style="background:rgba(59,130,246,.14);color:var(--accent)">' + ic('calendar', 20) + '</span><div><b>' + lessons.length + '</b><span>Hodin dnes</span></div></div>' +
+    '<div class="stat"><span class="s-ic" style="background:rgba(245,158,11,.14);color:var(--warn)">' + ic('shield', 20) + '</span><div><b>' + pending.length + '</b><span>Omluvenek ke schválení</span></div></div>' +
+    '<div class="stat"><span class="s-ic" style="background:rgba(16,185,129,.14);color:var(--ok)">' + ic('chat', 20) + '</span><div><b>' + unread + '</b><span>Nepřečtených zpráv</span></div></div>' +
+    '<div class="stat"><span class="s-ic" style="background:rgba(239,68,68,.14);color:var(--bad)">' + ic('alert', 20) + '</span><div><b>' + risk.length + '</b><span>Ohrožených žáků</span></div></div>' +
   '</div>' +
   (chgToday ? '<div class="warn-line" style="margin-top:14px">' + ic('bell', 15) + ' <span>Dnes má třída ' + chgToday + ' ' + csPlural(chgToday, 'změnu', 'změny', 'změn') + ' v rozvrhu – detail v kategorii Změny v rozvrhu.</span></div>' : '') +
   '<div class="grid grid-2" style="margin-top:16px">' +
@@ -121,7 +121,7 @@ function tPrehled() {
       }).join('') : '<div class="empty">Dnes nemáte výuku</div>') + '</div>' +
     '</div>' +
     '<div>' +
-      '<div class="card"><div class="card-title" style="color:var(--bad)">' + ic('alert', 17) + ' Ohrožení žáci (průměr &gt; 3,5 nebo neomluvená absence &gt; 25 %)</div>' +
+      '<div class="card"><div class="card-title" style="color:var(--bad)">' + ic('alert', 17) + ' Ohrožení žáci</div>' +
         (risk.length
           ? '<div class="list">' + risk.map(s => {
               const w = worstSubjectOf(s.id);
@@ -170,14 +170,12 @@ function teacherDayPlan(clsId, iso) {
 */
 function atLegend() {
   return '<div class="at-leg">' +
-    '<b><i class="leg-ic lp">✓</i> přítomen</b>' +
-    '<b><i class="leg-ic lx">✗</i> nepřítomen</b>' +
-    '<b><i class="leg-ic ld">D</i> dočasně – byl jen chvíli</b>' +
+    '<b><i class="leg-ic lp">✓</i> Přítomen</b>' +
+    '<b><i class="leg-ic lx">✗</i> Nepřítomen</b>' +
   '</div>' +
   '<div class="small-note" style="margin:-4px 0 12px">' +
-    'Štítek omluvení vpravo doplňuje systém sám z omluvenek rodičů – <b style="color:var(--ok)">✓</b> rodič dítě omluvil, ' +
-    '<b style="color:var(--bad)">✗</b> chybí omluvenka, přestože má být ve škole. Nelze ho přepsat. ' +
-    '<b style="color:var(--warn)">D</b> se do zameškaných hodin nepočítá, omluvenka se u něj ale očekává.</div>';
+    'Legenda ke štítkům: <b style="color:var(--ok)">✓</b> Rodič dítě omluvil, ' +
+    '<b style="color:var(--bad)">✗</b> Rodič dítě neomluvil.</div>';
 }
 function tDochazka() {
   clearTick();
@@ -195,22 +193,22 @@ function tDochazka() {
   const subCell = b => {
     if (!b || !b.lessons) return '<td class="abs-cell" style="color:var(--muted)">—</td>';
     const c = b.N ? 'var(--bad)' : b.missing ? 'var(--warn)' : 'var(--muted)';
-    return '<td class="abs-cell" title="omluveno ' + b.A + ' · čeká ' + b.C + ' · neomluveno ' + b.N + '" style="color:' + c + '">' + b.missing + '/' + b.lessons + '</td>';
+    return '<td class="abs-cell" title="Omluveno ' + b.A + ' · Čeká ' + b.C + ' · Neomluveno ' + b.N + '" style="color:' + c + '">' + b.missing + '/' + b.lessons + '</td>';
   };
   return '' +
-  '<div class="page-head"><div><h1>Docházka – přehled třídy</h1>' +
-    '<div class="sub">' + escapeHtml(cls.name) + ' · docházka se zapisuje v třídní knize u každé hodiny</div></div>' +
+  '<div class="page-head"><div><h1>Docházka</h1>' +
+    '<div class="sub">Třída: ' + escapeHtml(cls.name) + '</div></div>' +
     '<div class="page-acts"><button class="btn btn-ghost btn-sm" data-act="goto:#/ucitel/kniha">' + ic('clipboard', 15) + ' Zapsat docházku</button></div></div>' +
   clsScopePills() +
   '<div class="grid grid-4">' +
-    '<div class="stat"><span class="s-ic" style="background:rgba(59,130,246,.14);color:var(--accent)">' + ic('clipboard', 20) + '</span><div><b>' + lessons.length + '</b><span>zapsaných hodin</span></div></div>' +
-    '<div class="stat"><span class="s-ic" style="background:rgba(245,158,11,.14);color:var(--warn)">' + ic('alert', 20) + '</span><div><b>' + withMiss + '</b><span>žáků s absencí</span></div></div>' +
-    '<div class="stat"><span class="s-ic" style="background:rgba(16,185,129,.14);color:var(--ok)">' + ic('calendar', 20) + '</span><div><b>' + sumMiss + '</b><span>zameškaných hodin</span></div></div>' +
-    '<div class="stat"><span class="s-ic" style="background:rgba(239,68,68,.14);color:var(--bad)">' + ic('shield', 20) + '</span><div><b>' + sumN + '</b><span>neomluvených hodin</span></div></div>' +
+    '<div class="stat"><span class="s-ic" style="background:rgba(59,130,246,.14);color:var(--accent)">' + ic('clipboard', 20) + '</span><div><b>' + lessons.length + '</b><span>Zapsaných hodin</span></div></div>' +
+    '<div class="stat"><span class="s-ic" style="background:rgba(245,158,11,.14);color:var(--warn)">' + ic('alert', 20) + '</span><div><b>' + withMiss + '</b><span>Žáků s absencí</span></div></div>' +
+    '<div class="stat"><span class="s-ic" style="background:rgba(16,185,129,.14);color:var(--ok)">' + ic('calendar', 20) + '</span><div><b>' + sumMiss + '</b><span>Zameškaných hodin</span></div></div>' +
+    '<div class="stat"><span class="s-ic" style="background:rgba(239,68,68,.14);color:var(--bad)">' + ic('shield', 20) + '</span><div><b>' + sumN + '</b><span>Neomluvených hodin</span></div></div>' +
   '</div>' +
   (sts.length
     ? '<div class="card" style="margin-top:16px"><div class="card-title">' + ic('calendar', 16) + ' Zameškané hodiny po předmětech' +
-        '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">x / y = zameškáno z hodin zapsaných v třídní knize</span></div>' +
+      '</div>' +
       '<div class="tbl-wrap" style="max-height:560px;overflow:auto"><table class="tbl" style="min-width:640px"><thead><tr>' +
         '<th style="position:sticky;left:0;background:var(--surface);min-width:190px">Žák</th>' +
         subs.map(sub => '<th class="num" style="min-width:64px" title="' + escapeHtml(SUBJECTS[sub].name) + '">' + subjBadge(sub, 22) + '<div style="font-size:10.5px;color:var(--muted);font-weight:600">' + (perSub[sub] || 0) + ' hod</div></th>').join('') +
@@ -223,10 +221,10 @@ function tDochazka() {
           '<td style="position:sticky;left:0;background:var(--surface)"><div style="display:flex;align-items:center;gap:10px">' + teacherAva(s, 32) +
             '<b>' + escapeHtml(s.first + ' ' + s.last) + '</b>' + (s.ivp ? ' <span class="chip chip-info" style="padding:0 6px;font-size:10px">IVP</span>' : '') + '</div></td>' +
           subs.map(sub => subCell(ov.bySubj[sub])).join('') +
-          '<td class="abs-cell" title="omluveno ' + t.A + ' · čeká ' + t.C + ' · neomluveno ' + t.N + '" style="color:' + (t.N ? 'var(--bad)' : t.missing ? 'var(--warn)' : 'var(--muted)') + '">' + (t.lessons ? t.missing + '/' + t.lessons : '—') + '</td>' +
+          '<td class="abs-cell" title="Omluveno ' + t.A + ' · Čeká ' + t.C + ' · Neomluveno ' + t.N + '" style="color:' + (t.N ? 'var(--bad)' : t.missing ? 'var(--warn)' : 'var(--muted)') + '">' + (t.lessons ? t.missing + '/' + t.lessons : '—') + '</td>' +
           '<td>' + (t.missing
-            ? '<span style="font-size:11.5px;color:var(--muted)">omluveno <b style="color:var(--ok)">' + t.A + '</b> · čeká <b style="color:var(--warn)">' + t.C + '</b> · neomluveno <b style="color:var(--bad)">' + t.N + '</b>' + (t.unexPct > 25 ? ' <span class="chip chip-bad" style="font-size:10px">' + t.unexPct + ' % N</span>' : '') + '</span>'
-            : '<span class="chip chip-ok" style="font-size:10.5px">bez absence</span>') + '</td></tr>';
+            ? '<span style="font-size:11.5px;color:var(--muted)">Omluveno <b style="color:var(--ok)">' + t.A + '</b> · Čeká <b style="color:var(--warn)">' + t.C + '</b> · Neomluveno <b style="color:var(--bad)">' + t.N + '</b>' + (t.unexPct > 25 ? ' <span class="chip chip-bad" style="font-size:10px">' + t.unexPct + ' % N</span>' : '') + '</span>'
+            : '<span class="chip chip-ok" style="font-size:10.5px">Bez absence</span>') + '</td></tr>';
       }).join('') + '</tbody></table></div>' +
       atLegend() +
     '</div>'
@@ -250,7 +248,7 @@ function tKlasifikace() {
     .sort((a, b) => (a.date === b.date ? 0 : a.date < b.date ? -1 : 1));
 
   return '' +
-  '<div class="page-head"><div><h1>Známkování – tabulka</h1><div class="sub">Sloupec = test s vahou a datem · do buňky pište 1–5, 1-…4-, N, A nebo ?</div></div>' +
+  '<div class="page-head"><div><h1>Známkování</h1><div class="sub"></div></div>' +
     '<div class="page-acts">' +
       '<button class="btn btn-primary btn-sm" data-act="t-col-add">' + ic('plus', 15) + ' Nový sloupec</button>' +
       '<button class="btn btn-ghost btn-sm" data-act="t-stud-add">' + ic('book', 15) + ' Přidat žáka</button>' +
@@ -294,7 +292,7 @@ function tKlasifikace() {
             }).join('') +
             '<td></td><td></td></tr>' : '') +
         '</tbody></table></div>' +
-        '<div class="small-note" style="margin-top:10px">N = nepsal(a) test (doplní) · A = absence (test už nepsát) · ? = budoucí / plánovaný test. N, A a ? se do průměru nepočítají. Mínusy: 1- = 1,5 · 2- = 2,5 · 3- = 3,5 · 4- = 4,5.</div>' +
+        '<div class="small-note" style="margin-top:10px">Legenda: N = Nepsal test, ale bude dopisovat | A = Nepsal test a nebude dopisovat | ? = Nadcházející test.</div>' +
       '</div>'
     : '<div class="card"><div class="empty"><b>Ve třídě zatím nejsou žáci</b>' +
         '<button class="btn btn-primary btn-sm" style="margin-top:12px" data-act="t-stud-add">' + ic('book', 15) + ' Přidat prvního žáka</button></div></div>') +
@@ -467,7 +465,7 @@ function tPololetka() {
     '<button class="tab' + (sem === 2 ? ' active' : '') + '" data-act="kls-sem:2">2. pololetí</button></div>';
   return '' +
   '<div class="page-head"><div><h1>Pololetní klasifikace</h1>' +
-    '<div class="sub">' + escapeHtml(cls.name) + ' · vysvědčení za ' + semLabel(sem) + (closed ? ' – uzavřeno ' + fmtDate(rep.closedAt) : ' – návrh (žáci a rodiče ho zatím nevidí)') + '</div></div>' +
+    '<div class="sub">' + escapeHtml(cls.name) + ' | Pol. klasifikace za ' + semLabel(sem) + (closed ? ' – uzavřeno ' + fmtDate(rep.closedAt) : ' (nikdo ho zatím nevidí)') + '</div></div>' +
     '<div class="page-acts">' +
       (closed
         ? '<button class="btn btn-soft btn-sm" data-act="kls-open">' + ic('edit', 15) + ' Znovu otevřít k opravě</button>'
@@ -478,7 +476,6 @@ function tPololetka() {
   (!closed && pending
     ? '<div class="warn-line" data-cd><span>Zbývá <b>' + pending + '</b> hraničních případů („Rozhoduje učitel“) – označené žlutě doplňte ručně.</span></div>'
     : '') +
-  (!closed ? '<div class="small-note" style="margin:2px 0 12px">Známky se navrhují z průměru známek daného pololetí. Kde je průměr v hraničním pásmu (1,45–1,55 apod.), vybere finální známku učitel – takové políčko je zvýrazněné žlutě.</div>' : '') +
   (sts.length && subs.length
     ? '<div class="card"><div class="tbl-wrap" style="max-height:620px;overflow:auto">' +
         '<table class="tbl" style="min-width:900px"><thead><tr>' +
@@ -497,18 +494,16 @@ function tPololetka() {
               '<td style="position:sticky;left:0;background:var(--surface);z-index:1"><div style="display:flex;align-items:center;gap:8px">' + teacherAva(st, 28) + '<b>' + escapeHtml(st.last + ' ' + st.first) + '</b></div></td>' +
               subs.map(s => '<td style="text-align:center;vertical-align:middle"><div style="display:inline-flex;flex-direction:column;gap:3px;align-items:center">' +
                 gradeOpts(st.id, s, cellVal(st.id, s)) +
-                '<span style="font-size:10.5px;color:var(--muted)">' + (subjTitle(s, st.id).avg !== null ? 'Ø ' + subjTitle(s, st.id).avg.toFixed(2) : 'bez známek') + '</span></div></td>').join('') +
+                '<span style="font-size:10.5px;color:var(--muted)">' + (subjTitle(s, st.id).avg !== null ? 'Ø ' + subjTitle(s, st.id).avg.toFixed(2) : 'Bez známek') + '</span></div></td>').join('') +
               '<td class="num" style="color:' + avgColor(sum.avg) + ';font-weight:900">' + avgTxt(sum.avg) + (sum.n ? '' : '') + '</td>' +
-              '<td>' + (stSubjCnt === 0 ? '<span class="chip">bez známek</span>' : cnt >= stSubjCnt ? '<span class="chip chip-ok">hotovo</span>' : '<span class="chip chip-warn">' + cnt + '/' + stSubjCnt + '</span>') + '</td></tr>';
+              '<td>' + (stSubjCnt === 0 ? '<span class="chip">Bez známek</span>' : cnt >= stSubjCnt ? '<span class="chip chip-ok">Hotovo</span>' : '<span class="chip chip-warn">' + cnt + '/' + stSubjCnt + '</span>') + '</td></tr>';
           }).join('') + '</tbody></table></div>' +
         (closed
           ? '<div class="small-note" style="margin-top:10px">Vysvědčení je uzavřené – žáci a rodiče vidí výsledek. Znovuotevřením se vrátí do návrhu a změny se projeví po novém uzavření.</div>'
           : '<div class="small-note" style="margin-top:10px">„Ø“ = průměr známek daného pololetí (vážený). Po uzavření uvidí výsledek žák i rodič.</div>') +
       '</div>'
-    : '<div class="card"><div class="empty">' + (!sts.length ? '<b>Ve třídě zatím nejsou žáci</b>' : '<b>Třída zatím nemá předměty se známkami</b>Zapište nejdřív známky v Známkování (nebo nastavte rozvrh).') + '</div></div>') +
-  '<div class="small-note" style="margin-top:10px">Návrh z průměru: 1,00–1,45 → 1 · 1,45–1,55 rozhoduje učitel · 1,55–2,45 → 2 · 2,45–2,55 rozhoduje učitel · 2,55–3,45 → 3 · 3,45–3,55 rozhoduje učitel · 3,55–4,45 → 4 · 4,45–4,55 rozhoduje učitel · 4,55–5,00 → 5.</div>';
+    : '<div class="card"><div class="empty">' + (!sts.length ? '<b>Ve třídě zatím nejsou žáci</b>' : '<b>Třída zatím nemá předměty se známkami</b>Zapište nejdřív známky v Známkování (nebo nastavte rozvrh).') + '</div></div>');
 }
-onAct('kls-sem:', el => { KLS.sem = Number(el.getAttribute('data-act').slice(8)); route(); });
 onAct('kls-auto', () => { reportAutoFill(activeClsId(), KLS.sem); toast('Navržené známky doplněny – hraniční pásma zůstala k vašemu rozhodnutí', 'ok'); route(); });
 /* změna známky v tabulce: uložit a překreslit */
 document.addEventListener('change', e => {
@@ -587,7 +582,7 @@ function tKniha() {
       ).join('') + '</div>' : '<div class="empty">Zatím žádné zápisy</div>') +
     '</div>';
   const head = '' +
-    '<div class="page-head"><div><h1>Třídní kniha</h1><div class="sub">Téma z ŠVP · úkol se propíše žákům do „Moje úkoly“</div></div></div>' +
+    '<div class="page-head"><div><h1>Třídní kniha</h1><div class="sub">Třídní kniha | Úkol se žákům propíše do kategorie: Moje úkoly</div></div></div>' +
     clsScopePills();
   if (isAppMode()) {
     const tabs = [{ k: 'zap', label: 'Zapsat hodinu' }, { k: 'zapisy', label: 'Poslední zápisy' }, { k: 'doch', label: 'Docházka hodiny' }];
@@ -647,12 +642,11 @@ function cbPendFor(date, period) {
   const k = date + '|' + period;
   return CB_PEND[k] || (CB_PEND[k] = {});
 }
-function cbDropPend() { Object.keys(CB_PEND).forEach(k => delete CB_PEND[k]); }
-const ATT_TXT = {
-  '/': ['nezadáno', 'var(--muted)'],
-  P: ['přítomen', 'var(--ok)'],
-  X: ['nepřítomen', 'var(--bad)'],
-  D: ['dočasně – byl jen chvíli', 'var(--warn)']
+function cbDropPend() { Object.keys(CB_PEND).forEach(k => delete CB_PEND[k]); }  const ATT_TXT = {
+  '/': ['Nezadáno', 'var(--muted)'],
+  P: ['Přítomen', 'var(--ok)'],
+  X: ['Nepřítomen', 'var(--bad)'],
+  D: ['Dočasně – byl jen chvíli', 'var(--warn)']
 };
 /* zapsaný token účasti (✓/✗/D nebo „/“) – ne odvozený štítek omluvení */
 function cbEffStatus(sid, date, period) {
@@ -697,7 +691,7 @@ function cbAttendanceCard(cid, date, period, subjAuto) {
               : '<span class="chip chip-ok" style="font-size:11px" title="' + (mark === 'A' ? 'Rodic dítě omluvil (schválená omluvenka)' : 'Omluvenka od rodiče čeká na schválení') + '">✓ omluveno</span>')
           : '<span style="color:var(--muted);font-size:12px">—</span>') + '</td></tr>';
     }).join('') + '</tbody></table></div>' +
-    '<div class="small-note" style="margin-top:10px">Fajfka <b style="color:var(--ok)">✓</b> = rodič dítě omluvil (podle omluvenky, i když ještě čeká na schválení), křížek <b style="color:var(--bad)">✗</b> = omluvenka chybí, přestože má být ve škole. Klepnutím na aktivní ikonku (✓ / ✗ / D) zápis zrušíte.</div>' +
+    '<div class="small-note" style="margin-top:10px">Legenda ke štítkům: <b style="color:var(--ok)">✓</b> Rodič dítě omluvil, <b style="color:var(--bad)">✗</b> Rodič dítě neomluvil.</div>' +
   '</div>';
 }
 onAct('cb-att:', el => {
@@ -859,7 +853,7 @@ function tZpravy() {
       '<div style="display:flex;gap:10px;flex-wrap:wrap">' +
         '<button class="btn btn-primary" data-act="t-msg-send">' + ic('send', 15) + ' Odeslat nyní' +
           (TMSG.mode === 'class' ? ' (' + rcps.length + (rcps.length === 1 ? ' příjemce' : ' příjemců') + ')' : '') + '</button>' +
-        '<button class="btn btn-ghost btn-sm" data-act="t-msg-later">' + ic('clock', 14) + ' Naplánovat na 8:00</button>' +
+        '<button class="btn btn-ghost btn-sm" data-act="t-msg-later">' + ic('clock', 14) + ' Naplánovat</button>' +
       '</div>' +
     '</div>';
   const secKonv =
@@ -1021,13 +1015,36 @@ onAct('t-msg-send', () => {
 onAct('t-msg-later', () => {
   const ta = document.getElementById('tmsg-text');
   if (!ta || !ta.value.trim()) { toast('Napište text zprávy', 'warn'); return; }
-  const t = new Date(); t.setDate(t.getDate() + 1); t.setHours(8, 0, 0, 0);
+  /* Naplánování na konkrétní datum a čas (nelze do minulosti) */
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const minDt = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
+  const defDt = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate() + 1);
+  openModal(
+    '<h3>Naplánovat odeslání</h3>' +
+    '<p class="small-note" style="margin-bottom:12px">Zpráva se odešle automaticky ve zvolený čas (nelze naplánovat do minulosti).</p>' +
+    '<form data-form="t-msg-later-save">' +
+      '<div class="field"><label>Datum</label><input type="date" name="date" min="' + minDt + '" value="' + defDt + '" required></div>' +
+      '<div class="field"><label>Čas</label><input type="time" name="time" value="08:00" required></div>' +
+      '<button class="btn btn-primary">' + ic('clock', 14) + ' Naplánovat</button>' +
+    '</form>');
+});
+onAct('form:t-msg-later-save', f => {
+  const fd = new FormData(f);
+  const ta = document.getElementById('tmsg-text');
+  const date = String(fd.get('date') || '');
+  const time = String(fd.get('time') || '');
+  if (!ta || !ta.value.trim()) { closeModal(); toast('Napište text zprávy', 'warn'); return; }
+  const t = new Date(date + 'T' + (time || '08:00') + ':00');
+  if (!t.getTime()) { toast('Zadejte platné datum a čas', 'bad'); return; }
+  if (t.getTime() <= Date.now()) { toast('Nelze naplánovat do minulosti', 'bad'); return; }
   db.scheduledMsgs = db.scheduledMsgs || [];
   const sub = document.getElementById('tmsg-subj');
   db.scheduledMsgs.push({ id: uid(), text: ta.value.trim(), who: TMSG.who, mode: TMSG.mode, subj: sub ? sub.value : '', sendAt: t.toISOString() });
   saveDB();
+  closeModal();
   ta.value = '';
-  toast('Naplánováno na zítra 8:00 ✓', 'ok');
+  toast('Naplánováno na ' + fmtDate(date) + ' ' + time + ' ✓', 'ok');
 });
 onAct('form:t-reply', f => {
   const text = String(new FormData(f).get('text')).trim();
@@ -1058,8 +1075,7 @@ function tOmluvenky() {
   const absRows = studentsOfClass(cid)
     .map(s => ({ s, ov: absenceOverview(s.id) }))
     .filter(r => r.ov.total.missing > 0);
-  return '' +
-  '<div class="page-head"><div><h1>Schvalování omluvenek</h1><div class="sub">Schválit / zamítnout jedním kliknutím · zamítnutí počítá neomluvenou hodinu</div></div></div>' +
+  return '' +    '<div class="page-head"><div><h1>Schvalování omluvenek</h1><div class="sub">Jedním kliknutím schválíte / zamítnete | Zamítnutí se počítá jako neomluvená hodina</div></div></div>' +
   clsScopePills() +
   '<div class="grid grid-2">' +
     '<div class="card"><div class="card-title" style="color:var(--warn)">' + ic('shield', 17) + ' Čekají na rozhodnutí (' + pending.length + ')</div>' +
@@ -1085,7 +1101,7 @@ function tOmluvenky() {
         }).join('') + '</div>' : '<div class="empty">Zatím žádné vyřízené omluvenky</div>') +
       '</div>' +
       '<div class="card" style="margin-top:16px"><div class="card-title">' + ic('alert', 16) + ' Absence (' + escapeHtml(classOf(cid).name) + ')' +
-        '<span style="margin-left:auto;font-size:11.5px;color:var(--muted);font-weight:600">limit: 25 % neomluvených hodin</span></div>' +
+        '<span style="margin-left:auto;font-size:11.5px;color:var(--muted);font-weight:600">Limit: 25% zameškaných hodin</span></div>' +
         (absRows.length
           ? '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Žák</th><th class="num">Omluveno</th><th class="num">Čeká</th><th class="num">Neomluveno</th><th class="num">Zameškáno</th></tr></thead><tbody>' +
             absRows.map(({ s, ov }) => {
@@ -1280,8 +1296,9 @@ function tPredmety() {
       (s.builtin
         ? ' <span class="chip" style="padding:0 7px;font-size:10px">základní</span>'
         : ' <span class="chip chip-accent" style="padding:0 7px;font-size:10px">vlastní</span>') + '</div>' +
-    '<div class="row-sub">kód: <code class="mono">' + escapeHtml(s.code) + '</code> · ' + escapeHtml(s.color) +
-      (subjectUsageCount(s.code) ? ' · použito na ' + subjectUsageCount(s.code) + ' ' + csPlural(subjectUsageCount(s.code), 'místě', 'místech', 'místech') : '') + '</div></div>' +
+    '<div class="row-sub">' +
+          'Kód: <code class="mono">' + escapeHtml(s.code) + '</code>' +
+      (subjectUsageCount(s.code) ? ' · Použito na ' + subjectUsageCount(s.code) + ' ' + csPlural(subjectUsageCount(s.code), 'místě', 'místech', 'místech') : '') + '</div></div>' +
     '<div style="display:flex;gap:6px">' +
       '<button class="icon-btn sm" data-act="sub-edit:' + s.code + '" title="Upravit předmět">' + ic('edit', 15) + '</button>' +
       '<button class="icon-btn sm" data-act="sub-del:' + s.code + '" title="Smazat předmět" style="color:var(--bad)">' + ic('trash', 15) + '</button>' +
@@ -1310,7 +1327,7 @@ function tPredmety() {
         : '<div class="empty"><b>Zatím žádné vlastní předměty</b>Když škola potřebuje něco navíc (kroužek, cizí jazyk…), založte ho tady.</div>') +
     '</div>' +
     '<div class="card"><div class="card-title">' + ic('check', 16) + ' Základní předměty (' + built.length + ')' +
-      '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">jde upravit i smazat</span></div>' +
+      '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">Jde upravit i smazat</span></div>' +
       (built.length ? '<div class="list">' + built.map(row).join('') + '</div>' : '') +
     '</div>' +
   '</div>';
@@ -1412,7 +1429,7 @@ function tUcebny() {
     return '<div class="list-row">' +
       '<span class="room-chip" style="background:' + (r.color || ROOM_DEF_COLOR) + ';font-size:13px;height:34px;min-width:34px;padding:0 9px" title="' + escapeHtml(r.name) + '">' + escapeHtml(short) + '</span>' +
       '<div class="grow"><div class="row-title">' + escapeHtml(r.name) + '</div>' +
-      '<div class="row-sub">zkratka v rozvrhu: <code class="mono">' + escapeHtml(short) + '</code> · ' + escapeHtml(r.color || ROOM_DEF_COLOR) + (n ? ' · použita v rozvrhu na ' + n + ' místech' : '') + '</div></div>' +
+      '<div class="row-sub">Zkratka v rozvrhu: <code class="mono">' + escapeHtml(short) + '</code>' + (n ? ' · Použita v rozvrhu na ' + n + ' místech' : '') + '</div></div>' +
       '<div style="display:flex;gap:6px">' +
         '<button class="icon-btn sm" data-act="rm-edit:' + r.id + '" title="Upravit učebnu">' + ic('edit', 15) + '</button>' +
         '<button class="icon-btn sm" data-act="rm-del:' + r.id + '" title="Smazat učebnu" style="color:var(--bad)">' + ic('trash', 15) + '</button>' +
@@ -1656,11 +1673,11 @@ function tUdaje() {
         ' <span style="font-size:11px;color:var(--muted);font-weight:700">' + escapeHtml((myClsNames.find(c => c.id === r.s.cls) || {}).name || '') + '</span></div>' +
         '<div class="row-sub">' +
           (r.acc
-            ? 'žák: <code class="mono">' + escapeHtml(r.acc.username) + '</code> · heslo: ' +
+            ? 'Žák: <code class="mono">' + escapeHtml(r.acc.username) + '</code> · Heslo: ' +
               (genSt ? '<code class="mono">' + escapeHtml(genSt) + '</code>' : '<span style="color:var(--muted)">' + (r.acc.passChanged ? 'změněno žákem' : 'nezobrazuje se') + '</span>')
-            : '<span style="color:var(--warn)">žák bez účtu</span>') +
+            : '<span style="color:var(--warn)">Žák bez účtu</span>') +
           (r.par
-            ? '<br>rodič: <code class="mono">' + escapeHtml(r.par.username) + '</code> · heslo: ' +
+            ? '<br>Rodič: <code class="mono">' + escapeHtml(r.par.username) + '</code> · Heslo: ' +
               (genPar ? '<code class="mono">' + escapeHtml(genPar) + '</code>' : '<span style="color:var(--muted)">' + (r.par.passChanged ? 'změněno rodičem' : 'nezobrazuje se') + '</span>')
             : '') +
         '</div></div>' +
@@ -1671,7 +1688,7 @@ function tUdaje() {
       '</div></div>';
   };
   return '<div class="page-head"><div><h1>Údaje – loginy žáků a rodičů</h1>' +
-    '<div class="sub">Zakládáte tady přihlášky žáků a rodičů svých tříd. Vygenerované heslo vidíte, dokud si ho žák/rodič poprvé nezmění sám – pak se u účtu zobrazí „změněno“.</div></div>' +
+    '<div class="sub">Zakládáte tady přihlášky žáků a rodičů svých tříd. Vygenerované heslo vidíte, dokud si ho žák/rodič poprvé nezmění sám – pak se u účtu zobrazí „Změněno“.</div></div>' +
     '<div class="page-acts">' + (isAppMode()
       ? '<span class="chip chip-info">Přidávání žáků jen na PC 🖥️</span>'
       : '<button class="btn btn-primary btn-sm" data-act="t-udaje-add">' + ic('plus', 15) + ' Přidat žáka + login</button>') + '</div></div>' +
@@ -1698,7 +1715,7 @@ function printStudentCreds(studentAccId) {
   const card = (title, subtitle, acc, pass) => {
     const passHtml = pass
       ? '<div class="pc-row"><span>Heslo</span><code>' + escapeHtml(pass) + '</code></div>'
-      : '<div class="pc-row"><span>Heslo</span><i>' + (acc && acc.passChanged ? 'změněno uživatelem' : 'nezobrazuje se') + '</i></div>';
+      : '<div class="pc-row"><span>Heslo</span><i>' + (acc && acc.passChanged ? 'Změněno uživatelem' : 'Nezobrazuje se') + '</i></div>';
     return '<div class="print-card">' +
       '<div class="pc-head">' +
         '<div class="pc-logo">' +
@@ -1837,8 +1854,8 @@ function tHesla() {
             '<span class="ava">' + escapeHtml(r.s.first.charAt(0)) + '</span>' +
             '<div class="grow"><div class="row-title">' + escapeHtml(r.s.first + ' ' + r.s.last) + '</div>' +
               '<div class="row-sub">' +
-                (r.acc ? 'žák: <code class="mono">' + escapeHtml(r.acc.username) + '</code>' : '<span style="color:var(--warn)">žák bez účtu</span>') +
-                (r.par ? ' · rodič: <code class="mono">' + escapeHtml(r.par.username) + '</code>' : '') +
+                (r.acc ? 'Žák: <code class="mono">' + escapeHtml(r.acc.username) + '</code>' : '<span style="color:var(--warn)">Žák bez účtu</span>') +
+                (r.par ? ' · Rodič: <code class="mono">' + escapeHtml(r.par.username) + '</code>' : '') +
               '</div></div>' +
             '<div style="display:flex;gap:6px">' +
               (r.acc ? '<button class="btn btn-soft btn-sm" data-act="t-pass-reset:' + r.acc.id + '">' + ic('zap', 13) + ' Reset žák</button>' : '') +
@@ -2032,7 +2049,7 @@ function tPoznamky() {
   const cnt = items.length;
   return '' +
   '<div class="page-head"><div><h1>Výchovná opatření</h1>' +
-    '<div class="sub">' + escapeHtml(cls.name) + ' · poznámky, pochvaly, napomenutí i dutky – vše na jednom místě; rodiče i žáci to vidí hned</div></div>' +
+    '<div class="sub">' + escapeHtml(cls.name) + ' | Výchovná opatření - Poznámky, pochvaly, důtky, napomenutí a další...</div></div>' +
     '<div class="page-acts">' + (sts.length ? '<button class="btn btn-primary btn-sm" data-act="t-note-add">' + ic('plus', 15) + ' Nový záznam</button>' : '') + '</div></div>' +
   clsScopePills() +
   (sts.length
@@ -2205,7 +2222,7 @@ function tPlanAkci() {
   };
   return '' +
   '<div class="page-head"><div><h1>Plán akcí</h1>' +
-    '<div class="sub">' + escapeHtml(cls.name) + ' · budoucí akce třídy – žáci i rodiče vidí, co je čeká a co si mají připravit</div></div>' +
+    '<div class="sub">' + escapeHtml(cls.name) + ' | Budoucí akce třídy - Žáci i rodiče vidí, co je čeká</div></div>' +
     '<div class="page-acts"><button class="btn btn-primary btn-sm" data-act="t-act-add">' + ic('plus', 15) + ' Nová akce</button></div></div>' +
   clsScopePills() +
   (sts.length || actionsOfClass(cid).length

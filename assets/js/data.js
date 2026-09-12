@@ -1250,10 +1250,9 @@ const ATT_CS = {
 /* pořadí ikon ÚČASTI v třídní knize (co může nastavit učitel) */
 const ATT_ICONS = [
   ['P', 'Přítomen'],
-  ['X', 'Nepřítomen (omluvenka se očekává)'],
-  ['D', 'Dočasně – byl v hodině jen chvíli']
+  ['X', 'Nepřítomen (omluvenka se očekává)']
 ];
-const ATT_GLYPH = { P: '✓', X: '✗', D: 'D' };
+const ATT_GLYPH = { P: '✓', X: '✗' };
 /* štítky omluvení (auto) */
 const ATT_MARK = {
   A: ['A · omluveno', 'chip-ok'],
@@ -1416,14 +1415,17 @@ function excusablePeriods(clsId, date) {
 function isAtRisk(sid) {
   const w = worstSubjectOf(sid);
   const ov = absenceOverview(sid);
-  return (w && w.avg > 3.5) || ov.total.unexPct > 25;
+  /* průměr vyšší než 3,5 NEBO absence (omluvená i neomluvená) vyšší než 25 % */
+  const absPct = ov.total.lessons ? Math.round(((ov.total.A + ov.total.C + ov.total.N) / ov.total.lessons) * 100) : 0;
+  return (w && w.avg > 3.5) || absPct > 25;
 }
 function riskReason(sid) {
   const parts = [];
   const w = worstSubjectOf(sid);
   const ov = absenceOverview(sid);
+  const absPct = ov.total.lessons ? Math.round(((ov.total.A + ov.total.C + ov.total.N) / ov.total.lessons) * 100) : 0;
   if (w && w.avg > 3.5) parts.push(SUBJECTS[w.subj].name + ': průměr ' + w.avg.toFixed(2));
-  if (ov.total.unexPct > 25) parts.push('neomluvená absence ' + ov.total.unexPct + ' % (limit 25 %)');
+  if (absPct > 25) parts.push('Absence ' + absPct + ' % (limit 25 %)');
   return parts;
 }
 /* učitelé třídy (pro notifikace o omluvenkách); bez učitele aspoň správce */
