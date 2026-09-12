@@ -81,6 +81,15 @@ jen `lukySchool.session` s uživatelským jménem. Po přihlášení čte `curre
 > získat zpět. Pro skutečný provoz se ale stejně doporučuje serverové ověření
 > (bcrypt/argon2 na serveru, viz kapitola 3).
 
+### Generovaná hesla žáků a rodičů (pole `genPass`, DB v15)
+
+Vygenerované heslo žáka/rodiče zůstává třídnímu **viditelné do první vlastní
+změny** – ukládá se ale **zašifrovaně** v poli `user.genPass` (XOR+base64,
+klíč odvozený od ID účtu; v čitelné podobě tedy v localStorage ani cloudu
+neexistuje). Jakmile si uživatel heslo změní sám (`passChanged=true`), pole
+se smaže a heslo už nikdo neuvidí. U ostatních rolí (učitel, kontakt, admin)
+se heslo stále zobrazuje jen jednorázově při vygenerování.
+
 ### Hierarchie resetů hesel
 
 - **Žák / rodič** → resetuje **třídní učitel** (záložka „Resetování hesel“,

@@ -149,6 +149,7 @@ const ROLE_NAV = {
     { key: 'predmety',  icon: 'book', label: 'Předměty' },
     { key: 'ucebny',    icon: 'home', label: 'Učebny' },
     { key: 'ukoly',     icon: 'check', label: 'Úkoly' },
+    { key: 'udaje',     icon: 'user', label: 'Údaje' },
     { key: 'poznamky',  icon: 'edit', label: 'Vých. opatření' },
     { key: 'planakci',  icon: 'flag', label: 'Plán akcí' },
     { key: 'hesla',     icon: 'zap', label: 'Resetování hesel' },
@@ -460,6 +461,7 @@ onAct('form:pass-change', f => {
   if (applyPassError(String(fd.get('new1') || ''), String(fd.get('new2') || ''))) return;
   u.pass = hashPassword(String(fd.get('new1')));
   u.passChanged = true; /* generované heslo už nikdo neuvidí – jen uživatel */
+  delete u.genPass;   /* třídní už původní heslo neuvidí */
   saveDB();
   closeModal();
   toast('Heslo změněno ✓', 'ok');
@@ -720,7 +722,8 @@ const MOBILE_TILE_BG = {
   omluvenky: 'linear-gradient(135deg,#84CC16,#4D7C0F)',
   klasifikace: 'linear-gradient(135deg,#0EA5E9,#0369A1)', kniha: 'linear-gradient(135deg,#F43F5E,#BE123C)',
   predmety: 'linear-gradient(135deg,#22D3EE,#0E7490)', ucebny: 'linear-gradient(135deg,#A78BFA,#6D28D9)',
-  hesla: 'linear-gradient(135deg,#FBBF24,#D97706)', zmenyrozvrh: 'linear-gradient(135deg,#FB7185,#E11D48)'
+  hesla: 'linear-gradient(135deg,#FBBF24,#D97706)', zmenyrozvrh: 'linear-gradient(135deg,#FB7185,#E11D48)',
+  udaje: 'linear-gradient(135deg,#38BDF8,#2563EB)'
 };
 const MOBILE_TILE_FALLBACK = ['linear-gradient(135deg,#3B82F6,#2563EB)', 'linear-gradient(135deg,#8B5CF6,#6D28D9)', 'linear-gradient(135deg,#10B981,#059669)', 'linear-gradient(135deg,#F59E0B,#D97706)', 'linear-gradient(135deg,#EC4899,#BE185D)', 'linear-gradient(135deg,#06B6D4,#0E7490)'];
 function mobileHomeHTML(user) {

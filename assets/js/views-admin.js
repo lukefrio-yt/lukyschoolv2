@@ -371,6 +371,7 @@ function createStudent(first, last, clsId, usernameIn, passIn, ivp) {
   const acc = addUserAccount(usernameIn || genUsername(first, last), plainPass, 'student', {
     name: first + ' ' + last, note: c ? c.name : clsId, studentId: st.id, isAdmin: false, orgId: (c && c.orgId) || null
   });
+  rememberGenPass(acc, plainPass);
   setPendingPass(acc.id, plainPass);
   saveDB();
   return { st, acc };
@@ -474,6 +475,7 @@ onAct('form:sp-par-create', f => {
     name: 'Rodič · ' + st.first + ' ' + st.last, note: st.cls, isAdmin: false, children: [sid],
     orgId: st.orgId || null
   });
+  rememberGenPass(par, parPlain);
   setPendingPass(par.id, parPlain);
   saveDB(); closeModal(); showCreds(par);
   toast('Rodičovský účet vytvořen ✓', 'ok'); route();
@@ -483,18 +485,23 @@ onAct('form:sp-par-create', f => {
    Heslo se zobrazí JEDNOU – jen těsně po vytvoření/vygenerování (dočasná
    kopie existuje jen v paměti). V databázi zůstává trvale jen salt + SHA-256. */
 function showCreds(user) {
-  const plain = takePendingPass(user.id);   /* heslo se zobrazí právě jednou */
+  const fresh = takePendingPass(user.id);           /* čerstvě vygenerované – ještě nebylo zobrazeno */
+  const stored = visibleGenPass(user);              /* generované heslo žáka/rodiče – viditelné do vlastní změny */
+  const plain = fresh || stored;
   const org = orgOfUser(user);
+  const passNoteForStored = '<span class="chip chip-info" style="padding:0 7px;font-size:10px">platné do první změně</span>';
   const passRow = plain
-    ? '<div class="list-row"><span style="min-width:90px;font-weight:800">Heslo</span><code class="mono grow">' + escapeHtml(plain) + '</code>' +
+    ? '<div class="list-row"><span style="min-width:90px;font-weight:800">Heslo</span><code class="mono grow">' + escapeHtml(plain) + '</code>' + passNoteForStored +
       '<button class="btn btn-soft btn-sm" data-act="copy:' + escapeHtml(plain) + '">' + ic('check', 13) + ' Kopírovat</button></div>'
     : '<div class="list-row"><span style="min-width:90px;font-weight:800">Heslo</span><span class="grow" style="color:var(--muted);font-weight:700">•••••••• ' +
-      (user.isOrgContact ? '(zvolil si žadatel sám)' : (user.passChanged ? '(změněno uživatelem)' : '(již předáno)')) + '</span></div>';
+      (user.isOrgContact ? '(zvolil si žadatel sám)' : (user.passChanged ? '(změněno uživatelem)' : '(nezobrazuje se)')) + '</span></div>';
   const note = plain
-    ? '<b>Zapište si ho hned</b> – z bezpečnostních důvodů se heslo zobrazí jen jednou. V databázi zůstane pouze hash.'
+    ? (user.role === 'student' || user.role === 'rodic'
+      ? '<b>Heslo zůstane viditelné</b> – uvidíte ho kdykoli tady, dokud si ho žák/rodič poprvé sám nezmění (pak se tady přepíše na „změněno uživatelem“).'
+      : '<b>Zapište si ho hned</b> – z bezpečnostních důvodů se heslo zobrazí jen jednou. V databázi zůstane pouze hash.')
     : (user.isOrgContact
       ? 'Kontaktní účet si heslo zvolil sám při žádosti o organizaci – nikdo jiný ho nezná. Když ho zapomene, vygenerujte mu nové.'
-      : 'Z bezpečnostních důvodů heslo znovu nezobrazíme – v databázi je jen hash. Potřebujete-li nové, vygenerujte ho tlačítkem níže.');
+      : 'Heslo si uživatel již sám změnil – nikdo jiný ho nevidí. Potřebujete-li nové, vygenerujte ho tlačítkem níže.');
   openModal(
     '<h3>Přihlašovací údaje</h3>' +
     (org ? '<p class="small-note" style="margin-bottom:6px">Organizace: <b>' + escapeHtml(org.name) + '</b>' +
@@ -517,6 +524,7 @@ onAct('sp-pass-reset:', el => {
   const np = genPassword();
   u.pass = hashPassword(np);
   u.passChanged = false;
+  rememberGenPass(u, np);   /* žák/rodič: heslo zůstane viditelné do vlastní změny */
   setPendingPass(u.id, np);
   saveDB();
   toast('Nové heslo vygenerováno ✓', 'ok');
@@ -816,7 +824,8 @@ onAct('sp-req-reset:', el => {
   if (!viewerCanResolve(acc)) { toast('Tuto žádost nemůžete vyřídit – ' + resetResolverText(acc), 'bad'); return; }
   const np = genPassword();
   acc.pass = hashPassword(np);
-  acc.passChanged = false; /* nové generované heslo půjde opět jednorázově zobrazit */
+  acc.passChanged = false;
+  rememberGenPass(acc, np);   /* žák/rodič: heslo zůstane viditelné do vlastní změny */
   setPendingPass(acc.id, np);
   r.status = 'vyrizeno';
   r.doneTs = nowISO();
