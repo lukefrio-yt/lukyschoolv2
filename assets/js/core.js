@@ -249,7 +249,7 @@ function shellHTML(user, activeKey) {
     : '';
   return '' +
     '<header class="topbar">' +
-      '<span class="brand"><span class="logo">' + ic('home', 15) + '</span>School<small>Sys</small></span>' +
+      '<span class="brand"><span class="logo">' + ic('home', 15) + '</span><span class="brand-name">School<small>Sys</small></span></span>' +
       /* v režimu aplikace místo ☰ tlačítko Zpět na launcher (na launcheru žádné) */
       (mob
         ? (activeKey !== 'prehled'
@@ -330,7 +330,7 @@ function renderLogin() {
   const remHtml = rememberedLoginHtml();
   app.innerHTML =
     '<div class="login-wrap"><div class="login-card card">' +
-      '<div class="login-brand"><span class="brand"><span class="logo" style="width:44px;height:44px;border-radius:13px;font-size:22px">' + ic('home', 20) + '</span><span style="font-size:26px">School<small style="color:var(--accent)">Sys</small></span></span></div>' +
+      '<div class="login-brand"><span class="brand"><span class="logo" style="width:44px;height:44px;border-radius:13px;font-size:22px">' + ic('home', 20) + '</span><span class="brand-name" style="font-size:26px">School<small style="color:var(--accent)">Sys</small></span></span></div>' +
       '<h1>Vítejte zpět 👋</h1>' +
       '<p class="login-sub">Přihlaste se do aplikace.</p>' +
       '<form data-form="login">' +
@@ -504,7 +504,7 @@ function orgReqRender(mode, draft) {
   const pcOnly = mode !== 'mobile';
   app.innerHTML =
     '<div class="login-wrap"><div class="login-card card">' +
-      '<div class="login-brand"><span class="brand"><span class="logo" style="width:44px;height:44px;border-radius:13px;font-size:22px">' + ic('home', 20) + '</span><span style="font-size:26px">School<small style="color:var(--accent)">Sys</small></span></span></div>' +
+      '<div class="login-brand"><span class="brand"><span class="logo" style="width:44px;height:44px;border-radius:13px;font-size:22px">' + ic('home', 20) + '</span><span class="brand-name" style="font-size:26px">School<small style="color:var(--accent)">Sys</small></span></span></div>' +
       '<h1>Založit organizaci 🏫</h1>' +
       '<p class="login-sub">Odešlete žádost správci SchoolSys – po schválení dostanete vlastní správu tříd a loginů.</p>' +
       (!pcOnly

@@ -147,7 +147,8 @@ p { margin: 0; }
   background: linear-gradient(135deg, #3B82F6, #8B5CF6);
   box-shadow: 0 6px 16px -6px rgba(99, 102, 241, 0.8);
 }
-.brand small { color: var(--accent); }
+.brand small { color: var(--accent); font-size: inherit; }   /* stejné písmo jako School – žádné zmenšování */
+.brand .brand-name { display: inline-flex; align-items: baseline; }
 .lnav-links { display: flex; gap: 4px; margin-left: 8px; }
 .lnav-links a { color: var(--muted); font-weight: 600; font-size: 14.5px; padding: 8px 12px; border-radius: 9px; }
 .lnav-links a:hover { color: var(--text); background: var(--surface-2); }
@@ -662,10 +663,7 @@ textarea.ta { min-height: 44px; }
   .card-title { font-size: 14.5px; }
 }
 
-/* na nejúžších displejích se horní lišta zkrátí (☰ + uživatelské tlačítka) */
-@media (max-width: 370px) {
-  .topbar .brand small { display: none; }
-}
+
 
 /* učitel i ostatní role mají na mobilu všechny sekce v zásuvce (☰) */
 .dock-more { display: none !important; }
