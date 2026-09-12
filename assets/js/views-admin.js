@@ -125,7 +125,7 @@ function spClasses(canManage) {
   if (canManage === undefined) canManage = true;   /* admin = vždy; volá se i z jinde */
   return (canManage
     ? '<div class="page-acts" style="margin-bottom:14px"><button class="btn btn-primary btn-sm" data-act="sp-cls-add">' + ic('plus', 15) + ' Přidat třídu</button></div>'
-    : '<div class="card" style="border-color:var(--warn);margin-bottom:14px"><b>' + ic('lock', 15) + ' Pouze na počítači</b><p class="small-note" style="margin:6px 0 0">Třídy a loginy se zakládají jen na počítači. Učitelům je zakládá kontakt organizace, žáky do třídy pak jejich učitel.</p></div>') +
+    : '<div class="card" style="border-color:var(--warn);margin-bottom:14px"><b>' + ic('lock', 15) + ' Pouze na počítači</b><p class="small-note" style="margin:6px 0 0">Třídy a loginy se zakládají jen na počítači</p></div>') +
     (cls.length
       ? '<div class="grid grid-2">' + cls.map(c => {
           const t = teachersOfClass(c.id);
@@ -220,7 +220,7 @@ function confirmDeleteClass(id) {
   if (!c) return;
   openModal(
     '<h3>Smazat třídu „' + escapeHtml(c.name) + '“?</h3>' +
-    '<p class="small-note" style="margin-bottom:14px">Smažou se i všichni žáci třídy, jejich účty, známky i docházka. Tuto akci nelze vrátit.</p>' +
+    '<p class="small-note" style="margin-bottom:14px">Smaže se i všichni žáci třídy s jejich známkami. Nelze vrátit.</p>' +
     '<div style="display:flex;gap:10px"><button class="btn btn-bad" data-act="sp-cls-del-ok:' + id + '">' + ic('trash', 15) + ' Smazat</button>' +
     '<button class="btn btn-ghost" data-act="close-modal">Zrušit</button></div>');
 }
@@ -262,7 +262,7 @@ onAct('sp-teach-add', () => {
   if (!spCanManage()) { toast('Učitele zakládá kontakt organizace jen na počítači 🖥️', 'bad'); return; }
   openModal(
     '<h3>Nový učitel</h3>' +
-    '<p class="small-note" style="margin-bottom:12px">Učitel dostane vlastní přihlášení a učitelský modul pro svoje třídy.</p>' +
+    '<p class="small-note" style="margin-bottom:12px">Učitel dostane vlastní přihlášení</p>' +
     '<form data-form="sp-teach-create">' +
       '<div class="field-row">' +
         '<div class="field"><label>Jméno</label><input name="first" placeholder="Petr" required></div>' +
@@ -355,7 +355,7 @@ function spStudents(canManage) {
     return (ca ? ca.name : a).localeCompare(cb ? cb.name : b, 'cs');
   });
   const topBar = contactView
-    ? '<div class="card" style="border-color:var(--info);margin-bottom:14px"><b>' + ic('shield', 15) + ' Žáky zakládá třídní učitel</b><p class="small-note" style="margin:6px 0 0">Loginy a hesla žáků tady vidíte (dokud si je uživatel nezmění) a můžete je resetovat. Přidávat žáky ale může jen třídní učitel na počítači.</p></div>'
+    ? '<div class="card" style="border-color:var(--info);margin-bottom:14px"><b>' + ic('shield', 15) + ' Žáky zakládá třídní učitel</b><p class="small-note" style="margin:6px 0 0">Loginy a hesla vidíte dokud si je uživatel nezmění. Žáky zakládá třídní učitel.</p></div>'
     : (canManage
       ? '<div class="page-acts" style="margin-bottom:14px"><button class="btn btn-primary btn-sm" data-act="sp-stud-add">' + ic('plus', 15) + ' Přidat žáka</button></div>'
       : '<div class="card" style="border-color:var(--warn);margin-bottom:14px"><b>' + ic('lock', 15) + ' Pouze na počítači</b><p class="small-note" style="margin:6px 0 0">Žáky a jejich loginy zakládá učitel na počítači ve svém známkování („Přidat žáka“).</p></div>');
@@ -386,7 +386,7 @@ function openAddStudentModal(defaultCls) {
   const clsList = selectableClasses();
   openModal(
     '<h3>Nový žák</h3>' +
-    '<p class="small-note" style="margin-bottom:12px">Po uložení se vygeneruje žákovský účet (přihlášení uvidíte jednou).</p>' +
+    '<p class="small-note" style="margin-bottom:12px">Po uložení se vygeneruje žákovský účet</p>' +
     '<form data-form="sp-stud-create">' +
       '<div class="field-row">' +
         '<div class="field"><label>Jméno</label><input name="first" required placeholder="Jan"></div>' +
@@ -496,7 +496,7 @@ onAct('sp-par:', el => {
   const existing = (db.users || []).filter(u => u.role === 'rodic');
   openModal(
     '<h3>Rodičovský účet · ' + escapeHtml(st.first + ' ' + st.last) + '</h3>' +
-    '<p class="small-note" style="margin-bottom:12px">Vytvoří se rodičovský účet (přehled známek, omluvenky, zprávy učitelů) – nebo k tomuto žákovi připojte už existující účet rodiče (více dětí = jeden účet).</p>' +
+    '<p class="small-note" style="margin-bottom:12px">Vytvoří se nový rodičovský účet – nebo připojte existující (více dětí = jeden účet)</p>' +
     '<form data-form="sp-par-create">' +
       '<input type="hidden" name="sid" value="' + sid + '">' +
       '<div class="field"><label>Rodičovský účet</label><select name="parent">' +
@@ -642,7 +642,7 @@ function spOrgs() {
       ? '<div class="list" style="margin-bottom:22px">' + reqs.map(r =>
           '<div class="list-row">' +
             '<span class="chip ' + (r.status === 'ceka' ? 'chip-accent' : r.status === 'schvaleno' ? 'chip-ok' : '') + '">' +
-              (r.status === 'ceka' ? 'čeká' : r.status === 'schvaleno' ? 'přijato' : 'odmítnuto') + '</span>' +
+              (r.status === 'ceka' ? 'Čeká' : r.status === 'schvaleno' ? 'Přijato' : 'Odmítnuto') + '</span>' +
             '<div class="grow"><div class="row-title">' + escapeHtml(r.orgName) + ' · ' + escapeHtml(r.first + ' ' + r.last) + '</div>' +
             '<div class="row-sub">kontakt: <code class="mono">' + escapeHtml(r.username) + '</code> · ' + escapeHtml(r.email) + ' · ' + escapeHtml(r.phone) + ' · ' + tsLabel(r.ts) + '</div></div>' +
             (r.status === 'ceka'
