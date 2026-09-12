@@ -51,7 +51,7 @@ onAct('t-cls-create-prompt', () => {
   openModal(
     '<h3>Nová třída</h3>' +
     '<form data-form="t-cls-create">' +
-      '<div class="field"><label>Název třídy</label><input name="name" placeholder="Např. 1. A" required autofocus></div>' +
+      '<div class="field"><label>Název třídy</label><input name="name" maxlength="30" placeholder="Např. 1. A" required autofocus></div>' +
       '<button class="btn btn-primary">Vytvořit třídu</button>' +
     '</form>');
 });
@@ -207,27 +207,43 @@ function tDochazka() {
     '<div class="stat"><span class="s-ic" style="background:rgba(239,68,68,.14);color:var(--bad)">' + ic('shield', 20) + '</span><div><b>' + sumN + '</b><span>Neomluvených hodin</span></div></div>' +
   '</div>' +
   (sts.length
-    ? '<div class="card" style="margin-top:16px"><div class="card-title">' + ic('calendar', 16) + ' Zameškané hodiny po předmětech' +
-      '</div>' +
-      '<div class="tbl-wrap" style="max-height:560px;overflow:auto"><table class="tbl" style="min-width:640px"><thead><tr>' +
-        '<th style="position:sticky;left:0;background:var(--surface);min-width:190px">Žák</th>' +
-        subs.map(sub => '<th class="num" style="min-width:64px" title="' + escapeHtml(SUBJECTS[sub].name) + '">' + subjBadge(sub, 22) + '<div style="font-size:10.5px;color:var(--muted);font-weight:600">' + (perSub[sub] || 0) + ' hod</div></th>').join('') +
-        '<th class="num" style="min-width:84px">Σ zameškáno</th>' +
-        '<th style="min-width:170px">Rozpad</th>' +
-      '</tr></thead><tbody>' +
-      rows.map(({ s, ov }) => {
-        const t = ov.total;
-        return '<tr class="' + (isAtRisk(s.id) ? 'risk' : '') + '">' +
-          '<td style="position:sticky;left:0;background:var(--surface)"><div style="display:flex;align-items:center;gap:10px">' + teacherAva(s, 32) +
-            '<b>' + escapeHtml(s.first + ' ' + s.last) + '</b>' + (s.ivp ? ' <span class="chip chip-info" style="padding:0 6px;font-size:10px">IVP</span>' : '') + '</div></td>' +
-          subs.map(sub => subCell(ov.bySubj[sub])).join('') +
-          '<td class="abs-cell" title="Omluveno ' + t.A + ' · Čeká ' + t.C + ' · Neomluveno ' + t.N + '" style="color:' + (t.N ? 'var(--bad)' : t.missing ? 'var(--warn)' : 'var(--muted)') + '">' + (t.lessons ? t.missing + '/' + t.lessons : '—') + '</td>' +
-          '<td>' + (t.missing
-            ? '<span style="font-size:11.5px;color:var(--muted)">Omluveno <b style="color:var(--ok)">' + t.A + '</b> · Čeká <b style="color:var(--warn)">' + t.C + '</b> · Neomluveno <b style="color:var(--bad)">' + t.N + '</b>' + (t.unexPct > 25 ? ' <span class="chip chip-bad" style="font-size:10px">' + t.unexPct + ' % N</span>' : '') + '</span>'
-            : '<span class="chip chip-ok" style="font-size:10.5px">Bez absence</span>') + '</td></tr>';
-      }).join('') + '</tbody></table></div>' +
-      atLegend() +
-    '</div>'
+    ? (isAppMode()
+      /* mobil: přehledné karty místo široké tabulky */
+      ? '<div class="card" style="margin-top:16px"><div class="card-title">' + ic('calendar', 16) + ' Absence žáků</div>' +
+        '<div class="mob-abs-list">' + rows.map(({ s, ov }) => {
+          const t = ov.total;
+          return '<div class="mob-abs' + (isAtRisk(s.id) ? ' risk' : '') + '">' +
+            '<div class="mob-abs-head">' + teacherAva(s, 34) +
+              '<b>' + escapeHtml(s.first + ' ' + s.last) + '</b>' +
+              (t.missing
+                ? '<span class="chip ' + (t.N ? 'chip-bad' : 'chip-warn') + '" style="margin-left:auto">' + t.missing + '/' + t.lessons + '</span>'
+                : '<span class="chip chip-ok" style="margin-left:auto">Bez absence</span>') + '</div>' +
+            (t.missing
+              ? '<div class="mob-abs-break">Omluveno <b style="color:var(--ok)">' + t.A + '</b> · Čeká <b style="color:var(--warn)">' + t.C + '</b> · Neomluveno <b style="color:var(--bad)">' + t.N + '</b></div>'
+              : '') +
+          '</div>';
+        }).join('') + '</div>' + atLegend() + '</div>'
+      : '<div class="card" style="margin-top:16px"><div class="card-title">' + ic('calendar', 16) + ' Zameškané hodiny po předmětech' +
+        '</div>' +
+        '<div class="tbl-wrap" style="max-height:560px;overflow:auto"><table class="tbl" style="min-width:640px"><thead><tr>' +
+          '<th style="position:sticky;left:0;background:var(--surface);min-width:190px">Žák</th>' +
+          subs.map(sub => '<th class="num" style="min-width:64px" title="' + escapeHtml(SUBJECTS[sub].name) + '">' + subjBadge(sub, 22) + '<div style="font-size:10.5px;color:var(--muted);font-weight:600">' + (perSub[sub] || 0) + ' hod</div></th>').join('') +
+          '<th class="num" style="min-width:84px">Σ zameškáno</th>' +
+          '<th style="min-width:170px">Rozpad</th>' +
+        '</tr></thead><tbody>' +
+        rows.map(({ s, ov }) => {
+          const t = ov.total;
+          return '<tr class="' + (isAtRisk(s.id) ? 'risk' : '') + '">' +
+            '<td style="position:sticky;left:0;background:var(--surface)"><div style="display:flex;align-items:center;gap:10px">' + teacherAva(s, 32) +
+              '<b>' + escapeHtml(s.first + ' ' + s.last) + '</b>' + (s.ivp ? ' <span class="chip chip-info" style="padding:0 6px;font-size:10px">IVP</span>' : '') + '</div></td>' +
+            subs.map(sub => subCell(ov.bySubj[sub])).join('') +
+            '<td class="abs-cell" title="Omluveno ' + t.A + ' · Čeká ' + t.C + ' · Neomluveno ' + t.N + '" style="color:' + (t.N ? 'var(--bad)' : t.missing ? 'var(--warn)' : 'var(--muted)') + '">' + (t.lessons ? t.missing + '/' + t.lessons : '—') + '</td>' +
+            '<td>' + (t.missing
+              ? '<span style="font-size:11.5px;color:var(--muted)">Omluveno <b style="color:var(--ok)">' + t.A + '</b> · Čeká <b style="color:var(--warn)">' + t.C + '</b> · Neomluveno <b style="color:var(--bad)">' + t.N + '</b>' + (t.unexPct > 25 ? ' <span class="chip chip-bad" style="font-size:10px">' + t.unexPct + ' % N</span>' : '') + '</span>'
+              : '<span class="chip chip-ok" style="font-size:10.5px">Bez absence</span>') + '</td></tr>';
+        }).join('') + '</tbody></table></div>' +
+        atLegend() +
+      '</div>')
     : '<div class="card"><div class="empty"><b>Ve třídě zatím nejsou žáci</b>Přidejte je v Známkování („Přidat žáka“) nebo v Údaje.</div></div>') + '';
 }
 
@@ -311,20 +327,20 @@ onAct('t-col-add', () => {
   openModal(
     '<h3>Nový sloupec – ' + SUBJECTS[GB.subj].name + '</h3>' +
     '<form data-form="t-col-create">' +
-      '<div class="field"><label>Název testu / sloupce</label><input name="title" value="Test č. ' + n + '" placeholder="Např. Diktát č. 1" required></div>' +
+      '<div class="field"><label>Název testu / sloupce</label><input name="title" maxlength="60" value="Test č. ' + n + '" placeholder="Např. Diktát č. 1" required></div>' +
       '<div class="field-row-3">' +
         '<div class="field"><label>Datum</label><input type="date" name="date" value="' + todayISO() + '" required></div>' +
         '<div class="field"><label>Váha</label><select name="weight">' + [1, 2, 3, 5, 10].map(w => '<option value="' + w + '"' + (w === 1 ? ' selected' : '') + '>' + w + '×</option>').join('') + '</select></div>' +
         '<div class="field"><label>&nbsp;</label><select name="prefill"><option value="">bez předvyplnění</option><option value="?">? pro všechny (budoucí test)</option></select></div>' +
       '</div>' +
-      '<div class="field"><label>Poznámka (volitelné)</label><input name="note" placeholder="Např. opravný termín, podmínky IVP…"></div>' +
+      '<div class="field"><label>Poznámka (volitelné)</label><input name="note" maxlength="120" placeholder="Např. opravný termín, podmínky IVP…"></div>' +
       '<button class="btn btn-primary">Vytvořit sloupec</button>' +
     '</form>');
 });
 onAct('form:t-col-create', f => {
   const fd = new FormData(f);
   const cid = activeClsId();
-  const title = String(fd.get('title')).trim();
+  const title = String(fd.get('title')).trim().slice(0, 60);
   if (!title) { toast('Zadejte název', 'bad'); return; }
   const col = {
     id: uid(), cls: cid, subj: GB.subj, title,
@@ -359,7 +375,7 @@ onAct('form:t-col-save', f => {
   const col = (db.columns || []).find(c => c.id === String(new FormData(f).get('col')));
   if (!col) return;
   const fd = new FormData(f);
-  col.title = String(fd.get('title')).trim();
+  col.title = String(fd.get('title')).trim().slice(0, 60);
   col.date = String(fd.get('date'));
   col.weight = Number(fd.get('weight'));
   col.note = String(fd.get('note')).trim();
@@ -849,7 +865,7 @@ function tZpravy() {
           '</select></div>'
         : '') +
       '<div class="field"><label>Předmět konverzace <span class="small-note" style="margin:0 0 0 4px">(volitelné – vytvoří samostatnou konverzaci s tímto předmětem)</span></label><input id="tmsg-subj" placeholder="Např. Konzultace, dotaz k písemce…"></div>' +
-      '<div class="field"><label>Text zprávy</label><textarea class="ta" id="tmsg-text" rows="4" placeholder="' + (TMSG.who === 'student' ? 'Ahoj, … (žákovi)' : 'Dobrý den, …') + '"></textarea></div>' +
+      '<div class="field"><label>Text zprávy</label><textarea class="ta" id="tmsg-text" rows="4" maxlength="2000" placeholder="' + (TMSG.who === 'student' ? 'Ahoj, … (žákovi)' : 'Dobrý den, …') + '"></textarea></div>' +
       '<div style="display:flex;gap:10px;flex-wrap:wrap">' +
         '<button class="btn btn-primary" data-act="t-msg-send">' + ic('send', 15) + ' Odeslat nyní' +
           (TMSG.mode === 'class' ? ' (' + rcps.length + (rcps.length === 1 ? ' příjemce' : ' příjemců') + ')' : '') + '</button>' +
@@ -1101,7 +1117,7 @@ function tOmluvenky() {
         }).join('') + '</div>' : '<div class="empty">Zatím žádné vyřízené omluvenky</div>') +
       '</div>' +
       '<div class="card" style="margin-top:16px"><div class="card-title">' + ic('alert', 16) + ' Absence (' + escapeHtml(classOf(cid).name) + ')' +
-        '<span style="margin-left:auto;font-size:11.5px;color:var(--muted);font-weight:600">Limit: 25% zameškaných hodin</span></div>' +
+        (!isAppMode() ? '<span style="margin-left:auto;font-size:11.5px;color:var(--muted);font-weight:600">Limit: 25% zameškaných hodin</span>' : '') + '</div>' +
         (absRows.length
           ? '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Žák</th><th class="num">Omluveno</th><th class="num">Čeká</th><th class="num">Neomluveno</th><th class="num">Zameškáno</th></tr></thead><tbody>' +
             absRows.map(({ s, ov }) => {
@@ -1157,7 +1173,7 @@ function rzModeTabs(cid) {
   const canEdit = rzCanEdit(cid);
   const tabs = [
     { k: 'den', label: 'Můj den' },
-    { k: 'editor', label: canEdit ? 'Nastavit rozvrh' : 'Rozvrh třídy' }
+    { k: 'editor', label: canEdit ? (isAppMode() ? 'Nastavit rozvrh 🖥️' : 'Nastavit rozvrh') : 'Rozvrh třídy' }
   ];
   return '<div class="tabs">' + tabs.map(t =>
     '<button class="tab' + (mode === t.k ? ' active' : '') + '" data-act="t-roz-mode:' + t.k + '">' + t.label + '</button>').join('') + '</div>';
@@ -1240,11 +1256,16 @@ function tRozvrh() {
   if (!myClasses().length) return noClassPrompt();
   const cid = activeClsId();
   const cls = classOf(cid);
-  const mode = localStorage.getItem('t_roz_mode') || 'den';
+  let mode = localStorage.getItem('t_roz_mode') || 'den';
+  /* Nastavit rozvrh jen na počítači */
+  const editorBlocked = isAppMode() && mode === 'editor';
+  if (editorBlocked) mode = 'den';
   return '' +
-  '<div class="page-head"><div><h1>Rozvrh</h1><div class="sub">' + escapeHtml(cls.name) + ' · denní přehled a nastavení tabulky rozvrhu</div></div></div>' +
+  '<div class="page-head"><div><h1>Rozvrh</h1><div class="sub">' + escapeHtml(cls.name) + ' · Denní přehled a nastavení tabulky rozvrhu</div></div></div>' +
   clsScopePills() + rzModeTabs(cid) +
-  (mode === 'editor' ? rzEditorHtml(cid) : rzDenHtml(cid));
+  (editorBlocked
+    ? '<div class="card" style="border-color:var(--warn);margin-bottom:14px"><b>' + ic('lock', 15) + ' Pouze na počítači</b><p class="small-note" style="margin:6px 0 0">Nastavování rozvrhu je dostupné jen na počítači 🖥️</p></div>' + rzDenHtml(cid)
+    : (mode === 'editor' ? rzEditorHtml(cid) : rzDenHtml(cid)));
 }
 onAct('t-roz-mode:', el => { localStorage.setItem('t_roz_mode', el.getAttribute('data-act').slice(11)); route(); });
 onAct('t-plan:', el => { localStorage.setItem('t_plan_date', el.getAttribute('data-act').slice(7)); route(); });
@@ -1312,7 +1333,7 @@ function tPredmety() {
       '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">objeví se v rozvrhu i u známkování</span></div>' +
       '<form data-form="sub-add" style="margin-bottom:14px">' +
         '<div class="field-row">' +
-          '<div class="field"><label>Název předmětu</label><input name="name" placeholder="Např. Programování, Španělština…" required></div>' +
+          '<div class="field"><label>Název předmětu</label><input name="name" maxlength="40" placeholder="Např. Programování, Španělština…" required></div>' +
           '<div class="field"><label>Zkratka <span class="small-note" style="margin:0">(prázdné = vygeneruje se)</span></label><input name="code" placeholder="Např. TV, PRO, ŠJ…" maxlength="4" style="font-family:monospace;text-transform:uppercase"></div>' +
         '</div>' +
         '<div class="field"><label>Barva – vyberte z ' + SUBJECT_PALETTE.length + '</label>' +
@@ -1346,7 +1367,7 @@ document.addEventListener('click', e => {
 });
 onAct('form:sub-add', f => {
   const fd = new FormData(f);
-  const name = String(fd.get('name')).trim();
+  const name = String(fd.get('name')).trim().slice(0, 40);
   if (!name) { toast('Zadejte název předmětu', 'bad'); return; }
   const codeRaw = String(fd.get('code') || '').trim();
   const check = codeRaw ? subjectCodeAvailable(codeRaw) : { valid: true, clean: '', taken: false };
@@ -1371,7 +1392,7 @@ onAct('sub-edit:', el => {
   openModal('<h3>Upravit předmět „' + escapeHtml(s.name) + '“</h3>' +
     '<form data-form="sub-edit">' +
       '<input type="hidden" name="code" value="' + escapeHtml(code) + '">' +
-      '<div class="field"><label>Název</label><input name="name" value="' + escapeHtml(s.name) + '" required></div>' +
+      '<div class="field"><label>Název</label><input name="name" maxlength="40" value="' + escapeHtml(s.name) + '" required></div>' +
       '<div class="field"><label>Zkratka</label><input name="code2" value="' + escapeHtml(code) + '" maxlength="4" required style="font-family:monospace;text-transform:uppercase">' +
       '<span class="small-note" style="margin:4px 0 0">Zkratka se používá v rozvrhu i známkování</span></div>' +
       '<div class="field"><label>Barva</label>' + subjectColorGrid(s.color, 'color') + '</div>' +
@@ -1443,7 +1464,7 @@ function tUcebny() {
         '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">zkratka se ukáže v rozvrhu</span></div>' +
         '<form data-form="rm-add" style="margin-bottom:14px">' +
           '<div class="field-row">' +
-            '<div class="field"><label>Název učebny</label><input name="name" placeholder="Např. Tělocvična, Chemická laboratoř…" required></div>' +
+            '<div class="field"><label>Název učebny</label><input name="name" maxlength="40" placeholder="Např. Tělocvična, Chemická laboratoř…" required></div>' +
             '<div class="field"><label>Zkratka <span class="small-note" style="margin:0">(prázdné = vygeneruje se)</span></label><input name="short" placeholder="Např. A607, TV…" maxlength="6" style="font-family:monospace;text-transform:uppercase"></div>' +
           '</div>' +
           '<div class="field"><label>Barva – vyberte z ' + ROOM_PALETTE.length + '</label>' +
@@ -1466,7 +1487,7 @@ function tUcebny() {
 }
 onAct('form:rm-add', f => {
   const fd = new FormData(f);
-  const name = String(fd.get('name')).trim();
+  const name = String(fd.get('name')).trim().slice(0, 40);
   if (!name) { toast('Zadejte název učebny', 'bad'); return; }
   const shortRaw = String(fd.get('short') || '').trim();
   const short = shortRaw.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
@@ -1490,7 +1511,7 @@ onAct('rm-edit:', el => {
   openModal('<h3>Upravit učebnu „' + escapeHtml(r.name) + '“</h3>' +
     '<form data-form="rm-edit">' +
       '<input type="hidden" name="id" value="' + escapeHtml(rid) + '">' +
-      '<div class="field"><label>Název</label><input name="name" value="' + escapeHtml(r.name) + '" required></div>' +
+      '<div class="field"><label>Název</label><input name="name" maxlength="40" value="' + escapeHtml(r.name) + '" required></div>' +
       '<div class="field"><label>Zkratka</label><input name="short" value="' + escapeHtml(r.short || '') + '" maxlength="6" required style="font-family:monospace;text-transform:uppercase">' +
       '<span class="small-note" style="margin:4px 0 0">Zobrazuje se v rozvrhu místo názvu</span></div>' +
       '<div class="field"><label>Barva</label>' + roomColorGrid(r.color) + '</div>' +
@@ -1578,7 +1599,7 @@ function tUkoly() {
         '<form data-form="tk-add">' +
           '<div class="field"><label>Předmět</label><select name="subj">' + subjectOpts + '</select></div>' +
           '<div class="field"><label>Pro koho</label><select name="who"><option value="">Celou třídu (' + escapeHtml(cls.name) + ')</option>' + stuOpts + '</select></div>' +
-          '<div class="field"><label>Zadání</label><input name="title" placeholder="Např. PS str. 42, cvičení 3" required></div>' +
+          '<div class="field"><label>Zadání</label><input name="title" maxlength="120" placeholder="Např. PS str. 42, cvičení 3" required></div>' +
           '<div class="field-row">' +
             '<div class="field"><label>Termín</label><input type="date" name="due" value="' + nextSchoolDayISO(today, 1) + '"></div>' +
             '<div class="field"><label>Váha / poznámka (volitelné)</label><input name="note" placeholder="Např. za známku, dobrovolné…"></div>' +
@@ -1790,7 +1811,7 @@ onAct('t-par-new:', el => {
   const st = studentOf(sid);
   if (!st || !myClasses().some(c => c.id === st.cls)) { toast('Žák není z vaší třídy', 'bad'); return; }
   const acc = (db.users || []).find(x => x.role === 'student' && x.studentId === sid);
-  const parPlain = genPassword();
+  const parPlain = genPassword('rodic');
   const par = addUserAccount((acc ? acc.username : genUsername(st.first, st.last)) + '.rodic', parPlain, 'rodic', {
     name: 'Rodič · ' + st.first + ' ' + st.last, note: st.cls, isAdmin: false, children: [sid], orgId: st.orgId || null
   });
@@ -1850,14 +1871,14 @@ function tHesla() {
     '<div class="card"><div class="card-title">' + ic('users', 16) + ' Žáci a rodiče mých tříd</div>' +
     (rows.length
       ? '<div class="list">' + rows.map(r =>
-          '<div class="list-row">' +
-            '<span class="ava">' + escapeHtml(r.s.first.charAt(0)) + '</span>' +
-            '<div class="grow"><div class="row-title">' + escapeHtml(r.s.first + ' ' + r.s.last) + '</div>' +
-              '<div class="row-sub">' +
-                (r.acc ? 'Žák: <code class="mono">' + escapeHtml(r.acc.username) + '</code>' : '<span style="color:var(--warn)">Žák bez účtu</span>') +
-                (r.par ? ' · Rodič: <code class="mono">' + escapeHtml(r.par.username) + '</code>' : '') +
-              '</div></div>' +
-            '<div style="display:flex;gap:6px">' +
+          '<div class="mob-cred">' +
+            '<div class="mob-cred-head"><span class="ava">' + escapeHtml(r.s.first.charAt(0)) + '</span>' +
+              '<b>' + escapeHtml(r.s.first + ' ' + r.s.last) + '</b></div>' +
+            '<div class="mob-cred-logins">' +
+              (r.acc ? '<div class="mob-cred-line"><span>Login</span><code class="mono">' + escapeHtml(r.acc.username) + '</code></div>' : '') +
+              (r.par ? '<div class="mob-cred-line"><span>Rodič</span><code class="mono">' + escapeHtml(r.par.username) + '</code></div>' : '') +
+            '</div>' +
+            '<div class="mob-cred-btns">' +
               (r.acc ? '<button class="btn btn-soft btn-sm" data-act="t-pass-reset:' + r.acc.id + '">' + ic('zap', 13) + ' Reset žák</button>' : '') +
               (r.par ? '<button class="btn btn-soft btn-sm" data-act="t-pass-reset:' + r.par.id + '">' + ic('zap', 13) + ' Reset rodič</button>' : '') +
             '</div>' +
@@ -1874,7 +1895,7 @@ onAct('t-req-reset:', el => {
   const acc = accByLogin(r.login);
   if (!acc) return;
   if (typeof viewerCanResolve === 'function' ? !viewerCanResolve(acc) : true) { toast('Tuto žádost nemůžete vyřídit', 'bad'); return; }
-  const np = genPassword();
+  const np = genPassword(acc.role);
   acc.pass = hashPassword(np);
   acc.passChanged = false;
   rememberGenPass(acc, np);
@@ -1897,7 +1918,7 @@ onAct('t-pass-reset:', el => {
   const sid = target.role === 'student' ? target.studentId : (target.children || [])[0];
   const st = sid ? studentOf(sid) : null;
   if (!st || !myClasses().some(c => c.id === st.cls)) { toast('Tento účet není z vaší třídy', 'bad'); return; }
-  const np = genPassword();
+  const np = genPassword(target.role);
   target.pass = hashPassword(np);
   target.passChanged = false;
   rememberGenPass(target, np);   /* heslo zůstane viditelné, dokud si ho uživatel nezmění */

@@ -447,6 +447,39 @@ textarea.ta { min-height: 44px; }
 .zk-avgbar { display: flex; justify-content: space-between; gap: 10px; background: rgba(59,130,246,.12); border: 1px solid rgba(59,130,246,.35); border-radius: 10px; padding: 11px 14px; font-size: 14px; }
 .zk-avgbar b { font-size: 16px; }
 @media (max-width: 980px) { .zk-grid3 { grid-template-columns: 1fr; } }
+/* ---- Heslo s okem ---- */
+.pass-wrap { position: relative; display: flex; }
+.pass-wrap input { flex: 1; padding-right: 44px !important; }
+.pass-eye { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: none; border: 0; cursor: pointer; color: var(--muted); display: grid; place-items: center; width: 34px; height: 34px; border-radius: 8px; }
+.pass-eye:hover { color: var(--accent); background: var(--surface-2); }
+/* ---- Mobil: docházka karty ---- */
+.mob-abs-list { display: grid; gap: 10px; }
+.mob-abs { border: 1px solid var(--border); border-radius: 11px; padding: 11px 12px; }
+.mob-abs.risk { border-color: var(--bad); }
+.mob-abs-head { display: flex; align-items: center; gap: 10px; }
+.mob-abs-break { margin-top: 7px; font-size: 12.5px; color: var(--muted); padding-left: 44px; }
+/* ---- Mobil/obecně: řádek login/heslo ---- */
+.mob-cred-line { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.mob-cred-line:last-child { border-bottom: 0; }
+.mob-cred-line > span { min-width: 64px; font-weight: 800; font-size: 13px; color: var(--muted); }
+.mob-cred-line code.mono { flex: 1; word-break: break-all; }
+/* ---- Mobil: karty v Resetování hesel ---- */
+.mob-cred { border: 1px solid var(--border); border-radius: 11px; padding: 12px 13px; margin-bottom: 10px; }
+.mob-cred-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.mob-cred-logins { border-top: 1px dashed var(--border); padding-top: 4px; }
+.mob-cred-btns { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.mob-cred-btns .btn { width: 100%; }
+@media (min-width: 1024px) {
+  .mob-cred-btns { flex-direction: row; }
+  .mob-cred-btns .btn { width: auto; flex: 0 0 auto; }
+}
+/* ---- Modál: tlačítka pod sebou na mobilu ---- */
+.modal-btn-col { display: flex; flex-direction: column; gap: 9px; }
+.modal-btn-col .btn { width: 100%; }
+@media (min-width: 1024px) {
+  .modal-btn-col { flex-direction: row; flex-wrap: wrap; }
+  .modal-btn-col .btn { width: auto; }
+}
 .rcpt-pill {
   display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px; border-radius: 999px;
   background: var(--surface-2); border: 1px solid var(--border); cursor: pointer;

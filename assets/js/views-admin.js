@@ -107,7 +107,7 @@ onAct('form:sp-org-rename-save', f => {
   if (!org) return;
   const u = currentUser();
   if (!(u.isRoot || (u.isOrgContact && u.orgId === org.id))) { toast('Na přejmenování nemáte právo', 'bad'); return; }
-  const name = String(fd.get('name') || '').trim();
+  const name = String(fd.get('name') || '').trim().slice(0, 60);
   if (!name) { toast('Zadejte název', 'bad'); return; }
   const old = org.name;
   org.name = name;
@@ -168,7 +168,7 @@ onAct('sp-cls-add', () => {
     '</form>');
 });
 onAct('form:sp-cls-create', f => {
-  const name = String(new FormData(f).get('name')).trim();
+  const name = String(new FormData(f).get('name')).trim().slice(0, 30);
   const main = String(new FormData(f).get('main')) || null;
   if (!name) { toast('Zadejte název třídy', 'bad'); return; }
   /* id třídy = klíč dat; když je název globálně obsazený (např. jiná organizace
@@ -263,16 +263,15 @@ onAct('sp-teach-add', () => {
   openModal(
     '<h3>Nový učitel</h3>' +
     '<p class="small-note" style="margin-bottom:12px">Učitel dostane vlastní přihlášení</p>' +
-    '<form data-form="sp-teach-create">' +
-      '<div class="field-row">' +
-        '<div class="field"><label>Jméno</label><input name="first" placeholder="Petr" required></div>' +
-        '<div class="field"><label>Příjmení</label><input name="last" placeholder="Dostál" required></div>' +
+    '<form data-form="sp-teach-create">' +        '<div class="field-row">' +
+        '<div class="field"><label>Jméno</label><input name="first" maxlength="40" placeholder="Petr" required></div>' +
+        '<div class="field"><label>Příjmení</label><input name="last" maxlength="40" placeholder="Dostál" required></div>' +
       '</div>' +
       '<div class="field"><label>Třída (třídní učitelství)</label><select name="cls">' +
         '<option value="">— zatím bez třídy —</option>' +
         selectableClasses().map(c => '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>').join('') + '</select></div>' +
-      '<div class="field"><label>Uživatelské jméno</label><input name="username" placeholder="nech prázdné = vygeneruje se (petr.dostal)" style="font-family:monospace"></div>' +
-      '<div class="field"><label>Heslo</label><div style="display:flex;gap:8px"><input name="pass" placeholder="nech prázdné = náhodné heslo" style="font-family:monospace;flex:1">' +
+      '<div class="field"><label>Uživatelské jméno</label><input name="username" maxlength="30" placeholder="nech prázdné = vygeneruje se (petr.dostal)" style="font-family:monospace"></div>' +
+      '<div class="field"><label>Heslo</label><div class="pass-wrap"><input name="pass" placeholder="prázdné = náhodné (min. 8 znaků, Aa1! spec. znak)" style="font-family:monospace;flex:1">' + passEyeHtml('pass') +
       '<button type="button" class="btn btn-soft btn-sm" data-act="gen-pass">' + ic('zap', 14) + ' Náhodné</button></div></div>' +
       '<button class="btn btn-primary">Vytvořit účet učitele</button>' +
     '</form>');
@@ -283,7 +282,9 @@ onAct('form:sp-teach-create', f => {
   const last = String(fd.get('last')).trim();
   if (!first || !last) { toast('Vyplňte jméno a příjmení', 'bad'); return; }
   const clsId = String(fd.get('cls')) || null;
-  const plainPass = String(fd.get('pass')).trim() || genPassword();
+  const passErrText = passErr(String(fd.get('pass')).trim(), 'ucitel');
+  if (String(fd.get('pass')).trim() && passErrText) { toast(passErrText, 'bad'); return; }
+  const plainPass = String(fd.get('pass')).trim() || genPassword('ucitel');
   const user = addUserAccount(
     String(fd.get('username')).trim() || genUsername(first, last),
     plainPass,
@@ -314,7 +315,7 @@ onAct('sp-teach-reset:', el => {
   /* povolené: admin (na org i hl. školu), kontakt jen na učitele své org */
   const allowed = me.isRoot || (me.isOrgContact && t.orgId === me.orgId);
   if (!allowed) { toast('Reset učitele vyřizuje zakladatel organizace (nebo admin)', 'bad'); return; }
-  const np = genPassword();
+  const np = genPassword('ucitel');
   t.pass = hashPassword(np);
   t.passChanged = false;
   rememberGenPass(t, np);   /* heslo učitele zůstane viditelné do vlastní změny */
@@ -389,8 +390,8 @@ function openAddStudentModal(defaultCls) {
     '<p class="small-note" style="margin-bottom:12px">Po uložení se vygeneruje žákovský účet</p>' +
     '<form data-form="sp-stud-create">' +
       '<div class="field-row">' +
-        '<div class="field"><label>Jméno</label><input name="first" required placeholder="Jan"></div>' +
-        '<div class="field"><label>Příjmení</label><input name="last" required placeholder="Novák"></div>' +
+        '<div class="field"><label>Jméno</label><input name="first" maxlength="40" required placeholder="Jan"></div>' +
+        '<div class="field"><label>Příjmení</label><input name="last" maxlength="40" required placeholder="Novák"></div>' +
       '</div>' +
       '<div class="field"><label>Třída</label><select name="cls" required>' +
         (clsList.length
@@ -398,9 +399,9 @@ function openAddStudentModal(defaultCls) {
           : '<option value="">— zatím žádná třída —</option>') +
         '<option value="__new">➕ Vytvořit novou třídu…</option>' +
       '</select></div>' +
-      '<div class="field" id="newcls-wrap" style="display:none"><label>Název nové třídy</label><input name="newcls" placeholder="Např. 1. A"></div>' +
-      '<div class="field"><label>Uživatelské jméno (volitelné)</label><input name="username" placeholder="prázdné = vygeneruje se (jan.novak)" style="font-family:monospace"></div>' +
-      '<div class="field"><label>Heslo (volitelné)</label><div style="display:flex;gap:8px"><input name="pass" placeholder="prázdné = náhodné heslo" style="font-family:monospace;flex:1">' +
+      '<div class="field" id="newcls-wrap" style="display:none"><label>Název nové třídy</label><input name="newcls" maxlength="30" placeholder="Např. 1. A"></div>' +
+      '<div class="field"><label>Uživatelské jméno (volitelné)</label><input name="username" maxlength="30" placeholder="prázdné = vygeneruje se (jan.novak)" style="font-family:monospace"></div>' +
+      '<div class="field"><label>Heslo (volitelné)</label><div class="pass-wrap"><input name="pass" placeholder="prázdné = náhodné (min. 8 znaků, Aa1)" style="font-family:monospace;flex:1">' + passEyeHtml('pass') +
       '<button type="button" class="btn btn-soft btn-sm" data-act="gen-pass">' + ic('zap', 14) + ' Náhodné</button></div></div>' +
       '<div class="field"><label>IVP / podpůrná opatření</label><select name="ivp"><option value="">Ne</option><option value="1">Ano – žák s IVP</option></select></div>' +
       '<button class="btn btn-primary">Vytvořit žáka + účet</button>' +
@@ -417,7 +418,7 @@ function createStudent(first, last, clsId, usernameIn, passIn, ivp) {
   const c = classOf(clsId);
   const st = { id: uid(), first, last, cls: clsId, ivp: !!ivp, demo: false, orgId: (c && c.orgId) || null };
   db.students.push(st);
-  const plainPass = passIn || genPassword();
+  const plainPass = passIn || genPassword('student');
   const acc = addUserAccount(usernameIn || genUsername(first, last), plainPass, 'student', {
     name: first + ' ' + last, note: c ? c.name : clsId, studentId: st.id, isAdmin: false, orgId: (c && c.orgId) || null
   });
@@ -446,6 +447,11 @@ onAct('form:sp-stud-create', f => {
     localStorage.setItem('t_cls', clsId);
   }
   if (!clsId) { toast('Nejdřív vytvořte třídu', 'bad'); return; }
+  const manualPass = String(fd.get('pass')).trim();
+  if (manualPass) {
+    const perr = passErr(manualPass, 'student');
+    if (perr) { toast(perr, 'bad'); return; }
+  }
   /* práva: učitel smí jen do SVÝCH tříd; kontakt do libovolné třídy své organizace; admin kamkoli (v rámci rozkliknuté org) */
   const me2 = currentUser();
   const targetCls = classOf(clsId);
@@ -455,7 +461,7 @@ onAct('form:sp-stud-create', f => {
       : targetCls && (targetCls.teacherIds || []).includes(me2.id);             /* učitel: jen třídy, kde učí */
     if (!allowed) { toast('Do této třídy nemůžete přidávat žáky', 'bad'); return; }
   }
-  const { acc } = createStudent(first, last, clsId, String(fd.get('username')).trim(), String(fd.get('pass')).trim(), String(fd.get('ivp')) === '1');
+  const { acc } = createStudent(first, last, clsId, String(fd.get('username')).trim(), manualPass, String(fd.get('ivp')) === '1');
   closeModal();
   showCreds(acc);
   toast('Žák vytvořen ✓', 'ok');
@@ -521,7 +527,7 @@ onAct('form:sp-par-create', f => {
     toast('Žák připojen k účtu rodiče ✓', 'ok'); route(); return;
   }
   const acc = (db.users || []).find(u => u.role === 'student' && u.studentId === sid);
-  const parPlain = genPassword();
+  const parPlain = genPassword('rodic');
   par = addUserAccount((acc ? acc.username : genUsername(st.first, st.last)) + '.rodic', parPlain, 'rodic', {
     name: 'Rodič · ' + st.first + ' ' + st.last, note: st.cls, isAdmin: false, children: [sid],
     orgId: st.orgId || null
@@ -542,10 +548,10 @@ function showCreds(user) {
   const org = orgOfUser(user);
   const passNoteForStored = '<span class="chip chip-info" style="padding:0 7px;font-size:10px">platné do první změně</span>';
   const passRow = plain
-    ? '<div class="list-row"><span style="min-width:90px;font-weight:800">Heslo</span><code class="mono grow">' + escapeHtml(plain) + '</code>' + passNoteForStored +
+    ? '<div class="mob-cred-line"><span>Heslo</span><code class="mono">' + escapeHtml(plain) + '</code>' + passNoteForStored +
       '<button class="btn btn-soft btn-sm" data-act="copy:' + escapeHtml(plain) + '">' + ic('check', 13) + ' Kopírovat</button></div>'
-    : '<div class="list-row"><span style="min-width:90px;font-weight:800">Heslo</span><span class="grow" style="color:var(--muted);font-weight:700">•••••••• ' +
-      (user.isOrgContact ? '(zvolil si žadatel sám)' : (user.passChanged ? '(změněno uživatelem)' : '(nezobrazuje se)')) + '</span></div>';
+    : '<div class="mob-cred-line"><span>Heslo</span><span style="color:var(--muted);font-weight:700">•••••••• ' +
+      (user.isOrgContact ? '(zvolil si žadatel sám)' : (user.passChanged ? '(Změněno uživatelem)' : '(Nezobrazuje se)')) + '</span></div>';
   const note = plain
     ? (user.role === 'student' || user.role === 'rodic'
       ? '<b>Heslo zůstane viditelné</b> – uvidíte ho kdykoli tady, dokud si ho žák/rodič poprvé sám nezmění (pak se tady přepíše na „změněno uživatelem“).'
@@ -559,11 +565,11 @@ function showCreds(user) {
       (user.isOrgContact ? ' · kontaktní účet (přihlášení jen na PC)' : '') + '</p>' : '') +
     '<p class="small-note" style="margin-bottom:12px">' + note + '</p>' +
     '<div class="list" style="margin-bottom:14px">' +
-      '<div class="list-row"><span style="min-width:90px;font-weight:800">Login</span><code class="mono grow">' + escapeHtml(user.username) + '</code>' +
+      '<div class="mob-cred-line"><span>Login</span><code class="mono">' + escapeHtml(user.username) + '</code>' +
         '<button class="btn btn-soft btn-sm" data-act="copy:' + escapeHtml(user.username) + '">' + ic('check', 13) + ' Kopírovat</button></div>' +
       passRow +
     '</div>' +
-    '<div style="display:flex;gap:10px;flex-wrap:wrap">' +
+    '<div class="modal-btn-col">' +
       '<button class="btn btn-soft" data-act="sp-pass-reset:' + user.id + '">' + ic('zap', 14) + ' Vygenerovat nové heslo</button>' +
       (user.role === 'student' || user.role === 'rodic'
         ? '<button class="btn btn-soft" data-act="t-print:' + user.id + '">' + ic('print', 14) + ' Vytisknout</button>'
@@ -575,7 +581,7 @@ function showCreds(user) {
 onAct('sp-pass-reset:', el => {
   const u = (db.users || []).find(x => x.id === el.getAttribute('data-act').slice(14));
   if (!u) return;
-  const np = genPassword();
+  const np = genPassword(u.role);
   u.pass = hashPassword(np);
   u.passChanged = false;
   rememberGenPass(u, np);   /* žák/rodič: heslo zůstane viditelné do vlastní změny */
@@ -601,7 +607,9 @@ onAct('sp-creds:', el => {
 });
 onAct('gen-pass', () => {
   const inp = document.querySelector('form[data-form] input[name="pass"]');
-  if (inp) inp.value = genPassword();
+  const form = inp ? inp.closest('form') : null;
+  const isTeacherForm = form && form.getAttribute('data-form') === 'sp-teach-create';
+  if (inp) inp.value = genPassword(isTeacherForm ? 'ucitel' : 'student');
 });
 
 /* ---------- data a release ---------- */
@@ -876,7 +884,7 @@ onAct('sp-req-reset:', el => {
   if (!acc || r.status !== 'ceka') return;
   /* hierarchie: vyřídit smí jen ten, komu žádost náleží (učitel/contact/root) */
   if (!viewerCanResolve(acc)) { toast('Tuto žádost nemůžete vyřídit – ' + resetResolverText(acc), 'bad'); return; }
-  const np = genPassword();
+  const np = genPassword(acc.role);
   acc.pass = hashPassword(np);
   acc.passChanged = false;
   rememberGenPass(acc, np);   /* žák/rodič: heslo zůstane viditelné do vlastní změny */
