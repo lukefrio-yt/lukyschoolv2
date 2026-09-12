@@ -19,7 +19,7 @@ const DB_KEY_PREV = 'lukySchool.db.v13';
 const SES_KEY = 'lukySchool.session';
 const THEME_KEY = 'lukySchool.theme';
 const DB_TS_KEY = 'lukySchool.cloud.ts'; /* čas posledního lokálního uložení (cloud sync) */
-const DB_VERSION = 14;
+const DB_VERSION = 15;
 
 /* ---------- hashování hesel ----------
    Hesla se nikdy neukládají v čitelné podobě – v localStorage ani v cloudu.
@@ -89,11 +89,44 @@ function verifyPassword(user, plain) {
   const parts = p.split('$');
   return parts[2] === ssSha256(parts[1] + '$' + plain);
 }
+/* Uchování VYGENEROVANÉHO hesla žáka/rodiče do doby, než si ho uživatel změní sám.
+   Ukládá se ZAŠIFROVANĚ (XOR+base64, klíč odvozený od id účtu) – v localStorage
+   ani cloudu není v čitelné podobě, ale třídní si ho umí zobrazit kdykoli.
+   Po první vlastní změně hesla (passChanged=true) se pole smaže. */
+function encKey(uidStr) { let h = 0x9E3779B9; for (let i = 0; i < uidStr.length; i++) { h = Math.imul(h ^ uidStr.charCodeAt(i), 0x85EBCA6B) >>> 0; } return String(h); }
+function encPass(uidStr, plain) {
+  try {
+    const k = encKey(uidStr);
+    let out = '';
+    for (let i = 0; i < plain.length; i++) out += String.fromCharCode(plain.charCodeAt(i) ^ k.charCodeAt(i % k.length));
+    return btoa(unescape(encodeURIComponent(out)));
+  } catch (e) { return null; }
+}
+function decPass(uidStr, enc) {
+  try {
+    const k = encKey(uidStr);
+    const raw = decodeURIComponent(escape(atob(enc)));
+    let out = '';
+    for (let i = 0; i < raw.length; i++) out += String.fromCharCode(raw.charCodeAt(i) ^ k.charCodeAt(i % k.length));
+    return out;
+  } catch (e) { return null; }
+}
+/* vygenerované heslo, které je stále viditelné (jen žák/rodič bez vlastní změny) */
+function visibleGenPass(u) {
+  if (!u || u.passChanged || !u.genPass) return null;
+  if (u.role !== 'student' && u.role !== 'rodic') return null;
+  return decPass(u.id, u.genPass);
+}
 /* jednorázové předání vygenerovaného hesla: existuje POUZE v paměti (nikdy v db,
    localStorage ani cloudu). Modál „Přihlašovací údaje“ ho zobrazí jednou a spotřebuje. */
 const PENDING_PASS = {};
 function setPendingPass(userId, plain) { PENDING_PASS[userId] = plain; }
 function takePendingPass(userId) { const p = PENDING_PASS[userId] || null; delete PENDING_PASS[userId]; return p; }
+/* zápis šifrovaného „pamětního“ hesla k účtu (jen žák/rodič) */
+function rememberGenPass(u, plain) {
+  if (!u || (u.role !== 'student' && u.role !== 'rodic')) return;
+  u.genPass = encPass(u.id, plain);
+}
 
 /* ---------- časy hodin (8 vyučovacích, 45 min) ---------- */
 const PERIODS = [
@@ -476,6 +509,14 @@ let db = null;
       (parsed.orgRequests || []).forEach(r => { if (r.pass && !isHashedPass(r.pass)) r.pass = hashPassword(r.pass); });
       /* fronta k předání už dál neobsahuje čitelné heslo – jen informaci pro třídního */
       (parsed.resetPass || []).forEach(r => { delete r.newPass; });
+    }
+    if (parsed.v < 15) {
+      /* v14 → v15: generovaná hesla žáků/rodičů zůstávají viditelná třídnímu
+         (zašifrovaně v poli genPass) do první vlastní změny. Pole se čistí
+         u ostatních rolí a u účtů, které si heslo už změnily. */
+      (parsed.users || []).forEach(u => {
+        if (u.passChanged || (u.role !== 'student' && u.role !== 'rodic')) delete u.genPass;
+      });
     }
     if (parsed.v < 10) {
       /* v9 → v10: vlákna zpráv dostanou typ „rodič“ (do v9 uměli psát jen rodiče) */

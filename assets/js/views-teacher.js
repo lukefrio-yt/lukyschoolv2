@@ -1636,6 +1636,82 @@ registerView('ucitel', 'zpravy', tZpravy);
 registerView('ucitel', 'omluvenky', tOmluvenky);
 registerView('ucitel', 'rozvrh', tRozvrh);
 /* ---------- RESETOVÁNÍ HESEL (nová hesla k předání žákovi/rodiči) ---------- */
+/* ---------- ÚDAJE: loginy žáků a rodičů mých tříd ---------- */
+function tUdaje() {
+  const u = currentUser();
+  const myClsIds = myClasses().map(c => c.id);
+  const myClsNames = myClasses();
+  const myStudents = (db.students || []).filter(s => myClsIds.includes(s.cls));
+  const rows = myStudents.map(s => {
+    const acc = (db.users || []).find(x => x.role === 'student' && x.studentId === s.id);
+    const par = parentOfStudent(s.id);
+    return { s, acc, par };
+  });
+  const rowHtml = (r) => {
+    const genSt = r.acc && visibleGenPass(r.acc);
+    const genPar = r.par && visibleGenPass(r.par);
+    return '<div class="list-row">' +
+      '<span class="ava">' + escapeHtml(r.s.first.charAt(0)) + '</span>' +
+      '<div class="grow"><div class="row-title">' + escapeHtml(r.s.first + ' ' + r.s.last) +
+        ' <span style="font-size:11px;color:var(--muted);font-weight:700">' + escapeHtml((myClsNames.find(c => c.id === r.s.cls) || {}).name || '') + '</span></div>' +
+        '<div class="row-sub">' +
+          (r.acc
+            ? 'žák: <code class="mono">' + escapeHtml(r.acc.username) + '</code> · heslo: ' +
+              (genSt ? '<code class="mono">' + escapeHtml(genSt) + '</code>' : '<span style="color:var(--muted)">' + (r.acc.passChanged ? 'změněno žákem' : 'nezobrazuje se') + '</span>')
+            : '<span style="color:var(--warn)">žák bez účtu</span>') +
+          (r.par
+            ? '<br>rodič: <code class="mono">' + escapeHtml(r.par.username) + '</code> · heslo: ' +
+              (genPar ? '<code class="mono">' + escapeHtml(genPar) + '</code>' : '<span style="color:var(--muted)">' + (r.par.passChanged ? 'změněno rodičem' : 'nezobrazuje se') + '</span>')
+            : '') +
+        '</div></div>' +
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">' +
+        (r.acc ? '<button class="btn btn-soft btn-sm" data-act="t-creds:' + r.acc.id + '">' + ic('eye', 13) + ' Údaje</button>' : '') +
+        (!r.par ? '<button class="btn btn-soft btn-sm" data-act="t-par-new:' + r.s.id + '">' + ic('users', 13) + ' Rodič</button>' : '') +
+      '</div></div>';
+  };
+  return '<div class="page-head"><div><h1>Údaje – loginy žáků a rodičů</h1>' +
+    '<div class="sub">Zakládáte tady přihlášky žáků a rodičů svých tříd. Vygenerované heslo vidíte, dokud si ho žák/rodič poprvé nezmění sám – pak se u účtu zobrazí „změněno“.</div></div>' +
+    '<div class="page-acts">' + (isAppMode()
+      ? '<span class="chip chip-info">Přidávání žáků jen na PC 🖥️</span>'
+      : '<button class="btn btn-primary btn-sm" data-act="t-udaje-add">' + ic('plus', 15) + ' Přidat žáka + login</button>') + '</div></div>' +
+    clsScopePills() +
+    (rows.length
+      ? '<div class="list">' + rows.map(rowHtml).join('') + '</div>'
+      : '<div class="empty"><b>Žádní žáci</b>' + (isAppMode()
+          ? 'Žáky přidáte na počítači tlačítkem „Přidat žáka + login“.'
+          : 'Klikněte na „Přidat žáka + login“ – vytvoříte žáka i rodičovský účet.') + '</div>');
+}
+onAct('t-udaje-add', () => {
+  if (isAppMode()) { toast('Přidávání žáků je dostupné jen na počítači 🖥️', 'bad'); return; }
+  openAddStudentModal(activeClsId());
+});
+/* údaje žáka/rodiče – login + heslo (viditelné do vlastní změny) */
+onAct('t-creds:', el => {
+  const id = el.getAttribute('data-act').slice(8);
+  const target = (db.users || []).find(x => x.id === id);
+  if (!target) return;
+  const sid = target.role === 'student' ? target.studentId : (target.children || [])[0];
+  const st = sid ? studentOf(sid) : null;
+  if (!st || !myClasses().some(c => c.id === st.cls)) { toast('Účet není z vaší třídy', 'bad'); return; }
+  showCreds(target);
+});
+/* vytvoření rodičovského účtu přímo z Údajů */
+onAct('t-par-new:', el => {
+  const sid = el.getAttribute('data-act').slice(10);
+  const st = studentOf(sid);
+  if (!st || !myClasses().some(c => c.id === st.cls)) { toast('Žák není z vaší třídy', 'bad'); return; }
+  const acc = (db.users || []).find(x => x.role === 'student' && x.studentId === sid);
+  const parPlain = genPassword();
+  const par = addUserAccount((acc ? acc.username : genUsername(st.first, st.last)) + '.rodic', parPlain, 'rodic', {
+    name: 'Rodič · ' + st.first + ' ' + st.last, note: st.cls, isAdmin: false, children: [sid], orgId: st.orgId || null
+  });
+  rememberGenPass(par, parPlain);
+  setPendingPass(par.id, parPlain);
+  saveDB();
+  showCreds(par);
+  toast('Rodičovský účet vytvořen ✓', 'ok');
+  route();
+});
 function tHesla() {
   const u = currentUser();
   let dirty = false;
@@ -1657,7 +1733,7 @@ function tHesla() {
     return acc && resetResolverOf(acc).kind === 'teacher' && resetResolverOf(acc).teacherId === u.id;
   });
   return '<div class="page-head"><div><h1>Resetování hesel</h1>' +
-    '<div class="sub">Jako třídní spravujete přihlášky žáků a rodičů svých tříd: vytvoříte je při zakládání žáka, heslo resetujete tady. Učitelům a správě organizace hesla resetuje zakladatel organizace, jemu samotnému zakladatel aplikace.</div></div></div>' +
+    '<div class="sub">Čekající žádosti o reset a upozornění. Loginy a hesla žáků/rodičů spravujte v záložce <b>Údaje</b> – tam je vidíte i později (dokud si je uživatel nezmění).</div></div></div>' +
     (reqs.length
       ? '<div class="card" style="margin-bottom:16px;border-color:var(--warn)"><div class="card-title">' + ic('zap', 16) + ' Čekající žádosti o reset</div>' +
         '<div class="list">' + reqs.map(r => {
@@ -1712,6 +1788,7 @@ onAct('t-req-reset:', el => {
   const np = genPassword();
   acc.pass = hashPassword(np);
   acc.passChanged = false;
+  rememberGenPass(acc, np);
   setPendingPass(acc.id, np);
   r.status = 'vyrizeno';
   r.doneTs = nowISO();
@@ -1734,6 +1811,7 @@ onAct('t-pass-reset:', el => {
   const np = genPassword();
   target.pass = hashPassword(np);
   target.passChanged = false;
+  rememberGenPass(target, np);   /* heslo zůstane viditelné, dokud si ho uživatel nezmění */
   setPendingPass(target.id, np);
   saveDB();
   showCreds(target);
@@ -1757,6 +1835,7 @@ registerView('ucitel', 'predmety', tPredmety);
 registerView('ucitel', 'ucebny', tUcebny);
 registerView('ucitel', 'pololetka', tPololetka);
 registerView('ucitel', 'ukoly', tUkoly);
+registerView('ucitel', 'udaje', tUdaje);
 registerView('ucitel', 'hesla', tHesla);
 
 /* ---------- OZNÁMENÍ (zpráva pro třídu: rodiče / žáci / obojí) ---------- */
