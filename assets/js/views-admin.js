@@ -248,13 +248,14 @@ onAct('form:sp-teach-create', f => {
   const last = String(fd.get('last')).trim();
   if (!first || !last) { toast('Vyplňte jméno a příjmení', 'bad'); return; }
   const clsId = String(fd.get('cls')) || null;
-  const passIn = String(fd.get('pass')).trim();
+  const plainPass = String(fd.get('pass')).trim() || genPassword();
   const user = addUserAccount(
     String(fd.get('username')).trim() || genUsername(first, last),
-    passIn || genPassword(),
+    plainPass,
     'ucitel',
     { name: first + ' ' + last, note: 'učitel', isAdmin: false, orgId: spScopeOrg() || null }
   );
+  setPendingPass(user.id, plainPass);
   if (clsId) {
     const c = classOf(clsId);
     if (c) {
@@ -351,9 +352,11 @@ function createStudent(first, last, clsId, usernameIn, passIn, ivp) {
   const c = classOf(clsId);
   const st = { id: uid(), first, last, cls: clsId, ivp: !!ivp, demo: false, orgId: (c && c.orgId) || null };
   db.students.push(st);
-  const acc = addUserAccount(usernameIn || genUsername(first, last), passIn || genPassword(), 'student', {
+  const plainPass = passIn || genPassword();
+  const acc = addUserAccount(usernameIn || genUsername(first, last), plainPass, 'student', {
     name: first + ' ' + last, note: c ? c.name : clsId, studentId: st.id, isAdmin: false, orgId: (c && c.orgId) || null
   });
+  setPendingPass(acc.id, plainPass);
   saveDB();
   return { st, acc };
 }
@@ -442,53 +445,55 @@ onAct('form:sp-par-create', f => {
     toast('Žák připojen k účtu rodiče ✓', 'ok'); route(); return;
   }
   const acc = (db.users || []).find(u => u.role === 'student' && u.studentId === sid);
-  par = addUserAccount((acc ? acc.username : genUsername(st.first, st.last)) + '.rodic', genPassword(), 'rodic', {
+  const parPlain = genPassword();
+  par = addUserAccount((acc ? acc.username : genUsername(st.first, st.last)) + '.rodic', parPlain, 'rodic', {
     name: 'Rodič · ' + st.first + ' ' + st.last, note: st.cls, isAdmin: false, children: [sid],
     orgId: st.orgId || null
   });
+  setPendingPass(par.id, parPlain);
   saveDB(); closeModal(); showCreds(par);
   toast('Rodičovský účet vytvořen ✓', 'ok'); route();
 });
 
 /* ---------- přihlašovací údaje ----------
-   Heslo se zobrazí JEN dokud ho uživatel sám nezmění (passChanged).
-   Potom zobrazíme jen login a možnost vygenerovat nové heslo. */
-function canSeePass(u) {
-  const me = currentUser();
-  if (!me) return false;
-  if (me.isAdmin) return true;              /* zakladatel vidí všechno */
-  return !u.passChanged;                    /* jinak jen původní generovaná hesla */
-}
+   Heslo se zobrazí JEDNOU – jen těsně po vytvoření/vygenerování (dočasná
+   kopie existuje jen v paměti). V databázi zůstává trvale jen salt + SHA-256. */
 function showCreds(user) {
-  const canPass = canSeePass(user);
+  const plain = takePendingPass(user.id);   /* heslo se zobrazí právě jednou */
   const org = orgOfUser(user);
+  const passRow = plain
+    ? '<div class="list-row"><span style="min-width:90px;font-weight:800">Heslo</span><code class="mono grow">' + escapeHtml(plain) + '</code>' +
+      '<button class="btn btn-soft btn-sm" data-act="copy:' + escapeHtml(plain) + '">' + ic('check', 13) + ' Kopírovat</button></div>'
+    : '<div class="list-row"><span style="min-width:90px;font-weight:800">Heslo</span><span class="grow" style="color:var(--muted);font-weight:700">•••••••• ' +
+      (user.isOrgContact ? '(zvolil si žadatel sám)' : (user.passChanged ? '(změněno uživatelem)' : '(již předáno)')) + '</span></div>';
+  const note = plain
+    ? '<b>Zapište si ho hned</b> – z bezpečnostních důvodů se heslo zobrazí jen jednou. V databázi zůstane pouze hash.'
+    : (user.isOrgContact
+      ? 'Kontaktní účet si heslo zvolil sám při žádosti o organizaci – nikdo jiný ho nezná. Když ho zapomene, vygenerujte mu nové.'
+      : 'Z bezpečnostních důvodů heslo znovu nezobrazíme – v databázi je jen hash. Potřebujete-li nové, vygenerujte ho tlačítkem níže.');
   openModal(
     '<h3>Přihlašovací údaje</h3>' +
     (org ? '<p class="small-note" style="margin-bottom:6px">Organizace: <b>' + escapeHtml(org.name) + '</b>' +
       (user.isOrgContact ? ' · kontaktní účet (přihlášení jen na PC)' : '') + '</p>' : '') +
-    '<p class="small-note" style="margin-bottom:12px">' + (canPass
-      ? 'Ukažte je uživateli – z bezpečnostních důvodů se heslo zobrazí jen tady.'
-      : 'Heslo si uživatel změnil sám – z bezpečnostních důvodů ho nelze zobrazit. Můžete mu vygenerovat nové.') + '</p>' +
+    '<p class="small-note" style="margin-bottom:12px">' + note + '</p>' +
     '<div class="list" style="margin-bottom:14px">' +
       '<div class="list-row"><span style="min-width:90px;font-weight:800">Login</span><code class="mono grow">' + escapeHtml(user.username) + '</code>' +
         '<button class="btn btn-soft btn-sm" data-act="copy:' + escapeHtml(user.username) + '">' + ic('check', 13) + ' Kopírovat</button></div>' +
-      (canPass
-        ? '<div class="list-row"><span style="min-width:90px;font-weight:800">Heslo</span><code class="mono grow">' + escapeHtml(user.pass) + '</code>' +
-          '<button class="btn btn-soft btn-sm" data-act="copy:' + escapeHtml(user.pass) + '">' + ic('check', 13) + ' Kopírovat</button></div>'
-        : '<div class="list-row"><span style="min-width:90px;font-weight:800">Heslo</span><span class="grow" style="color:var(--muted);font-weight:700">•••••••• (změněno uživatelem)</span></div>') +
+      passRow +
     '</div>' +
     '<div style="display:flex;gap:10px;flex-wrap:wrap">' +
-      (!canPass
-        ? '<button class="btn btn-soft" data-act="sp-pass-reset:' + user.id + '">' + ic('zap', 14) + ' Vygenerovat nové heslo</button>' : '') +
+      '<button class="btn btn-soft" data-act="sp-pass-reset:' + user.id + '">' + ic('zap', 14) + ' Vygenerovat nové heslo</button>' +
       '<button class="btn btn-primary" data-act="close-modal">Hotovo</button>' +
     '</div>');
 }
-/* vygenerování nového hesla účtu (správcem/kontaktem, když si uživatel heslo změnil) */
+/* vygenerování nového hesla účtu (správcem/kontaktem) */
 onAct('sp-pass-reset:', el => {
   const u = (db.users || []).find(x => x.id === el.getAttribute('data-act').slice(14));
   if (!u) return;
-  u.pass = genPassword();
+  const np = genPassword();
+  u.pass = hashPassword(np);
   u.passChanged = false;
+  setPendingPass(u.id, np);
   saveDB();
   toast('Nové heslo vygenerováno ✓', 'ok');
   showCreds(u);
@@ -677,7 +682,7 @@ function spResets() {
           return '<div class="list-row">' +
             '<span class="chip ' + (r.status === 'ceka' ? 'chip-accent' : '') + '">' + (r.status === 'ceka' ? 'čeká' : 'vyřízeno') + '</span>' +
             '<div class="grow"><div class="row-title"><code class="mono">' + escapeHtml(r.login) + '</code>' + (acc ? ' · ' + escapeHtml(acc.name) : '') + '</div>' +
-            '<div class="row-sub">' + tsLabel(r.ts) + (r.status === 'vyrizeno' && r.newPass ? ' · nové heslo: <code class="mono">' + escapeHtml(r.newPass) + '</code>' : '') + '</div></div>' +
+            '<div class="row-sub">' + tsLabel(r.ts) + (r.status === 'vyrizeno' ? ' · nové heslo bylo předáno třídnímu učiteli' : '') + '</div></div>' +
             '<button class="btn btn-soft btn-sm" data-act="sp-req-open:' + r.id + '">' + ic(r.status === 'ceka' ? 'zap' : 'eye', 14) + ' ' + (r.status === 'ceka' ? 'Vyřídit' : 'Detail') + '</button>' +
             '</div>';
         }).join('') + '</div>'
@@ -720,7 +725,7 @@ onAct('sp-req-open:', el => {
         '<button class="btn btn-primary" data-act="sp-req-reset:' + r.id + '">' + ic('zap', 15) + ' Resetovat heslo (nové vygenerované)</button>' +
         '<button class="btn btn-ghost" data-act="close-modal">Zrušit</button></div>';
     } else {
-      body += '<div class="ok-line" style="margin-bottom:14px">' + ic('check', 15) + ' <span>Heslo bylo resetováno' + (r.newPass ? ' na <code class="mono">' + escapeHtml(r.newPass) + '</code>' : '') + (r.teacherId ? ' – zpráva byla odeslána třídnímu učiteli.' : ' – žádný třídní učitel není přiřazen.') + '</span></div>' +
+      body += '<div class="ok-line" style="margin-bottom:14px">' + ic('check', 15) + ' <span>Heslo bylo resetováno' + (r.teacherId ? ' – zpráva byla odeslána třídnímu učiteli.' : ' – žádný třídní učitel není přiřazen.') + '</span></div>' +
         '<button class="btn btn-ghost" data-act="sp-req-del:' + r.id + '">Smazat žádost</button>';
     }
   } else {
@@ -735,15 +740,18 @@ onAct('sp-req-reset:', el => {
   const acc = accByLogin(r.login);
   if (!acc || r.status !== 'ceka') return;
   const np = genPassword();
-  acc.pass = np;
-  acc.passChanged = false; /* nové generované heslo je zase viditelné správci/kontaktu */
+  acc.pass = hashPassword(np);
+  acc.passChanged = false; /* nové generované heslo půjde opět jednorázově zobrazit */
+  setPendingPass(acc.id, np);
   r.status = 'vyrizeno';
   r.doneTs = nowISO();
-  r.newPass = np;
+  /* r.newPass se neukládá – heslo je hashované a jednorázově se zobrazí v modálu níže */
   const teacher = resetTargetTeacher(acc);
   db.resetPass = db.resetPass || [];
   if (teacher) {
-    db.resetPass.push({ id: uid(), teacherId: teacher.id, login: acc.username, who: resetWhoText(acc), newPass: np, ts: nowISO(), read: false });
+    /* bez hesla – jen upozornění pro třídního. Nové heslo vidí jednorázově
+       správce tady a předá ho osobně (papírem / ústně). */
+    db.resetPass.push({ id: uid(), teacherId: teacher.id, login: acc.username, who: resetWhoText(acc), ts: nowISO(), read: false });
   }
   r.teacherId = teacher ? teacher.id : null;
   saveDB();

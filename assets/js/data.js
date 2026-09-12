@@ -14,12 +14,86 @@
    ============================================================ */
 'use strict';
 
-const DB_KEY = 'lukySchool.db.v13';
-const DB_KEY_PREV = 'lukySchool.db.v12';
+const DB_KEY = 'lukySchool.db.v14';
+const DB_KEY_PREV = 'lukySchool.db.v13';
 const SES_KEY = 'lukySchool.session';
 const THEME_KEY = 'lukySchool.theme';
 const DB_TS_KEY = 'lukySchool.cloud.ts'; /* čas posledního lokálního uložení (cloud sync) */
-const DB_VERSION = 13;
+const DB_VERSION = 14;
+
+/* ---------- hashování hesel ----------
+   Hesla se nikdy neukládají v čitelné podobě – v localStorage ani v cloudu.
+   Formát v databázi: "ss1$<salt>$<hash>", kde salt je 16 náhodných bajtů
+   (hex) a hash = SHA-256(salt + '$' + heslo). Hashování je synchronní
+   (vlastní SHA-256, FIPS 180-4), aby fungovalo i uvnitř migrace dat.
+   Heslo v čitelné podobě existuje jen chvíli v paměti – zobrazí se
+   jednorázově při vytvoření účtu / vygenerování nového hesla. */
+const SS_HASH_PREFIX = 'ss1';
+function ssSha256(str) {
+  const utf8 = unescape(encodeURIComponent(String(str)));
+  const len = utf8.length;
+  const buf = new Uint8Array((((len + 8) >> 6) + 1) << 6);
+  for (let i = 0; i < len; i++) buf[i] = utf8.charCodeAt(i) & 0xff;
+  buf[len] = 0x80;
+  const dv = new DataView(buf.buffer);
+  dv.setUint32(buf.length - 8, Math.floor((len * 8) / 4294967296));
+  dv.setUint32(buf.length - 4, (len * 8) >>> 0);
+  const K = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+    0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+    0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+    0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+    0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  const rr = (x, n) => (x >>> n) | (x << (32 - n));
+  let h0 = 0x6a09e667, h1 = 0xbb67ae85, h2 = 0x3c6ef372, h3 = 0xa54ff53a,
+      h4 = 0x510e527f, h5 = 0x9b05688c, h6 = 0x1f83d9ab, h7 = 0x5be0cd19;
+  const w = new Int32Array(64);
+  for (let off = 0; off < buf.length; off += 64) {
+    for (let i = 0; i < 16; i++) w[i] = dv.getUint32(off + i * 4);
+    for (let i = 16; i < 64; i++) {
+      const s0 = rr(w[i - 15], 7) ^ rr(w[i - 15], 18) ^ (w[i - 15] >>> 3);
+      const s1 = rr(w[i - 2], 17) ^ rr(w[i - 2], 19) ^ (w[i - 2] >>> 10);
+      w[i] = (w[i - 16] + s0 + w[i - 7] + s1) | 0;
+    }
+    let a = h0, b = h1, c = h2, d = h3, e = h4, f = h5, g = h6, h = h7;
+    for (let i = 0; i < 64; i++) {
+      const S1 = rr(e, 6) ^ rr(e, 11) ^ rr(e, 25);
+      const ch = (e & f) ^ (~e & g);
+      const t1 = (h + S1 + ch + K[i] + w[i]) | 0;
+      const S0 = rr(a, 2) ^ rr(a, 13) ^ rr(a, 22);
+      const maj = (a & b) ^ (a & c) ^ (b & c);
+      const t2 = (S0 + maj) | 0;
+      h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+    }
+    h0 = (h0 + a) | 0; h1 = (h1 + b) | 0; h2 = (h2 + c) | 0; h3 = (h3 + d) | 0;
+    h4 = (h4 + e) | 0; h5 = (h5 + f) | 0; h6 = (h6 + g) | 0; h7 = (h7 + h) | 0;
+  }
+  return [h0, h1, h2, h3, h4, h5, h6, h7].map(x => ('00000000' + (x >>> 0).toString(16)).slice(-8)).join('');
+}
+function ssSalt() {
+  const b = new Uint8Array(16);
+  try { (window.crypto || navigator.crypto).getRandomValues(b); }
+  catch (e) { for (let i = 0; i < b.length; i++) b[i] = Math.floor(Math.random() * 256); }
+  let s = '';
+  for (let i = 0; i < b.length; i++) s += ('0' + b[i].toString(16)).slice(-2);
+  return s;
+}
+function isHashedPass(p) { return typeof p === 'string' && p.indexOf(SS_HASH_PREFIX + '$') === 0; }
+function hashPassword(plain) { const salt = ssSalt(); return SS_HASH_PREFIX + '$' + salt + '$' + ssSha256(salt + '$' + plain); }
+function verifyPassword(user, plain) {
+  const p = user && user.pass;
+  if (typeof p !== 'string') return false;
+  if (!isHashedPass(p)) return p === plain;   /* heslo z nutné importu/starší verze – porovnáme napřímo */
+  const parts = p.split('$');
+  return parts[2] === ssSha256(parts[1] + '$' + plain);
+}
+/* jednorázové předání vygenerovaného hesla: existuje POUZE v paměti (nikdy v db,
+   localStorage ani cloudu). Modál „Přihlašovací údaje“ ho zobrazí jednou a spotřebuje. */
+const PENDING_PASS = {};
+function setPendingPass(userId, plain) { PENDING_PASS[userId] = plain; }
+function takePendingPass(userId) { const p = PENDING_PASS[userId] || null; delete PENDING_PASS[userId]; return p; }
 
 /* ---------- časy hodin (8 vyučovacích, 45 min) ---------- */
 const PERIODS = [
@@ -348,7 +422,7 @@ function buildSeed() {
     organizations: [],                  /* cizí organizace: {id,name,first,last,phone,email,contactId,createdAt} */
     orgRequests: [],                    /* žádosti o založení: {id,first,last,orgName,phone,email,username,pass,status,ts} */
     classes: [],
-    users: [JSON.parse(JSON.stringify(ADMIN_USER))],
+    users: [Object.assign(JSON.parse(JSON.stringify(ADMIN_USER)), { pass: hashPassword(ADMIN_USER.pass) })],
     students: [],
     rooms: JSON.parse(JSON.stringify(DEFAULT_ROOMS)),
     subjects: {},
@@ -394,6 +468,15 @@ let db = null;
       parsed.organizations = parsed.organizations || [];
       parsed.orgRequests = parsed.orgRequests || [];
     }
+    if (parsed.v < 14) {
+      /* v13 → v14: hashování hesel. Všechna dosud čitelná hesla (účty, čekající
+         žádosti o organizaci i dosud nepředaná nová hesla k předání) se převedou
+         na salt + SHA-256 a už se nikdy neuloží v čitelné podobě. */
+      (parsed.users || []).forEach(u => { if (u.pass && !isHashedPass(u.pass)) u.pass = hashPassword(u.pass); });
+      (parsed.orgRequests || []).forEach(r => { if (r.pass && !isHashedPass(r.pass)) r.pass = hashPassword(r.pass); });
+      /* fronta k předání už dál neobsahuje čitelné heslo – jen informaci pro třídního */
+      (parsed.resetPass || []).forEach(r => { delete r.newPass; });
+    }
     if (parsed.v < 10) {
       /* v9 → v10: vlákna zpráv dostanou typ „rodič“ (do v9 uměli psát jen rodiče) */
       Object.keys(parsed.threads || {}).forEach(k => {
@@ -419,15 +502,17 @@ let db = null;
 }
 function loadDB() {
   try {
-    /* uklidíme zastaralé klíče starších verzí (od konce, ať se indexy neposunou) */
-    for (let i = localStorage.length - 1; i >= 0; i--) {
-      const k = localStorage.key(i);
-      if (k && k.indexOf('lukySchool.db.v') === 0 && k !== DB_KEY) localStorage.removeItem(k);
-    }
+    /* nejdřív přečteme aktuální i předchozí klíč (migrace) – a teprve pak
+       uklidíme zastaralé klíče starších verzí. (Kdysi to bylo obráceně a
+       migrace se nikdy nespustila – starý klíč se smazal dřív, než se četl.) */
     let raw = localStorage.getItem(DB_KEY);
     if (!raw) {
       const prev = localStorage.getItem(DB_KEY_PREV);
       if (prev) { try { const m = migrateDB(JSON.parse(prev)); const s = JSON.stringify(m); localStorage.setItem(DB_KEY, s); raw = s; } catch (e) { /* reseed */ } }
+    }
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.indexOf('lukySchool.db.v') === 0 && k !== DB_KEY) localStorage.removeItem(k);
     }
     if (raw) {
       const parsed = JSON.parse(raw);
@@ -474,7 +559,7 @@ function wipeSchool() {
     schoolName: db.schoolName || 'LukySchool',
     organizations: db.organizations || [],
     orgRequests: db.orgRequests || [],
-    classes: [], users: [JSON.parse(JSON.stringify(ADMIN_USER))],
+    classes: [], users: [Object.assign(JSON.parse(JSON.stringify(ADMIN_USER)), { pass: hashPassword(ADMIN_USER.pass) })],
     students: [], rooms: JSON.parse(JSON.stringify(DEFAULT_ROOMS)), subjects: {}, schedule: {}, columns: [], tasks: [], classbook: [],
     threads: {},
     subs: [], reservations: [], absReq: [], notifs: [],
@@ -1364,7 +1449,10 @@ function accByLoginLoose(login) {
   return (db.users || []).find(u => u.username.toLowerCase() === l) || null;
 }
 function addUserAccount(username, pass, role, extra) {
-  const user = Object.assign({ id: uid(), username, pass, role, passChanged: false }, extra);
+  /* pass přijde v čitelné podobě (z formuláře/genPassword) – zahashujeme hned tady,
+     aby se čitelné heslo nikdy nedostalo do db. Už zahašované prochází beze změny
+     (kontaktní účty ze starších migrnovaných žádostí). */
+  const user = Object.assign({ id: uid(), username, pass: isHashedPass(pass) ? pass : hashPassword(pass), role, passChanged: false }, extra);
   db.users.push(user);
   db.seen = db.seen || {};
   db.seen[user.id] = null;
