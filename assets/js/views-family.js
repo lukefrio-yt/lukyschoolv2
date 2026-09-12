@@ -40,16 +40,16 @@ function sPrehled() {
   '<div class="page-head"><div><h1>Ahoj, ' + escapeHtml(st.first) + '! 👋</h1>' +
     '<div class="sub">' + todayLabel() + ' · ' + escapeHtml(st.cls) + '</div></div>' +
     '<div class="page-acts"><button class="btn btn-ghost btn-sm" data-act="goto:#/student/znamky">' + ic('calc', 15) + ' Předvídač průměru</button></div></div>' +
-  '<div class="warn-line" data-cd>' + state.icon + ' <span data-cd-txt>' + state.txt + '</span></div>' +
+  (state.txt && state.txt.indexOf('skončilo') === -1 && state.txt.indexOf('není škola') === -1 ? '<div class="warn-line" data-cd>' + state.icon + ' <span data-cd-txt>' + state.txt + '</span></div>' : '') +
   '<div class="grid grid-3">' +
     '<div class="card" style="grid-column:span 2">' +
       '<div class="card-title">' + ic('zap', 17) + ' Tvůj průměr</div>' +
       '<div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">' +
         '<span class="avg-big" style="color:' + avgColor(avg) + '">' + avgTxt(avg) + '</span>' +
         (worst && worst.avg > 3
-          ? '<span class="chip chip-bad">pozor na ' + escapeHtml(SUBJECTS[worst.subj].name) + ' (' + worst.avg.toFixed(2) + ')</span>'
-          : '<span class="chip chip-ok">' + (avg === null ? 'zatím žádné známky' : 'držíš to pěkně') + '</span>') +
-        '<span class="small-note" style="margin-left:auto">' + cnt + ' ' + csPlural(cnt, 'započítaná známka', 'započítané známky', 'započítaných známek') + '</span>' +
+          ? '<span class="chip chip-bad">Pozor na ' + escapeHtml(SUBJECTS[worst.subj].name) + ' (' + worst.avg.toFixed(2) + ')</span>'
+          : '<span class="chip chip-ok">' + (avg === null ? 'Zatím žádné známky' : 'Držíš to pěkně') + '</span>') +
+        '<span class="small-note" style="margin-left:auto">' + cnt + ' ' + csPlural(cnt, 'Započítaná známka', 'Započítané známky', 'Započítaných známek') + '</span>' +
       '</div>' +
       '<div style="margin-top:14px;display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(160px,1fr))">' +
         mySubjKeys().map(sub => {
@@ -64,7 +64,7 @@ function sPrehled() {
       '<div class="card-title">' + ic('list', 17) + ' Na dnešek/týden</div>' +
       (myTasks.length
         ? '<div class="list">' + myTasks.map(t => taskRow(t, sid, false)).join('') + '</div>'
-        : '<div class="empty"><b>Úkoly splněny</b>Máš klid 🙂</div>') +
+        : '<div class="empty"><b>Úkoly splněny</b></div>') +
       '<button class="btn btn-soft btn-sm" style="width:100%;margin-top:12px" data-act="goto:#/student/ukoly">Všechny úkoly</button>' +
     '</div>' +
   '</div>' +
@@ -72,10 +72,10 @@ function sPrehled() {
     (recent.length
       ? '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Datum</th><th>Předmět</th><th>Test / sloupec</th><th class="num">Známka</th><th class="num">Váha</th></tr></thead><tbody>' +
         recent.map(g => '<tr><td style="white-space:nowrap">' + fmtDate(g.date) + '</td><td>' + escapeHtml(SUBJECTS[g.subj].name) + '</td><td>' +
-          escapeHtml(g.title) + (g.cells[sid] === '?' ? ' <span class="chip chip-info" style="padding:0 6px;font-size:10px">plánováno</span>' : '') + '</td>' +
+          escapeHtml(g.title) + (g.cells[sid] === '?' ? ' <span class="chip chip-info" style="padding:0 6px;font-size:10px">Plánováno</span>' : '') + '</td>' +
           '<td class="num">' + gradeCellHtml(g.cells[sid], g.title) + '</td><td class="num">' + (g.weight || 1) + '×</td></tr>').join('') +
         '</tbody></table></div>'
-      : '<div class="empty"><b>Zatím žádné známky</b>Učitel teprve zakládá první sloupce 🙂</div>') +
+      : '<div class="empty"><b>Zatím žádné známky</b></div>') +
   '</div>';
 }
 function dueWithin(due, days) { return addDaysISO(todayISO(), days) >= due; }
@@ -96,101 +96,140 @@ function dayStateHtml(cls) {
     const subj = subjOf(cls, nx, 0);
     txt = 'Dnes není škola · příští hodina ' + WD_CS[weekdayOf(nx) - 1] + ' „' + escapeHtml(subj ? SUBJECTS[subj].name : '—') + '“';
   }
-  if (chgToday.length) txt += ' &nbsp;·&nbsp; <span class="chip chip-bad" style="padding:1px 8px">' + chgToday.length + ' ' + csPlural(chgToday.length, 'změna', 'změny', 'změn') + ' v rozvrhu</span>';
+  if (chgToday.length) txt += ' &nbsp;·&nbsp; <span class="chip chip-bad" style="padding:1px 8px">' + chgToday.length + ' ' + csPlural(chgToday.length, 'Změna', 'Změny', 'Změn') + ' v rozvrhu</span>';
   return { icon, txt };
 }
 
 /* --- známky + předvídač --- */
-function sZnamky() {
-  clearTick();
-  const sid = mySid();
-  const q = location.hash.split('|')[1];
-  const sel = mySubjKeys().includes(q) ? q : (mySubjKeys()[0] || 'M');
-  const list = gradesOf(sid, sel).filter(g => !g.planned);
-  const planned = gradesOf(sid, sel).filter(g => g.planned);
-  const a = weightedAvgOf(sid, sel);
-  const hasData = hasGradeData(sid);  return '' +
-  '<div class="page-head"><div><h1>Známky</h1><div class="sub">Přehled známek, průměr a co udělá nová známka s průměrem</div></div>' +
-    '<button class="btn btn-soft btn-sm" data-act="theme-toggle">' + ic('moon', 15) + ' Tmavý / světlý režim</button></div>' +
-  (mySubjKeys().length
-    ? '<div class="rcpt-row">' + mySubjKeys().map(sub =>
-        '<button class="rcpt-pill' + (sub === sel ? ' active' : '') + '" data-act="goto:#/student/znamky|' + sub + '">' + SUBJECTS[sub].name + '</button>').join('') + '</div>'
-    : '') +
-  '<div class="card">' +
-    '<div class="card-title">' + ic('book', 16) + ' ' + escapeHtml(SUBJECTS[sel].name) + '</div>' +
-      '<div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">' +
-        '<span class="avg-big" style="color:' + avgColor(a.avg) + '">' + avgTxt(a.avg) + '</span>' +
-        '<span class="chip chip-accent">' + a.count + ' ' + csPlural(a.count, 'známka v průměru', 'známky v průměru', 'známek v průměru') + ' · vážený průměr</span>' +
-      '</div>' +
-      '<div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">' +
-        (list.length ? list.slice(0, 12).map(g => gradeCellHtml(g.v, g.title)).join('') : '<span class="small-note">zatím žádné známky</span>') +
-        (planned.length ? '<span class="chip chip-info">' + planned.length + '× plánováno (?)</span>' : '') +
-      '</div>' +
-  '</div>' +
-  '<div class="card" style="margin-top:16px">' +
-    '<div class="card-title">' + ic('list', 16) + ' Seznam známek – ' + escapeHtml(SUBJECTS[sel].name) + '</div>' +
-    (list.length || planned.length
-      ? '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Datum</th><th>Test / sloupec</th><th class="num">Známka</th><th class="num">Váha</th><th>Poznámka učitele</th></tr></thead><tbody>' +
-        gradesOf(sid, sel).slice().reverse().map(g =>
-          '<tr><td style="white-space:nowrap">' + fmtDate(g.date) + '</td><td>' + escapeHtml(g.title) + '</td>' +
-          '<td class="num">' + (g.planned
-            ? '<span class="chip chip-info">? plánováno</span>'
-            : '<span class="g-cell ' + gradeColor(g.v) + '">' + escapeHtml(g.v) + '</span>') + '</td>' +
-          '<td class="num">' + (g.planned ? '—' : g.w + '×') + '</td>' +
-          '<td style="color:var(--muted)">' + (g.note ? escapeHtml(g.note) : '') + '</td></tr>').join('') +
-        '</tbody></table></div>'
-      : '<div class="empty"><b>' + (hasData ? 'V tomto předmětu zatím nic' : 'Škola je zatím prázdná') + '</b>' + (hasData ? 'Až učitel založí první sloupec, objeví se tady.' : 'Zeptej se učitele, kdy začnete.') + '</div>') +
-  '</div>' +
-  '<div class="card" style="margin-top:16px">' +
-    '<div class="card-title" style="color:var(--accent)">' + ic('zap', 17) + ' Předvídač průměru</div>' +
-      '<div style="display:grid;grid-template-columns:auto 1fr;gap:6px 16px;align-items:center;font-size:14.5px">' +
-        '<b>Co kdybych dostal</b><div class="seg" id="pred-grade">' +
-          GRADE_TOKENS.slice(0, 9).map(v => '<button data-act="pred-g:' + v + '" class="' + (v === '2' ? 'on' : '') + '">' + v + '</button>').join('') +
-          '<button data-act="pred-g:N">N</button><button data-act="pred-g:A">A</button></div>' +
-        '<b>Váha známky</b><div style="display:flex;gap:10px;align-items:center">' +
-          '<input type="range" min="1" max="10" value="1" style="flex:1" data-chg="pred-w" id="pred-w"><b id="pred-wv" style="color:var(--accent);min-width:2em">1</b></div>' +
-      '</div>' +
-      '<div id="pred-out" style="margin-top:16px">' + predOutputHtml(sid, sel) + '</div>' +
-      '<div class="small-note">N = nepsal(a) – dopíšeš · A = absence u testu · obojí (a „?“, plánované testy) se do průměru nepočítá. Mínusy: 1- = 1,5 … 4- = 4,5.</div>' +
+/* ================= ŽÁK · ZNÁMKY (3 záložky: Nedávné / Podle předmětu / Předvídač) ================= */
+let ZK_TAB = localStorage.getItem('zk_tab') || 'recent';
+let ZKP = { sel: null, g: '1', w: 1 };          /* stav Předvídače */
+let ZK_PRED = {};                                /* subj -> [{g, w}] přidané predikce */
+onAct('zk-tab:', el => { ZK_TAB = el.getAttribute('data-act').slice(7); localStorage.setItem('zk_tab', ZK_TAB); route(); });
+onAct('zk-acc:', el => { const acc = el.closest('.zk-acc'); if (acc) acc.classList.toggle('open'); });
+function zkAllGrades(sid) {
+  return mySubjKeys().flatMap(sub => gradesOf(sid, sub).map(g => ({ subj: sub, v: g.v, w: g.w, title: g.title, date: g.date, note: g.note, planned: g.planned })))
+    .sort((a, b) => (a.date === b.date ? 0 : a.date < b.date ? 1 : -1));
+}
+function zkCardHtml(g) {
+  return '<div class="zk-card' + (g.planned ? ' zk-plan' : '') + '">' +
+    '<span class="zk-grade ' + (g.planned ? '' : gradeColor(g.v)) + '">' + (g.planned ? '?' : escapeHtml(tokenShort(g.v))) + '</span>' +
+    '<div class="zk-mid"><div class="zk-subj">' + escapeHtml(SUBJECTS[g.subj].name) + '</div>' +
+      '<div class="zk-title">' + escapeHtml(g.title) + (g.planned ? ' <span class="chip chip-info" style="padding:0 7px;font-size:10px">Plánováno</span>' : '') + '</div></div>' +
+    '<div class="zk-meta"><div class="zk-date">' + fmtDate(g.date) + '</div><div class="zk-w">Váha: ' + (g.planned ? '—' : g.w) + '</div></div>' +
   '</div>';
 }
-let PRED = { g: '2', w: 1 };
-function predOutputHtml(sid, sel) {
-  const a = weightedAvgOf(sid, sel);
+function zkRecentHtml(sid) {
+  const all = zkAllGrades(sid);
+  if (!all.length) return '<div class="empty"><b>Zatím žádné známky</b>Známky uvidíte, jakmile je učitel zapíše.</div>';
+  return '<div class="zk-list">' + all.map(zkCardHtml).join('') + '</div>';
+}
+function zkBySubjHtml(sid, openSubj) {
+  const keys = mySubjKeys();
+  if (!keys.length) return '<div class="empty"><b>Zatím žádné známky</b>Známky uvidíte, jakmile je učitel zapíše.</div>';
+  return keys.map(sub => {
+    const gs = gradesOf(sid, sub);
+    const a = weightedAvgOf(sid, sub);
+    return '<div class="zk-acc' + (sub === openSubj ? ' open' : '') + '">' +
+      '<button class="zk-acc-head" data-act="zk-acc:">' +
+        '<span class="zk-acc-subj" style="color:' + SUBJECTS[sub].color + '">' + escapeHtml(SUBJECTS[sub].name) + '</span>' +
+        '<span class="zk-acc-meta">Průměr: <b>' + avgTxt(a.avg) + '</b> · Známky: <b>' + gs.length + '</b></span>' +
+        '<span class="zk-chev">' + ic('arrowR', 15) + '</span></button>' +
+      '<div class="zk-acc-body">' +
+        (gs.length
+          ? gs.slice().reverse().map(g =>
+              '<div class="zk-row">' +
+                '<span class="zk-grade sm ' + (g.planned ? '' : gradeColor(g.v)) + '">' + (g.planned ? '?' : escapeHtml(tokenShort(g.v))) + '</span>' +
+                '<div class="zk-mid"><div class="zk-title">' + escapeHtml(g.title) + '</div>' + (g.note ? '<div class="zk-note">' + escapeHtml(g.note) + '</div>' : '') + '</div>' +
+                '<div class="zk-meta"><div class="zk-date">' + fmtDate(g.date) + '</div><div class="zk-w">Váha: ' + (g.planned ? '—' : g.w) + '</div></div>' +
+              '</div>').join('')
+          : '<div class="small-note" style="padding:10px 4px">V tomto předmětu zatím žádné známky</div>') +
+      '</div></div>';
+  }).join('');
+}
+function zkPredAvg(sid, sel) {
   const num = numericGradesOf(sid, sel);
-  const sw = num.reduce((s, g) => s + (g.w || 1), 0);
-  const sv = num.reduce((s, g) => s + g.v * (g.w || 1), 0);
-  if (tokenCounted(PRED.g)) {
-    const hv = tokenVal(PRED.g);
-    const newAvg = (sv + hv * PRED.w) / (sw + PRED.w);
-    const diff = newAvg - a.avg;
-    return '<div class="list-row" style="background:var(--surface-2)">' +
-      '<span class="avg-big" style="color:' + avgColor(a.avg) + '">' + avgTxt(a.avg) + '</span>' + ic('arrowR', 18) +
-      '<span class="avg-big" style="color:' + avgColor(newAvg) + '">' + newAvg.toFixed(2) + '</span>' +
-      '<span class="chip ' + (diff <= 0 ? 'chip-ok' : 'chip-bad') + '">' + (diff <= 0 ? '▲ lepší o ' : '▼ horší o ') + Math.abs(diff).toFixed(2) + '</span>' +
-      '<div class="small-note" style="margin-left:auto">průměr z ' + num.length + ' ' + csPlural(num.length, 'známky', 'známek', 'známek') + ' → ' + (num.length + 1) + '</div></div>';
-  }
-  return '<div class="warn-line">' + ic('eye', 15) + ' <span>Známka <b>' + PRED.g + '</b> se do průměru nepočítá – průměr zůstává <b style="color:' + avgColor(a.avg) + '">' + avgTxt(a.avg) + '</b>.</span></div>';
+  let sw = num.reduce((s, g) => s + (g.w || 1), 0);
+  let sv = num.reduce((s, g) => s + g.v * (g.w || 1), 0);
+  let cnt = num.length;
+  (ZK_PRED[sel] || []).forEach(p => { if (tokenCounted(p.g)) { sw += p.w; sv += tokenVal(p.g) * p.w; cnt++; } });
+  return sw ? { avg: sv / sw, count: cnt } : { avg: null, count: 0 };
 }
-function predRender() {
+function zkPredHtml(sid) {
+  const keys = mySubjKeys();
+  if (!keys.length) return '<div class="empty"><b>Zatím žádné známky</b>Předvídač se zpřístupní, jakmile budou známky.</div>';
+  const sel = keys.includes(ZKP.sel) ? ZKP.sel : keys[0];
+  const cur = weightedAvgOf(sid, sel);
+  const preds = ZK_PRED[sel] || [];
+  const preview = zkPredAvg(sid, sel);
+  const tokens = ['1', '1-', '2', '2-', '3', '3-', '4', '4-', '5', 'N', 'A'];
+  return '' +
+    '<div class="zk-acc open"><button class="zk-acc-head" data-act="zk-acc:">' +
+      '<span class="zk-acc-subj" style="color:' + SUBJECTS[sel].color + '">' + escapeHtml(SUBJECTS[sel].name) + '</span>' +
+      '<span class="zk-acc-meta">Průměr: <b>' + avgTxt(cur.avg) + '</b></span><span class="zk-chev">' + ic('arrowR', 15) + '</span></button>' +
+      '<div class="zk-acc-body"><div class="zk-subpick">' + keys.map(k =>
+        '<button class="rcpt-pill' + (k === sel ? ' active' : '') + '" data-act="zk-pred-subj:' + k + '">' + SUBJECTS[k].name + '</button>').join('') + '</div></div></div>' +
+    '<div class="zk-pred-box">' +
+      '<div class="zk-lbl">Známka</div>' +
+      '<div class="zk-seg">' + tokens.map(v => '<button class="zk-seg-b' + (v === ZKP.g ? ' on' : '') + '" data-act="zk-pred-g:' + v + '">' + v + '</button>').join('') + '</div>' +
+      '<div class="zk-lbl">Váha</div>' +
+      '<div class="zk-seg">' + Array.from({ length: 10 }, (_, i) => i + 1).map(w => '<button class="zk-seg-b wb' + (w === ZKP.w ? ' on' : '') + '" data-act="zk-pred-w:' + w + '">' + w + '</button>').join('') + '</div>' +
+    '</div>' +
+    '<div class="zk-avgbar"><span>Průměr: <b>' + avgTxt(cur.avg) + '</b></span><span>Nový průměr: <b>' + avgTxt(preview.avg) + '</b></span></div>' +
+    '<button class="btn btn-primary" style="width:100%;margin:12px 0" data-act="zk-pred-add">' + ic('plus', 15) + ' Přidat známku</button>' +
+    ((preds.length || numericGradesOf(sid, sel).length)
+      ? '<div class="zk-list">' +
+          preds.map((p, i) =>
+            '<div class="zk-row"><span class="zk-grade sm ' + (tokenCounted(p.g) ? gradeColor(p.g) : '') + '">' + p.g + '</span>' +
+              '<div class="zk-mid"><div class="zk-title">Předvídač</div></div>' +
+              '<div class="zk-meta"><div class="zk-w">Váha: ' + p.w + '</div>' +
+              '<button class="icon-btn sm" data-act="zk-pred-del:' + i + '" title="Odebrat" style="color:var(--bad)">' + ic('x', 14) + '</button></div></div>').join('') +
+          numericGradesOf(sid, sel).map(g =>
+            '<div class="zk-row"><span class="zk-grade sm ' + gradeColor(g.v) + '">' + escapeHtml(tokenShort(g.v)) + '</span>' +
+              '<div class="zk-mid"><div class="zk-title">' + escapeHtml(g.title) + '</div></div>' +
+              '<div class="zk-meta"><div class="zk-w">Váha: ' + (g.w || 1) + '</div></div></div>').join('') +
+        '</div>'
+      : '<div class="small-note">Přidejte predikované známky a sledujte, jak se změní průměr</div>');
+}
+['1', '1-', '2', '2-', '3', '3-', '4', '4-', '5', 'N', 'A'].forEach(v => onAct('zk-pred-g:' + v, el => { ZKP.g = v; route(); }));
+Array.from({ length: 10 }, (_, i) => i + 1).forEach(w => onAct('zk-pred-w:' + w, () => { ZKP.w = w; route(); }));
+mySubjKeysSafe();
+function mySubjKeysSafe() { /* no-op: předměty se dispatchují dynamicky níže */ }
+function zkBindSubjHandlers() {
+  mySubjKeys().forEach(k => { if (!ACT['zk-pred-subj:' + k]) onAct('zk-pred-subj:' + k, () => { ZKP.sel = k; route(); }); });
+}
+onAct('zk-pred-add', () => {
   const sid = mySid();
-  const sel = mySubjKeys().includes(location.hash.split('|')[1]) ? location.hash.split('|')[1] : (mySubjKeys()[0] || 'M');
-  const out = document.getElementById('pred-out');
-  if (out) out.innerHTML = predOutputHtml(sid, sel);
-}
-GRADE_TOKENS.slice(0, 9).forEach(v => onAct('pred-g:' + v, () => { PRED.g = v; rebuildPred(); }));
-['N', 'A'].forEach(v => onAct('pred-g:' + v, () => { PRED.g = v; rebuildPred(); }));
-onAct('pred-w', el => {
-  PRED.w = Number(el.value);
-  const wv = document.getElementById('pred-wv');
-  if (wv) wv.textContent = el.value;
-  predRender();
+  const keys = mySubjKeys();
+  const sel = keys.includes(ZKP.sel) ? ZKP.sel : keys[0];
+  ZK_PRED[sel] = ZK_PRED[sel] || [];
+  ZK_PRED[sel].push({ g: ZKP.g, w: ZKP.w });
+  route();
 });
-function rebuildPred() {
-  document.querySelectorAll('#pred-grade button').forEach(b => {
-    b.classList.toggle('on', b.getAttribute('data-act') === 'pred-g:' + PRED.g);
-  });
-  predRender();
+onAct('zk-pred-del:', el => {
+  const sid = mySid();
+  const keys = mySubjKeys();
+  const sel = keys.includes(ZKP.sel) ? ZKP.sel : keys[0];
+  const i = Number(el.getAttribute('data-act').slice(12));
+  (ZK_PRED[sel] || []).splice(i, 1);
+  route();
+});
+function sZnamky() {
+  clearTick();
+  zkBindSubjHandlers();
+  const sid = mySid();
+  const q = location.hash.split('|')[1];
+  const deepSubj = mySubjKeys().includes(q) ? q : null;
+  if (deepSubj) { ZK_TAB = 'bysub'; localStorage.setItem('zk_tab', 'bysub'); ZKP.sel = deepSubj; }
+  const isPc = !isAppMode();
+  const tabs = [['recent', 'Nedávné'], ['bysub', 'Podle předmětu'], ['pred', 'Předvídač']];
+  const panels = { recent: zkRecentHtml(sid), bysub: zkBySubjHtml(sid, deepSubj), pred: zkPredHtml(sid) };
+  return '' +
+  '<div class="page-head"><div><h1>Známky</h1><div class="sub">Přehled známek a průměrů</div></div>' +
+    '<button class="btn btn-soft btn-sm" data-act="theme-toggle">' + ic('moon', 15) + ' Tmavý / světlý režim</button></div>' +
+  (isPc
+    ? '<div class="zk-grid3">' + tabs.map(([k, l]) => '<div class="zk-panel"><div class="zk-panel-title">' + l + '</div>' + panels[k] + '</div>').join('') + '</div>'
+    : '<div class="tabs">' + tabs.map(([k, l]) => '<button class="tab' + (ZK_TAB === k ? ' active' : '') + '" data-act="zk-tab:' + k + '">' + l + '</button>').join('') + '</div>' + panels[ZK_TAB]);
 }
 onAct('theme-toggle', () => {
   const cur = document.documentElement.getAttribute('data-theme');
@@ -276,13 +315,13 @@ function sRozvrh() {
   const noSchedule = !sc.days || Object.keys(sc.days).length === 0 || [1, 2, 3, 4, 5].every(d => !(sc.days[d] || []).some(en => en && en.subj));
   if (noSchedule) {
     return '' +
-      '<div class="page-head"><div><h1>Rozvrh</h1><div class="sub">' + escapeHtml(cls) + ' · změny červeně, odpočet naživo</div></div></div>' +
+      '<div class="page-head"><div><h1>Rozvrh</h1><div class="sub">' + escapeHtml(cls) + ' · Změny červeně, odpočet naživo</div></div></div>' +
       '<div class="empty" style="padding:60px 16px"><b>Rozvrh ještě není nastavený</b>Učitel ho teprve vyplní v záložce „Nastavit rozvrh“. Až bude hotový, uvidíš tady každý den i učebnu.</div>';
   }
 
   const inWeek = weekDates.indexOf(cur) > -1;
   return '' +
-  '<div class="page-head"><div><h1>Rozvrh</h1><div class="sub">' + escapeHtml(cls) + ' · změny červeně, odpočet naživo · ✓ zapsáno · 📖 úkol · ! písemka</div></div></div>' +
+  '<div class="page-head"><div><h1>Rozvrh</h1><div class="sub">' + escapeHtml(cls) + ' · Změny červeně, odpočet naživo</div></div></div>' +
   '<div class="rcpt-row day-pills">' + weekDates.map(d =>
     '<button class="rcpt-pill' + (d === cur ? ' active' : '') + '" data-act="roz-den:' + d + '">' + WD_CS[weekdayOf(d) - 1] + ' ' + d.slice(8) + (d === todayISO() ? ' · dnes' : '') + '</button>'
   ).join('') +
@@ -304,9 +343,9 @@ function sRozvrh() {
     (changesOfClass(cls).length
       ? '<div class="list">' + changesOfClass(cls).slice().sort((a, b) => (a.date < b.date ? -1 : 1)).map(c => {
           let detail = '';
-          if (c.kind === 'mistnost' && c.newRoom) { const r = roomsList().find(x => x.id === c.newRoom); detail = 'nová místnost: ' + (r ? r.name : '?'); }
-          else if (c.kind === 'ucitel' && c.newTeacher) detail = 'nový učitel: ' + c.newTeacher;
-          else if (c.kind === 'predmet' && c.newSubj) detail = 'náhrada: ' + subjectName(c.newSubj);
+          if (c.kind === 'mistnost' && c.newRoom) { const r = roomsList().find(x => x.id === c.newRoom); detail = 'Nová místnost: ' + (r ? r.name : '?'); }
+          else if (c.kind === 'ucitel' && c.newTeacher) detail = 'Nový učitel: ' + c.newTeacher;
+          else if (c.kind === 'predmet' && c.newSubj) detail = 'Náhrada: ' + subjectName(c.newSubj);
           return '<div class="list-row"><span class="chip chip-bad">' + changeShortLabel(c) + '</span>' +
             '<div class="grow"><div class="row-title">' + fmtDate(c.date) + ' · ' + (c.period + 1) + '. hodina</div>' +
             '<div class="row-sub">' + escapeHtml([detail, c.reason].filter(Boolean).join(' · ')) + '</div></div></div>';
@@ -426,10 +465,10 @@ onAct('s-task-msg:', el => {
 /* ================= DOCHÁZKA – detail žáka (žák i rodič) ================= */
 function absEventChip(stts) {
   return {
-    A: ['omluveno', 'chip-ok'],
-    C: ['čeká', 'chip-warn'],
-    N: ['neomluveno', 'chip-bad'],
-    D: ['dočasně', 'chip']
+    A: ['Omluveno', 'chip-ok'],
+    C: ['Čeká', 'chip-warn'],
+    N: ['Neomluveno', 'chip-bad'],
+    D: ['Dočasně', 'chip']
   }[stts] || [stts, 'chip'];
 }
 function dochazkaBodyHtml(sid) {
@@ -453,7 +492,7 @@ function dochazkaBodyHtml(sid) {
     : '') +
   '<div class="card" style="margin-top:16px">' +
     '<div class="card-title">' + ic('calendar', 16) + ' Zameškané hodiny po předmětech' +
-      '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">x / y = zameškáno z hodin zapsaných učitelem do třídní knihy</span></div>' +
+    '</div>' +
     '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Předmět</th><th class="num">Zameškáno</th><th class="num">Z hodin</th><th>Detail</th></tr></thead><tbody>' +
     subs.map(sub => {
       const b = ov.bySubj[sub];
@@ -463,14 +502,14 @@ function dochazkaBodyHtml(sid) {
       }
       const col = b.N ? 'var(--bad)' : b.missing ? 'var(--warn)' : 'var(--muted)';
       const detail = (b.missing
-        ? 'omluveno <b style="color:var(--ok)">' + b.A + '</b> · čeká <b style="color:var(--warn)">' + b.C + '</b> · neomluveno <b style="color:var(--bad)">' + b.N + '</b>'
-        : 'bez absence') + (b.D ? ' · dočasně <b style="color:var(--accent)">' + b.D + '</b>' : '');
+        ? 'Omluveno <b style="color:var(--ok)">' + b.A + '</b> · Čeká <b style="color:var(--warn)">' + b.C + '</b> · Neomluveno <b style="color:var(--bad)">' + b.N + '</b>'
+        : 'Bez absence') + (b.D ? ' · Dočasně <b style="color:var(--accent)">' + b.D + '</b>' : '');
       return '<tr><td>' + subjBadge(sub, 26) + ' <b>' + escapeHtml(SUBJECTS[sub].name) + '</b></td>' +
         '<td class="num abs-cell" style="color:' + col + '">' + b.missing + '</td>' +
         '<td class="num abs-cell">' + b.lessons + '</td>' +
         '<td style="font-size:11.5px;color:var(--muted)">' + detail + '</td></tr>';
     }).join('') + '</tbody></table></div>' +
-    (t.lessons === 0 ? '<div class="small-note" style="margin:10px 2px 0">Učitel ještě nezapsal žádnou hodinu – čísla se začnou počítat, jakmile začne zapisovat docházku do třídní knihy (✓ přítomen, ✗ nepřítomen, D dočasně – dočasné hodiny se do zameškaných nepočítají).</div>' : '') +
+    (t.lessons === 0 ? '<div class="small-note" style="margin:10px 2px 0">Učitel zatím nic nezapsal</div>' : '') +
   '</div>' +
   '<div class="card" style="margin-top:16px">' +
     '<div class="card-title">' + ic('list', 16) + ' Záznamy docházky (události)</div>' +
@@ -525,7 +564,7 @@ function pPrehled() {
     .filter(c => c.cells && c.cells[cid] !== undefined && c.cells[cid] !== '')
     .sort((a, b) => (a.date === b.date ? 0 : a.date < b.date ? 1 : -1)).slice(0, 8);
   return '' +
-  '<div class="page-head"><div><h1>Vítejte zpět, ' + escapeHtml(u.name) + '</h1><div class="sub">' + todayLabel() + ' · přehled vašich dětí</div></div>' +
+  '<div class="page-head"><div><h1>Vítejte zpět, ' + escapeHtml(u.name) + '</h1><div class="sub">' + todayLabel() + ' · Přehled vašich dětí</div></div>' +
     (unread ? '<div class="page-acts"><button class="btn btn-ghost btn-sm" data-act="goto:#/rodic/zpravy">' + ic('chat', 15) + ' Nepřečtené zprávy (' + unread + ')</button></div>' : '') + '</div>' +
   (kids.length > 1
     ? '<div class="rcpt-row">' + kids.map(k =>
@@ -535,9 +574,9 @@ function pPrehled() {
     : '') +
   '<div class="grid grid-3">' +
     '<div class="card"><div class="card-title" style="display:flex;align-items:center;gap:8px">' + ic('book', 16) + ' ' + escapeHtml(st.first) + ' – celkový průměr' +
-      '<button class="btn btn-ghost btn-sm" style="margin-left:auto" data-act="ch-child-pass:' + cid + '" title="Změnit heslo žáka">' + ic('lock', 14) + ' heslo</button></div>' +
+      '<button class="btn btn-ghost btn-sm" style="margin-left:auto" data-act="ch-child-pass:' + cid + '" title="Změnit heslo žáka">' + ic('lock', 14) + ' Změnit heslo</button></div>' +
       '<span class="avg-big" style="color:' + avgColor(avg) + '">' + avgTxt(avg) + '</span>' +
-      '<div style="margin-top:10px"><span class="chip ' + (avg === null ? '' : (avg > 3 ? 'chip-bad' : 'chip-ok')) + '">' + (avg === null ? 'zatím bez známek' : (avg > 3 ? 'potřeba podpořit' : 'vše v pořádku')) + '</span></div>' +
+      '<div style="margin-top:10px"><span class="chip ' + (avg === null ? '' : (avg > 3 ? 'chip-bad' : 'chip-ok')) + '">' + (avg === null ? 'Zatím bez známek' : (avg > 3 ? 'Potřeba podpořit' : 'Vše v pořádku')) + '</span></div>' +
       '<div style="margin-top:16px" class="tbl-wrap"><table class="tbl" style="min-width:0"><tbody>' +
         sks.map(sub => {
           const a = weightedAvgOf(cid, sub);
@@ -552,16 +591,15 @@ function pPrehled() {
         statMini('Čeká', abs.C, 'var(--warn)') + statMini('Neomluveno', abs.N, 'var(--bad)') +
         (abs.D ? statMini('Dočasně', abs.D, 'var(--accent)') : '') + '</div>' +
       (abs.lessons
-        ? '<div class="small-note" style="margin-top:10px">z ' + abs.lessons + ' hodin zapsaných v třídní knize' + (abs.N ? ' · <b style="color:var(--bad)">' + abs.pct + ' % neomluvených (limit 25 %)</b>' : '') + '</div>'
-        : '<div class="small-note" style="margin-top:10px">učitel zatím nezapsal žádnou hodinu do třídní knihy</div>') +
+        ? '<div class="small-note" style="margin-top:10px">Z ' + abs.lessons + ' hodin zapsaných v třídní knize' + (abs.N ? ' · <b style="color:var(--bad)">' + abs.pct + ' % neomluvených (limit 25 %)</b>' : '') + '</div>'
+        : '<div class="small-note" style="margin-top:10px">Učitel zatím nic nezapsal</div>') +
       '<div class="card-title" style="margin-top:18px">' + ic('book', 16) + ' Poslední záznamy</div>' +
       (recent.length
         ? '<div class="list">' + recent.map(g =>
             '<div class="list-row" style="padding:9px 11px">' + gradeCellHtml(g.cells[cid], g.title) +
             '<div class="grow"><div class="row-sub">' + escapeHtml(SUBJECTS[g.subj].name) + ' · ' + escapeHtml(g.title) + '</div>' +
-            '<div style="font-size:11px;color:var(--muted)">' + fmtDate(g.date) + (g.cells[cid] === '?' ? ' · plánováno' : '') + '</div></div></div>'
-          ).join('') + '</div>'
-        : '<div class="empty">Zatím žádné známky</div>') +
+            '<div style="font-size:11px;color:var(--muted)">' + fmtDate(g.date) + (g.cells[cid] === '?' ? ' · Plánováno' : '') + '</div></div></div>'
+          ).join('') + '</div>'          : '<div class="empty">Zatím žádné známky</div>') +
     '</div>' +
     '<div class="card">' +
       '<div class="card-title">' + ic('chat', 16) + ' Zprávy od učitele</div>' +
@@ -569,7 +607,7 @@ function pPrehled() {
         (Object.values(db.threads || {}).filter(t => t.childId === cid).length
           ? Object.values(db.threads).filter(t => t.childId === cid).flatMap(t =>
               t.msgs.filter(m => m.from !== u.id).slice(-2).map(m =>
-                '<div class="list-row" style="padding:9px 11px;cursor:pointer" data-act="goto:#/rodic/zpravy"><span class="chip ' + (m.readAt ? '' : 'chip-accent') + '">' + (m.readAt ? 'přečteno' : 'nové') + '</span>' +
+                '<div class="list-row" style="padding:9px 11px;cursor:pointer" data-act="goto:#/rodic/zpravy"><span class="chip ' + (m.readAt ? '' : 'chip-accent') + '">' + (m.readAt ? 'Přečteno' : 'Nové') + '</span>' +
                 '<div class="grow"><div class="row-sub">' + escapeHtml(m.text.length > 90 ? m.text.slice(0, 90) + '…' : m.text) + '</div>' +
                 '<div style="font-size:11px;color:var(--muted)">' + tsLabel(m.ts) + '</div></div></div>'
               )
@@ -578,7 +616,7 @@ function pPrehled() {
       '</div>' +
       '<div class="card-title" style="margin-top:16px">' + ic('shield', 16) + ' Omluvenky</div>' +
       '<button class="btn btn-soft btn-sm" style="width:100%;margin-top:10px" data-act="goto:#/rodic/omluvenky">Nová omluvenka / historie</button>' +
-      '<div class="ok-line" style="margin-top:14px">' + ic('lock', 15) + ' <span>Data jsou zabezpečená – vy vidíte jen údaje svých dětí.</span></div>' +
+      '' +
     '</div>' +
   '</div>';
 }
@@ -589,7 +627,7 @@ onAct('ch-child-pass:', el => {
   if (!st) return;
   openModal(
     '<h3>Změnit heslo žáka · ' + escapeHtml(st.first + ' ' + st.last) + '</h3>' +
-    '<p class="small-note" style="margin-bottom:12px">Podmínky: alespoň 8 znaků a minimálně 1 číslice. Přihlašovací jméno se měnit nedá.</p>' +
+    '<p class="small-note" style="margin-bottom:12px">Alespoň 8 znaků a 1 číslice</p>' +
     '<form data-form="pass-child">' +
       '<input type="hidden" name="sid" value="' + sid + '">' +
       passFieldsHtml('') +
@@ -652,15 +690,15 @@ function pOmluvenky() {
         '<div class="field"><label>Poznámka (volitelné)</label><textarea id="exc-note" name="note" rows="2" placeholder="Např. teplota od rána, u doktora v 9 hodin…">' + escapeHtml(EXC.note) + '</textarea></div>' +
         '<button class="btn btn-primary">' + ic('send', 15) + ' Odeslat omluvenku</button>' +
       '</form>' +
-      '<div class="small-note">Učitel u hodiny hned vidí, jestli je omluvená: do schválení <b>Č</b> (čeká), po schválení <b>A</b> (omluveno). Nedorazí-li omluvenka do 3 dnů, hodina se počítá jako neomluvená (<b>N</b>) – pozdější omluvenka ji ale stále změní na omluvenou.</div>' +
+      '' +
     '</div>' +
     '<div class="card"><div class="card-title">' + ic('shield', 16) + ' Historie omluvenek</div>' +
       (mine.length
         ? '<div class="list">' + mine.map(x => {
             const st2 = studentOf(x.childId);
-            return '<div class="list-row"><span class="chip ' + (x.status === 'schvaleno' ? 'chip-ok' : x.status === 'zamitnuto' ? 'chip-bad' : 'chip-warn') + '">' + { schvaleno: 'schváleno', zamitnuto: 'zamítnuto', ceka: 'čeká na schválení' }[x.status] + '</span>' +
+            return '<div class="list-row"><span class="chip ' + (x.status === 'schvaleno' ? 'chip-ok' : x.status === 'zamitnuto' ? 'chip-bad' : 'chip-warn') + '">' + { schvaleno: 'Schváleno', zamitnuto: 'Zamítnuto', ceka: 'Čeká na schválení' }[x.status] + '</span>' +
             '<div class="grow"><div class="row-title">' + escapeHtml(st2 ? st2.first + ' ' + st2.last : '') + '</div>' +
-            '<div class="row-sub">' + fmtDate(x.date) + ' · ' + escapeHtml(excuseHoursLabel(st2 ? st2.cls : '', x.date, x.periods) || 'celý den') + (x.reason ? ' · ' + escapeHtml(x.reason) : '') + (x.note ? ' · ' + escapeHtml(x.note) : '') + '</div></div>' +
+            '<div class="row-sub">' + fmtDate(x.date) + ' · ' + escapeHtml(excuseHoursLabel(st2 ? st2.cls : '', x.date, x.periods) || 'Celý den') + (x.reason ? ' · ' + escapeHtml(x.reason) : '') + (x.note ? ' · ' + escapeHtml(x.note) : '') + '</div></div>' +
             (x.decidedAt ? '<div style="font-size:11px;color:var(--muted);text-align:right">rozhodnuto<br>' + tsLabel(x.decidedAt) + '</div>' : '') + '</div>';
           }).join('') + '</div>'
         : '<div class="empty"><b>Zatím žádné omluvenky</b>Když bude potřeba, je to na pár kliknutí.</div>') +

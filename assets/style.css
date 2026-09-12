@@ -405,6 +405,48 @@ textarea.ta { min-height: 44px; }
 .compose textarea { flex: 1; resize: none; }
 
 /* pills for recipients */
+/* ---- Žák · Známky (karty, akordeon, předvídač) ---- */
+.zk-grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-items: start; }
+.zk-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px; }
+.zk-panel-title { font-weight: 900; font-size: 15px; margin-bottom: 10px; color: var(--accent); }
+.zk-list { display: grid; gap: 10px; }
+.zk-card { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 12px; padding: 11px 13px; }
+.zk-card.zk-plan { border-left-color: var(--warn); opacity: .85; }
+.zk-grade { display: inline-grid; place-items: center; min-width: 38px; height: 38px; border-radius: 10px; font-weight: 900; font-size: 17px; background: var(--surface-2); border: 1px solid var(--border); }
+.zk-grade.sm { min-width: 30px; height: 30px; font-size: 14px; border-radius: 8px; }
+.zk-grade.grad-1 { color: #10B981; border-color: rgba(16,185,129,.4); background: rgba(16,185,129,.1); }
+.zk-grade.grad-2 { color: #84CC16; border-color: rgba(132,204,22,.4); background: rgba(132,204,22,.1); }
+.zk-grade.grad-3 { color: #F59E0B; border-color: rgba(245,158,11,.4); background: rgba(245,158,11,.1); }
+.zk-grade.grad-4 { color: #F97316; border-color: rgba(249,115,22,.4); background: rgba(249,115,22,.1); }
+.zk-grade.grad-5 { color: #EF4444; border-color: rgba(239,68,68,.4); background: rgba(239,68,68,.1); }
+.zk-mid { flex: 1; min-width: 0; }
+.zk-subj { font-weight: 800; font-size: 14px; color: var(--accent); }
+.zk-title { font-size: 13.5px; font-weight: 600; }
+.zk-note { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+.zk-meta { text-align: right; font-size: 12px; color: var(--muted); display: grid; gap: 2px; }
+.zk-w { color: var(--accent); font-weight: 700; }
+.zk-acc { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 10px; overflow: hidden; }
+.zk-acc-head { display: flex; align-items: center; gap: 10px; width: 100%; padding: 13px 14px; background: none; border: 0; cursor: pointer; text-align: left; }
+.zk-acc-subj { font-weight: 900; font-size: 14.5px; }
+.zk-acc-meta { margin-left: auto; font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.zk-acc-meta b { color: var(--text); }
+.zk-chev { transition: transform .15s ease; color: var(--muted); }
+.zk-acc.open .zk-chev { transform: rotate(90deg); }
+.zk-acc-body { display: none; border-top: 1px solid var(--border); }
+.zk-acc.open .zk-acc-body { display: block; }
+.zk-row { display: flex; align-items: center; gap: 11px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.zk-row:last-child { border-bottom: 0; }
+.zk-subpick { display: flex; flex-wrap: wrap; gap: 7px; padding: 12px 14px; }
+.zk-pred-box { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 13px 14px; margin-bottom: 10px; }
+.zk-lbl { font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 8px 0 6px; }
+.zk-lbl:first-child { margin-top: 0; }
+.zk-seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.zk-seg-b { min-width: 42px; height: 38px; padding: 0 10px; border-radius: 9px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font-weight: 800; font-size: 14.5px; cursor: pointer; }
+.zk-seg-b.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.zk-seg-b.wb { min-width: 36px; height: 32px; font-size: 13px; }
+.zk-avgbar { display: flex; justify-content: space-between; gap: 10px; background: rgba(59,130,246,.12); border: 1px solid rgba(59,130,246,.35); border-radius: 10px; padding: 11px 14px; font-size: 14px; }
+.zk-avgbar b { font-size: 16px; }
+@media (max-width: 980px) { .zk-grid3 { grid-template-columns: 1fr; } }
 .rcpt-pill {
   display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px; border-radius: 999px;
   background: var(--surface-2); border: 1px solid var(--border); cursor: pointer;

@@ -499,7 +499,7 @@ function tPololetka() {
               '<td>' + (stSubjCnt === 0 ? '<span class="chip">Bez známek</span>' : cnt >= stSubjCnt ? '<span class="chip chip-ok">Hotovo</span>' : '<span class="chip chip-warn">' + cnt + '/' + stSubjCnt + '</span>') + '</td></tr>';
           }).join('') + '</tbody></table></div>' +
         (closed
-          ? '<div class="small-note" style="margin-top:10px">Vysvědčení je uzavřené – žáci a rodiče vidí výsledek. Znovuotevřením se vrátí do návrhu a změny se projeví po novém uzavření.</div>'
+          ? '<div class="small-note" style="margin-top:10px">Klasifikace je uzavřená – výsledek vidí žáci i rodiče</div>'
           : '<div class="small-note" style="margin-top:10px">„Ø“ = průměr známek daného pololetí (vážený). Po uzavření uvidí výsledek žák i rodič.</div>') +
       '</div>'
     : '<div class="card"><div class="empty">' + (!sts.length ? '<b>Ve třídě zatím nejsou žáci</b>' : '<b>Třída zatím nemá předměty se známkami</b>Zapište nejdřív známky v Známkování (nebo nastavte rozvrh).') + '</div></div>');
@@ -1022,7 +1022,7 @@ onAct('t-msg-later', () => {
   const defDt = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate() + 1);
   openModal(
     '<h3>Naplánovat odeslání</h3>' +
-    '<p class="small-note" style="margin-bottom:12px">Zpráva se odešle automaticky ve zvolený čas (nelze naplánovat do minulosti).</p>' +
+    '<p class="small-note" style="margin-bottom:12px">Zpráva se odešle ve zvolený čas</p>' +
     '<form data-form="t-msg-later-save">' +
       '<div class="field"><label>Datum</label><input type="date" name="date" min="' + minDt + '" value="' + defDt + '" required></div>' +
       '<div class="field"><label>Čas</label><input type="time" name="time" value="08:00" required></div>' +
@@ -1096,7 +1096,7 @@ function tOmluvenky() {
       '<div class="card"><div class="card-title">' + ic('list', 16) + ' Historie</div>' +
         (history.length ? '<div class="list">' + history.map(x => {
           const st = studentOf(x.childId);
-          return '<div class="list-row"><span class="chip ' + (x.status === 'schvaleno' ? 'chip-ok' : 'chip-bad') + '">' + (x.status === 'schvaleno' ? 'schváleno' : 'zamítnuto') + '</span>' +
+          return '<div class="list-row"><span class="chip ' + (x.status === 'schvaleno' ? 'chip-ok' : 'chip-bad') + '">' + (x.status === 'schvaleno' ? 'Schváleno' : 'Zamítnuto') + '</span>' +
             '<div class="grow"><div class="row-title">' + escapeHtml(st.first + ' ' + st.last) + '</div><div class="row-sub">' + fmtDate(x.date) + ' · ' + escapeHtml(excuseHoursLabel(st.cls, x.date, x.periods) || 'celý den') + ' · ' + escapeHtml(x.reason) + '</div></div></div>';
         }).join('') + '</div>' : '<div class="empty">Zatím žádné vyřízené omluvenky</div>') +
       '</div>' +
@@ -1230,7 +1230,7 @@ function rzEditorHtml(cid) {
       '<button class="btn btn-soft btn-sm" data-act="rt-slot-rm">' + ic('x', 14) + ' Odebrat poslední hodinu</button>' +
       '<button class="btn btn-ghost btn-sm" data-act="t-stud-add">' + ic('users', 14) + ' Žáci třídy…</button>' +
     '</div>' +
-    '<div class="small-note" style="margin-top:10px">Předmět „—“ = v tuto hodinu se nic nevyučuje (bude se zobrazovat jako volno).</div>' +
+    '<div class="small-note" style="margin-top:10px">Předmět „—“ = Volno</div>' +
   '</div>' +
   '<div class="small-note" style="margin-top:14px">' + ic('home', 13) + ' Učebny (názvy, zkratky a barvy) se spravují v sekci <b data-act="goto:#/ucitel/ucebny" style="cursor:pointer;color:var(--accent)">Učebny</b>.</div>'
   '</div>';
@@ -1294,8 +1294,8 @@ function tPredmety() {
     '<div class="list-row">' + subjBadge(s.code, 36) +
     '<div class="grow"><div class="row-title">' + escapeHtml(s.name) +
       (s.builtin
-        ? ' <span class="chip" style="padding:0 7px;font-size:10px">základní</span>'
-        : ' <span class="chip chip-accent" style="padding:0 7px;font-size:10px">vlastní</span>') + '</div>' +
+        ? ' <span class="chip" style="padding:0 7px;font-size:10px">Základní</span>'
+        : ' <span class="chip chip-accent" style="padding:0 7px;font-size:10px">Vlastní</span>') + '</div>' +
     '<div class="row-sub">' +
           'Kód: <code class="mono">' + escapeHtml(s.code) + '</code>' +
       (subjectUsageCount(s.code) ? ' · Použito na ' + subjectUsageCount(s.code) + ' ' + csPlural(subjectUsageCount(s.code), 'místě', 'místech', 'místech') : '') + '</div></div>' +
@@ -1373,7 +1373,7 @@ onAct('sub-edit:', el => {
       '<input type="hidden" name="code" value="' + escapeHtml(code) + '">' +
       '<div class="field"><label>Název</label><input name="name" value="' + escapeHtml(s.name) + '" required></div>' +
       '<div class="field"><label>Zkratka</label><input name="code2" value="' + escapeHtml(code) + '" maxlength="4" required style="font-family:monospace;text-transform:uppercase">' +
-      '<span class="small-note" style="margin:4px 0 0">Zkratka se používá v rozvrhu i známkování. Přejmenování zkratky nezahodí známky.</span></div>' +
+      '<span class="small-note" style="margin:4px 0 0">Zkratka se používá v rozvrhu i známkování</span></div>' +
       '<div class="field"><label>Barva</label>' + subjectColorGrid(s.color, 'color') + '</div>' +
       '<button class="btn btn-primary">Uložit změny</button>' +
     '</form>');
@@ -1459,7 +1459,7 @@ function tUcebny() {
       '</div>' +
       '<div class="card"><div class="card-title">' + ic('clock', 16) + ' Jak to vypadá v rozvrhu' +
         '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">ukázka</span></div>' +
-        '<div class="small-note" style="margin:0 0 12px">U každé hodiny se zobrazí jen barevná zkratka učebny, kterou tu nastavíte – prázdné políčko znamená hodinu bez učebny.</div>' +
+        '<div class="small-note" style="margin:0 0 12px">V rozvrhu se zobrazí jen barevná zkratka učebny</div>' +
         '<div class="empty"><b>V rozvrhu se píše zkratka</b>Žák i učitel uvidí u hodiny místo celého názvu barevnou zkratku – celé jméno se ukáže po najetí myší.</div>' +
       '</div>' +
     '</div>';
@@ -1492,7 +1492,7 @@ onAct('rm-edit:', el => {
       '<input type="hidden" name="id" value="' + escapeHtml(rid) + '">' +
       '<div class="field"><label>Název</label><input name="name" value="' + escapeHtml(r.name) + '" required></div>' +
       '<div class="field"><label>Zkratka</label><input name="short" value="' + escapeHtml(r.short || '') + '" maxlength="6" required style="font-family:monospace;text-transform:uppercase">' +
-      '<span class="small-note" style="margin:4px 0 0">Zkratka se zobrazuje v rozvrhu místo celého názvu (např. A607).</span></div>' +
+      '<span class="small-note" style="margin:4px 0 0">Zobrazuje se v rozvrhu místo názvu</span></div>' +
       '<div class="field"><label>Barva</label>' + roomColorGrid(r.color) + '</div>' +
       '<button class="btn btn-primary">Uložit změny</button>' +
     '</form>');
@@ -2315,9 +2315,9 @@ function tZmenyRozvrh() {
     let detail = '';
     if (c.kind === 'mistnost' && c.newRoom) {
       const r = roomsList().find(x => x.id === c.newRoom);
-      detail = 'nová místnost: ' + (r ? r.name : '?');
-    } else if (c.kind === 'ucitel' && c.newTeacher) detail = 'nový učitel: ' + c.newTeacher;
-    else if (c.kind === 'predmet' && c.newSubj) detail = 'náhrada: ' + subjectName(c.newSubj);
+      detail = 'Nová místnost: ' + (r ? r.name : '?');
+    } else if (c.kind === 'ucitel' && c.newTeacher) detail = 'Nový učitel: ' + c.newTeacher;
+    else if (c.kind === 'predmet' && c.newSubj) detail = 'Náhrada: ' + subjectName(c.newSubj);
     return '<div class="list-row"><span class="chip chip-bad">' + changeShortLabel(c) + '</span>' +
       '<div class="grow"><div class="row-title">' + fmtDate(c.date) + ' · ' + (c.period + 1) + '. hodina</div>' +
       '<div class="row-sub">' + escapeHtml([detail, c.reason].filter(Boolean).join(' · ')) + '</div></div>' +
@@ -2341,7 +2341,7 @@ function tZmenyRozvrh() {
         SUBJ_KEYS.map(s => '<option value="' + s + '">' + escapeHtml(SUBJECTS[s].name) + '</option>').join('') + '</select></div>' +
       '<div class="field"><label>Důvod</label><input class="txt" id="zr-reason" placeholder="Např. nemoc učitele, školení…"></div>' +
       '<button class="btn btn-primary" data-act="t-zr-save">' + ic('check', 15) + ' Uložit změnu</button>' +
-      '<div class="small-note" style="margin-top:10px">Změna se týká jen hodin, které má třída v rozvrhu. Žáci a rodiče uvidí změnu červeně v Rozvrhu a dostanou oznámení.</div>' +
+      '<div class="small-note" style="margin-top:10px">Žáci a rodiče uvidí změnu červeně v Rozvrhu</div>' +
     '</div>' +
     '<div class="card"><div class="card-title">' + ic('bell', 16) + ' Změny třídy (' + list.length + ')</div>' +
       (list.length ? '<div class="list">' + list.map(row).join('') + '</div>'

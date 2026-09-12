@@ -346,7 +346,7 @@ function renderLogin() {
         ? '<button type="button" class="btn btn-soft btn-sm" style="width:100%;margin-top:8px" data-act="goto:#/org-request">' + ic('plus', 15) + ' Založit organizaci</button>'
         : '') +
       (remHtml ? remHtml : '') +
-      '<p class="small-note" style="text-align:center;margin-top:14px">Učitelé, žáci a rodiče se přihlásí údaji, které jim správce vygeneroval.</p>' +
+      '<p class="small-note" style="text-align:center;margin-top:14px">Přihlásíte se údaji, které vám vygeneroval správce</p>' +
     '</div></div>';
 }
 
@@ -450,7 +450,7 @@ onAct('ch-pass', () => {
   if (!u) return;
   openModal(
     '<h3>Změnit heslo</h3>' +
-    '<p class="small-note" style="margin-bottom:12px">Podmínky: alespoň 8 znaků a minimálně 1 číslice. Přihlašovací jméno se měnit nedá.</p>' +
+    '<p class="small-note" style="margin-bottom:12px">Alespoň 8 znaků a 1 číslice</p>' +
     '<form data-form="pass-change">' + passFieldsHtml('') +
       '<button class="btn btn-primary">Uložit nové heslo</button>' +
     '</form>');
@@ -470,7 +470,7 @@ onAct('form:pass-change', f => {
 onAct('forgot-pass', () => {
   openModal(
     '<h3>Zapomněli jste heslo?</h3>' +
-    '<p class="small-note" style="margin-bottom:12px">Zadejte své přihlašovací jméno – žádost dorazí tomu, kdo ji může vyřídit (třídní učitel žáka/rodiče, správce organizace učitelům, zakladatel aplikace správci).</p>' +
+    '<p class="small-note" style="margin-bottom:12px">Zadejte přihlašovací jméno – žádost dorazí tomu, kdo ji vyřídí</p>' +
     '<form data-form="forgot-send">' +
       '<div class="field"><label>Přihlašovací jméno</label><input name="login" required autocomplete="username" placeholder="např. hana.dostupilova" style="font-family:monospace"></div>' +
       '<button class="btn btn-primary">' + ic('arrowR', 15) + ' Odeslat žádost</button>' +
@@ -552,7 +552,7 @@ function orgReqRender(mode, draft) {
       '<h1>Založit organizaci 🏫</h1>' +
       '<p class="login-sub">Odešlete žádost správci SchoolSys – po schválení dostanete vlastní správu tříd a loginů.</p>' +
       (!pcOnly
-        ? '<div class="card" style="border-color:var(--warn);margin-bottom:14px"><b>🖥️ Pouze na počítači</b><p class="small-note" style="margin:6px 0 0">Žádost o založení organizace lze odeslat jen z počítače. Otevřete SchoolSys na PC.</p></div>'
+        ? '<div class="card" style="border-color:var(--warn);margin-bottom:14px"><b>🖥️ Pouze na počítači</b><p class="small-note" style="margin:6px 0 0">Žádost lze odeslat jen z počítače</p></div>'
         : '') +
       '<form data-form="org-request"' + (pcOnly ? '' : ' data-disabled="1"') + '>' +
         '<div class="field-row">' +
@@ -568,11 +568,11 @@ function orgReqRender(mode, draft) {
           '<div class="field"><label>Uživatelské jméno pro kontakt *</label><input name="username" required value="' + val('username') + '" placeholder="např. jan.novak" style="font-family:monospace"' + (pcOnly ? '' : ' disabled') + '></div>' +
           '<div class="field"><label>Heslo pro kontakt *</label><input name="pass" type="password" required value="" placeholder="min. 8 znaků a 1 číslice"' + (pcOnly ? '' : ' disabled') + '></div>' +
         '</div>' +
-        '<p class="small-note" style="margin:4px 0 10px">Na kontaktní účet se přihlásíte až po schválení žádosti (přihlášení funguje jen na PC).</p>' +
+        '<p class="small-note" style="margin:4px 0 10px">Přihlášení až po schválení žádosti (jen na PC)</p>' +
         (pcOnly ? '<button class="btn btn-primary" style="width:100%">' + ic('send', 16) + ' Odeslat žádost správci</button>' : '') +
       '</form>' +
       '<button type="button" class="btn btn-ghost btn-sm" style="width:100%;margin-top:10px" data-act="goto:#/login">Zpět na přihlášení</button>' +
-      '<p class="small-note" style="text-align:center;margin-top:14px">Správce žádost posoudí a schválený kontaktní účet dostane správu tříd a loginů své organizace.</p>' +
+      '<p class="small-note" style="text-align:center;margin-top:14px">Správce žádost posoudí – kontaktní účet dostane správu své organizace</p>' +
     '</div></div>';
 }
 function routeOrgRequest() {
