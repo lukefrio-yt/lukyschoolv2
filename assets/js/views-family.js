@@ -254,9 +254,9 @@ function sRozvrh() {
       const en = sc.days[weekdayOf(dayISO)] ? sc.days[weekdayOf(dayISO)][i] : null;
       const isNow = nowInfo.state === 'now' && nowInfo.lesson && nowInfo.lesson.period === i;
       const subj = en ? en.subj : null;
-      if (!subj) return '';
+      const addedChg = !subj ? (db.changes || []).find(c => c.cls === cls && c.date === dayISO && c.period === i && c.kind === 'pridana') : null;
+      if (!subj && !addedChg) return '';
       const chg = changeFor(cls, dayISO, i);
-      /* drobné ikonky před zkratkou předmětu: ✓ zapsáno v třídní knize · 📖 úkol · ! písemka */
       const ics = [];
       const cb = (db.classbook || []).find(r => r.cls === cls && r.date === dayISO && r.period === i);
       if (cb) ics.push('<span class="l-ic g-ok" title="Hodina je už zapsaná v třídní knize">' + ic('check', 12) + '</span>');
@@ -282,12 +282,21 @@ function sRozvrh() {
       } else if (chg && chg.kind === 'ucitel') {
         badge = subjBadge(subj, 42) + icsHtml;
         title = escapeHtml(SUBJECTS[subj].name);
-        subTxt = '<span class="chip chip-bad">učitel: ' + escapeHtml(chg.newTeacher || '') + '</span>' + (chg.reason ? ' ' + escapeHtml(chg.reason) : '');
+        const stu = chg.newTeacherId ? (db.users || []).find(x => x.id === chg.newTeacherId) : null;
+        subTxt = '<span class="chip chip-bad">Supluje: ' + escapeHtml(stu ? stu.name : (chg.newTeacher || '?')) + '</span>' + (chg.reason ? ' ' + escapeHtml(chg.reason) : '');
       } else if (chg && chg.kind === 'predmet') {
         const ns = chg.newSubj;
         badge = '<span class="subj-badge" style="width:42px;height:42px;background:var(--bad)" title="Změna předmětu">' + (ns ? escapeHtml(subjShort(ns)) : '?') + '</span>';
         title = escapeHtml(ns && SUBJECTS[ns] ? SUBJECTS[ns].name : '?');
         subTxt = '<span class="chip chip-bad">' + escapeHtml(subjShort(subj)) + ' → ' + escapeHtml(ns ? subjShort(ns) : '?') + '</span>' + (chg.reason ? ' ' + escapeHtml(chg.reason) : '');
+      } else if (addedChg) {
+        /* přidaná hodina do volné hodiny */
+        const ns = addedChg.newSubj;
+        const tu = addedChg.newTeacherId ? (db.users || []).find(x => x.id === addedChg.newTeacherId) : null;
+        rowCls += ' chg';
+        badge = '<span class="subj-badge" style="width:42px;height:42px;background:var(--ok)" title="Přidaná hodina">' + (ns ? escapeHtml(subjShort(ns)) : '?') + '</span>';
+        title = escapeHtml(ns && SUBJECTS[ns] ? SUBJECTS[ns].name : '?');
+        subTxt = '<span class="chip chip-ok">Přidaná hodina</span>' + (tu ? ' · ' + escapeHtml(tu.name) : '') + (addedChg.reason ? ' · ' + escapeHtml(addedChg.reason) : '');
       } else {
         badge = subjBadge(subj, 42) + icsHtml;
         title = escapeHtml(SUBJECTS[subj].name);

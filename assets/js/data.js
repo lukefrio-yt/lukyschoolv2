@@ -824,7 +824,14 @@ function myClasses() {
   const u = currentUser();
   if (!u) return [];
   if (u.isAdmin) return (db.classes || []).slice();
-  return (db.classes || []).filter(c => (c.teacherIds || []).includes(u.id));
+  const own = (db.classes || []).filter(c => (c.teacherIds || []).includes(u.id));
+  /* suplování/přidané hodiny: třída se dovolí i na dnešní/naplánovaný den, kdy ji učitel supluje */
+  const substCls = (db.classes || []).filter(c => !own.includes(c) &&
+    [0, 1, 2].some(off => {
+      const iso = addDaysISO(todayISO(), off);
+      return lessonsForTeacherOn(u.id, iso).some(l => l.clsId === c.id);
+    }));
+  return own.concat(substCls);
 }
 function activeClsId() {
   const list = myClasses();
@@ -902,6 +909,8 @@ function lessonsOfDay(clsId, iso) {
   return out;
 }
 function subjOf(clsId, iso, period) {
+  const chg = (db.changes || []).find(c => c.cls === clsId && c.date === iso && c.period === period);
+  if (chg && chg.kind === 'pridana' && chg.newSubj) return chg.newSubj;
   const en = scheduleEntry(clsId, iso, period);
   return en ? (en.subj || null) : null;
 }
@@ -913,7 +922,9 @@ function scheduleSubjectsOf(clsId) {
 }
 function currentLessonInfo(clsId, iso) {
   if (iso !== todayISO()) return { state: 'off', lesson: null };
-  const lessons = lessonsOfDay(clsId, iso);
+  let lessons = effectiveLessonsOfDay(clsId, iso).filter(l => !l.cancelled)
+    .map(l => ({ period: l.period, subj: l.subj, room: l.room || null, teacherId: l.substTeacherId || l.teacherId || null }));
+  if (!lessons.length) lessons = lessonsOfDay(clsId, iso);
   const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
   for (const l of lessons) {
     const t = slotOf(clsId, l.period);
@@ -1078,8 +1089,9 @@ function daysUntilAction(iso) {
 const CHANGE_KINDS = [
   { id: 'odpadla',  label: 'Odpadlá hodina' },
   { id: 'mistnost', label: 'Změna místnosti' },
-  { id: 'ucitel',   label: 'Změna učitele' },
-  { id: 'predmet',  label: 'Změna předmětu' }
+  { id: 'ucitel',   label: 'Změna učitele (suplování)' },
+  { id: 'predmet',  label: 'Změna předmětu' },
+  { id: 'pridana',  label: 'Přidaná hodina' }
 ];
 function changesEnsure() { if (!db.changes) db.changes = []; }
 function changeFor(clsId, iso, period) {
@@ -1087,7 +1099,42 @@ function changeFor(clsId, iso, period) {
 }
 function changesOfClass(clsId) { return (db.changes || []).filter(c => c.cls === clsId); }
 function changeShortLabel(c) {
-  return ({ odpadla: 'odpadlá', mistnost: 'místnost', ucitel: 'učitel', predmet: 'předmět' })[c.kind] || 'změna';
+  return ({ odpadla: 'odpadlá', mistnost: 'místnost', ucitel: 'suplování', predmet: 'předmět', pridana: 'přidaná' })[c.kind] || 'změna';
+}
+/* efektivní hodina dne: základní rozvrh + změny (odpadlá, suplování, přidaná…) */
+function effectiveLessonsOfDay(clsId, iso) {
+  const base = lessonsOfDay(clsId, iso);
+  const chgs = (db.changes || []).filter(c => c.cls === clsId && c.date === iso);
+  const out = base.map(l => {
+    const chg = chgs.find(c => c.period === l.period);
+    if (!chg) return Object.assign({}, l, { cancelled: false, substTeacherId: null, added: false });
+    if (chg.kind === 'odpadla') return Object.assign({}, l, { cancelled: true, substTeacherId: null, added: false });
+    if (chg.kind === 'ucitel' && chg.newTeacherId) return Object.assign({}, l, { cancelled: false, substTeacherId: chg.newTeacherId, added: false });
+    if (chg.kind === 'predmet' && chg.newSubj) return Object.assign({}, l, { subj: chg.newSubj, cancelled: false, substTeacherId: null, added: false });
+    return Object.assign({}, l, { cancelled: false, substTeacherId: null, added: false, change: chg });
+  });
+  /* přidané hodiny */
+  chgs.filter(c => c.kind === 'pridana').forEach(c => {
+    out.push({ period: c.period, subj: c.newSubj, room: null, teacherId: c.newTeacherId || null, cancelled: false, substTeacherId: null, added: true, change: c });
+  });
+  return out.sort((a, b) => a.period - b.period);
+}
+/* hodiny daného učitele v den (jeho vlastní + suplování + přidané), přes všechny třídy */
+function lessonsForTeacherOn(teacherId, iso) {
+  const out = [];
+  (db.classes || []).forEach(c => {
+    effectiveLessonsOfDay(c.id, iso).forEach(l => {
+      const mine = l.teacherId === teacherId;
+      const subst = l.substTeacherId === teacherId;
+      if (mine || subst) out.push({ clsId: c.id, clsName: c.name, period: l.period, subj: l.subj, room: l.room || null, subst: subst && !mine, added: !!l.added, cancelled: !!l.cancelled });
+    });
+  });
+  return out.sort((a, b) => a.period - b.period);
+}
+/* smí učitel psát třídní knihu k této hodině? (vlastní hodina nebo supluje) — známky jen k vlastnímu předmětu */
+function canTeacherWriteLesson(teacherId, clsId, iso, period) {
+  const l = effectiveLessonsOfDay(clsId, iso).find(x => x.period === period);
+  return !!(l && (l.teacherId === teacherId || l.substTeacherId === teacherId));
 }
 function actionCountdownChip(days) {
   if (days < 0) return '<span class="chip" style="opacity:.7">proběhlo</span>';
