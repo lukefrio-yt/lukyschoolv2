@@ -257,6 +257,12 @@ function sRozvrh() {
       const addedChg = !subj ? (db.changes || []).find(c => c.cls === cls && c.date === dayISO && c.period === i && c.kind === 'pridana') : null;
       if (!subj && !addedChg) return '';
       const chg = changeFor(cls, dayISO, i);
+      /* písmenná značka změny přímo u badge předmětu: S/O/M/P/Z */
+      const CHG_MARK = { odpadla: ['O', 'Odpadá'], mistnost: ['M', 'Změna místnosti'], ucitel: ['S', 'Suplování'], predmet: ['Z', 'Změna předmětu'], pridana: ['P', 'Přidaná hodina'] };
+      const mark = addedChg ? CHG_MARK.pridana : (chg && CHG_MARK[chg.kind] ? CHG_MARK[chg.kind] : null);
+      const markHtml = mark
+        ? '<span class="l-ic chg-mark" title="' + mark[1] + '">' + mark[0] + '</span>'
+        : '';
       const ics = [];
       const cb = (db.classbook || []).find(r => r.cls === cls && r.date === dayISO && r.period === i);
       if (cb) ics.push('<span class="l-ic g-ok" title="Hodina je už zapsaná v třídní knize">' + ic('check', 12) + '</span>');
@@ -264,29 +270,27 @@ function sRozvrh() {
       if (hw) ics.push('<span class="l-ic g-book" title="Odevzdává se úkol: ' + escapeHtml(hw.title) + '">' + ic('book', 12) + '</span>');
       const test = (db.columns || []).find(c => c.cls === cls && c.subj === subj && c.date === dayISO && Object.keys(c.cells || {}).some(sid2 => String(c.cells[sid2]).trim() === '?'));
       if (test) ics.push('<span class="l-ic g-bad" title="Plánovaná písemka: ' + escapeHtml(test.title) + '">' + ic('alert', 12) + '</span>');
-      /* červené ikonky změn rozvrhu */
-      if (chg && chg.kind === 'mistnost') ics.push('<span class="l-ic g-bad" title="Změna místnosti">' + ic('swap', 12) + '</span>');
-      if (chg && chg.kind === 'ucitel') ics.push('<span class="l-ic g-bad" title="Změna učitele">' + ic('user', 12) + '</span>');
+      /* červené ikonky změn rozvrhu už nemají vlastní ikonky – značka je přímo u badge */
       const icsHtml = (ics.length ? '<span class="l-ics">' + ics.join('') + '</span>' : '');
       let rowCls = 'lesson' + (isNow ? ' now' : '') + (chg ? ' chg' : '');
       let badge, title, subTxt;
       if (chg && chg.kind === 'odpadla') {
-        badge = '<span class="subj-badge" style="width:42px;height:42px;background:var(--bad)" title="Odpadlá hodina">' + escapeHtml(subjShort(subj)) + '</span>';
+        badge = markHtml + '<span class="subj-badge" style="width:42px;height:42px;background:var(--bad)" title="Odpadlá hodina">' + escapeHtml(subjShort(subj)) + '</span>' + icsHtml;
         title = '<span style="text-decoration:line-through">' + escapeHtml(SUBJECTS[subj].name) + '</span>';
         subTxt = '<span class="chip chip-bad">odpadlá hodina</span>' + (chg.reason ? ' ' + escapeHtml(chg.reason) : '');
       } else if (chg && chg.kind === 'mistnost') {
-        badge = subjBadge(subj, 42) + icsHtml;
+        badge = markHtml + subjBadge(subj, 42) + icsHtml;
         title = escapeHtml(SUBJECTS[subj].name);
         const nr = roomsList().find(x => x.id === chg.newRoom);
         subTxt = '<span class="chip chip-bad">jiná místnost: ' + escapeHtml(nr ? nr.name : '?') + '</span>' + (chg.reason ? ' ' + escapeHtml(chg.reason) : '');
       } else if (chg && chg.kind === 'ucitel') {
-        badge = subjBadge(subj, 42) + icsHtml;
+        badge = markHtml + subjBadge(subj, 42) + icsHtml;
         title = escapeHtml(SUBJECTS[subj].name);
         const stu = chg.newTeacherId ? (db.users || []).find(x => x.id === chg.newTeacherId) : null;
         subTxt = '<span class="chip chip-bad">Supluje: ' + escapeHtml(stu ? stu.name : (chg.newTeacher || '?')) + '</span>' + (chg.reason ? ' ' + escapeHtml(chg.reason) : '');
       } else if (chg && chg.kind === 'predmet') {
         const ns = chg.newSubj;
-        badge = '<span class="subj-badge" style="width:42px;height:42px;background:var(--bad)" title="Změna předmětu">' + (ns ? escapeHtml(subjShort(ns)) : '?') + '</span>';
+        badge = markHtml + '<span class="subj-badge" style="width:42px;height:42px;background:var(--bad)" title="Změna předmětu">' + (ns ? escapeHtml(subjShort(ns)) : '?') + '</span>';
         title = escapeHtml(ns && SUBJECTS[ns] ? SUBJECTS[ns].name : '?');
         subTxt = '<span class="chip chip-bad">' + escapeHtml(subjShort(subj)) + ' → ' + escapeHtml(ns ? subjShort(ns) : '?') + '</span>' + (chg.reason ? ' ' + escapeHtml(chg.reason) : '');
       } else if (addedChg) {
@@ -294,7 +298,7 @@ function sRozvrh() {
         const ns = addedChg.newSubj;
         const tu = addedChg.newTeacherId ? (db.users || []).find(x => x.id === addedChg.newTeacherId) : null;
         rowCls += ' chg';
-        badge = '<span class="subj-badge" style="width:42px;height:42px;background:var(--ok)" title="Přidaná hodina">' + (ns ? escapeHtml(subjShort(ns)) : '?') + '</span>';
+        badge = markHtml + '<span class="subj-badge" style="width:42px;height:42px;background:var(--ok)" title="Přidaná hodina">' + (ns ? escapeHtml(subjShort(ns)) : '?') + '</span>';
         title = escapeHtml(ns && SUBJECTS[ns] ? SUBJECTS[ns].name : '?');
         subTxt = '<span class="chip chip-ok">Přidaná hodina</span>' + (tu ? ' · ' + escapeHtml(tu.name) : '') + (addedChg.reason ? ' · ' + escapeHtml(addedChg.reason) : '');
       } else {
@@ -347,19 +351,7 @@ function sRozvrh() {
   (weekdayOf(cur) >= 1 && weekdayOf(cur) <= 5 && !hasAnyLesson && lessonsToday.length === 0
     ? '<div class="empty"><b>Volný den</b>V tento den podle rozvrhu není žádné vyučování 🎈</div>'
     : (weekdayOf(cur) < 1 || weekdayOf(cur) > 5 ? '<div class="empty"><b>Víkend</b>Žádné vyučování 🎈</div>' : '')) +
-  '<div class="card" style="margin-top:18px"><div class="card-title">' + ic('bell', 16) + ' Změny rozvrhu</div>' +
-    (changesOfClass(cls).length
-      ? '<div class="list">' + changesOfClass(cls).slice().sort((a, b) => (a.date < b.date ? -1 : 1)).map(c => {
-          let detail = '';
-          if (c.kind === 'mistnost' && c.newRoom) { const r = roomsList().find(x => x.id === c.newRoom); detail = 'Nová místnost: ' + (r ? r.name : '?'); }
-          else if (c.kind === 'ucitel' && c.newTeacher) detail = 'Nový učitel: ' + c.newTeacher;
-          else if (c.kind === 'predmet' && c.newSubj) detail = 'Náhrada: ' + subjectName(c.newSubj);
-          return '<div class="list-row"><span class="chip chip-bad">' + changeShortLabel(c) + '</span>' +
-            '<div class="grow"><div class="row-title">' + fmtDate(c.date) + ' · ' + (c.period + 1) + '. hodina</div>' +
-            '<div class="row-sub">' + escapeHtml([detail, c.reason].filter(Boolean).join(' · ')) + '</div></div></div>';
-        }).join('') + '</div>'
-      : '<div class="empty">Žádné změny</div>') +
-  '</div>';
+  '<div class="small-note" style="margin-top:14px">S = Suplování · O = Odpadá · M = Změna místnosti · P = Přidaná · Z = Změna předmětu. Přehled všech změn najdete v kategorii Změny.</div>';
 }
 onAct('roz-den:', el => { localStorage.setItem('ls_rozvrh_den', el.getAttribute('data-act').slice(8)); route(); });
 /* „Vlastní“ datum: vyjede kalendář (native date picker) – funguje v mobilu i na PC */
@@ -852,7 +844,7 @@ function pZpravy() {
   const curKid = studentOf(curCid);
   const teachOpts = curKid ? (classTeacherUsers(curKid.cls) || []).filter(x => !x.isAdmin) : [];
   return '' +
-  '<div class="page-head"><div><h1>Zprávy s učiteli</h1><div class="sub">Konverzace přijaté i odeslané – novou s předmětem založíte vlevo</div></div></div>' +
+  '<div class="page-head"><div><h1>Zprávy s učiteli</h1><div class="sub">Konverzace přijaté i odeslané – novou založíte tlačítkem nahoře</div></div></div>' +
   '<div class="grid grid-2">' +
     '<div>' +
       '<div class="card"><div class="card-title">' + ic('plus', 16) + ' Nová konverzace</div>' +
@@ -888,10 +880,10 @@ function pZpravy() {
                 '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex:0 0 auto">' + unreadDot(un) +
                   '<div style="font-size:10.5px;color:var(--muted);white-space:nowrap">' + (last ? tsLabel(last.ts) : '') + '</div></div></button>';
             }).join('') + '</div>'
-          : '<div class="empty"><b>Zatím žádné konverzace</b>Založte první vlevo – nebo vám napíše učitel.</div>') +
+          : '<div class="empty"><b>Zatím žádné konverzace</b>Založte první nahoře – nebo vám napíše učitel.</div>') +
       '</div>' +
     '</div>' +
-    '<div>' + (openTh ? pConvDetailHtml(u, openTh) : '<div class="card"><div class="empty">Založte konverzaci vlevo.</div></div>') + '</div>' +
+    '<div>' + (openTh ? pConvDetailHtml(u, openTh) : '<div class="card"><div class="empty">Vyberte konverzaci ze seznamu nahoře.</div></div>') + '</div>' +
   '</div>';
 }
 onAct('p-open:', el => {
@@ -1015,7 +1007,7 @@ function sZpravy() {
           : '<div class="empty"><b>Žádné konverzace</b>Založte první – nebo ji otevřete u některého úkolu v „Moje úkoly“.</div>') +
       '</div>' +
     '</div>' +
-    '<div>' + (openTh ? stuConvDetailHtml(u, openTh) : '<div class="card"><div class="empty">Vyberte konverzaci vlevo.</div></div>') + '</div>' +
+    '<div>' + (openTh ? stuConvDetailHtml(u, openTh) : '<div class="card"><div class="empty">Vyberte konverzaci ze seznamu nahoře.</div></div>') + '</div>' +
   '</div>';
 }
 onAct('s-open:', el => {
@@ -1178,74 +1170,9 @@ function prubeznaView() {
             '<div class="pol-row"><div class="pol-subj">' + subjBadge(sub, 30) + '<b>' + escapeHtml(SUBJECTS[sub].name) + '</b></div>' +
             '<div class="pol-sems">' + semCellHtml(1, sub) + semCellHtml(2, sub) + '</div></div>').join('') + '</div>'
         : '<div class="empty">Zatím žádné předměty – známky se tu objeví, jakmile učitel začne zapisovat.</div>')) +
-    '</div>' +
-    (vis[1] || vis[2]
-      ? '<div class="card" style="margin-top:16px"><div class="card-title">' + ic('print', 16) + ' Vysvědčení</div>' +
-        '<div class="small-note" style="margin:0 0 10px">PDF ke stažení – tiskněte po uzavření pololetí učitelem.</div>' +
-        '<div style="display:flex;gap:10px;flex-wrap:wrap">' +
-          (repOf(1).closed
-            ? '<button class="btn btn-primary btn-sm" data-act="vysvedceni-pdf:1">' + ic('download', 14) + ' Vysvědčení za 1. pololetí</button>'
-            : '<span class="chip" style="padding:7px 12px">1. pololetí zatím uzavřeno není</span>') +
-          (repOf(2).closed
-            ? '<button class="btn btn-primary btn-sm" data-act="vysvedceni-pdf:2">' + ic('download', 14) + ' Vysvědčení za 2. pololetí</button>'
-            : '<span class="chip" style="padding:7px 12px">2. pololetí zatím uzavřeno není</span>') +
-        '</div></div>'
-      : '');
-}
-onAct('vysvedceni-pdf:', el => {
-  const sem = Number(el.getAttribute('data-act').slice(14));
-  vysvedceniPdf(sem);
-});
-function vysvedceniPdf(sem) {
-  const u = currentUser();
-  if (!u) return;
-  const isRod = u.role === 'rodic';
-  let sid = u.role === 'student' ? u.studentId : parentCurChild();
-  const st = studentOf(sid);
-  if (!st) return;
-  const cls = classOf(st.cls);
-  const rep = classReport(st.cls, sem);
-  if (!rep.closed) { toast('Toto pololetí ještě učitel neuzavřel', 'bad'); return; }
-  const subjects = classSubjects(st.cls);
-  const school = schoolName();
-  const today = fmtDate(new Date().toISOString().slice(0, 10));
-  const rows = subjects.map(sub => {
-    const fin = ((rep.checked || {})[sid] || {})[sub] || '';
-    return '<tr><td>' + escapeHtml(SUBJECTS[sub].name) + '</td><td class="g">' + escapeHtml(String(fin || '—')) + '</td></tr>';
-  }).join('');
-  const w = window.open('', '_blank', 'width=860,height=940');
-  if (!w) { toast('Povolte prosím vyskakovací okna pro stažení PDF', 'bad'); return; }
-  w.document.write('<!DOCTYPE html><html lang="cs"><head><meta charset="UTF-8"><title>Vysvědčení – ' + escapeHtml(st.first + ' ' + st.last) + ' – ' + sem + '. pololetí</title>' +
-    '<style>' +
-      '* { box-sizing: border-box; margin: 0; padding: 0; }' +
-      'body { font-family: Georgia, "Times New Roman", serif; background: #F1F5F9; padding: 26px; color: #1E293B; }' +
-      '.paper { max-width: 720px; margin: 0 auto; background: #fff; border: 1px solid #CBD5E1; padding: 42px 48px; }' +
-      '.head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1E293B; padding-bottom: 14px; margin-bottom: 26px; }' +
-      '.brand { font-size: 21px; font-weight: 700; } .brand b { color: #2563EB; }' +
-      '.school { font-size: 12.5px; color: #475569; margin-top: 3px; }' +
-      '.sem { text-align: right; font-size: 12.5px; color: #475569; }' +
-      'h1 { font-size: 23px; margin-bottom: 4px; } .who { font-size: 14.5px; color: #475569; margin-bottom: 22px; }' +
-      'table { width: 100%; border-collapse: collapse; margin-bottom: 26px; }' +
-      'th { text-align: left; font-family: Arial, sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: #64748B; border-bottom: 1.5px solid #94A3B8; padding: 8px 6px; }' +
-      'td { padding: 9px 6px; border-bottom: 1px solid #E2E8F0; font-size: 15px; }' +
-      'td.g { text-align: center; font-weight: 700; font-size: 17px; width: 70px; }' +
-      '.foot { display: flex; justify-content: space-between; margin-top: 44px; font-size: 12.5px; color: #475569; }' +
-      '.foot .line { border-top: 1px solid #475569; padding-top: 5px; min-width: 190px; text-align: center; }' +
-      '@media print { body { background: #fff; padding: 0; } .paper { border: 0; } .noprint { display: none; } }' +
-      '.noprint { max-width: 720px; margin: 14px auto 0; text-align: center; }' +
-      '.noprint button { font-family: Arial, sans-serif; font-size: 14.5px; font-weight: 700; padding: 11px 26px; border-radius: 10px; border: 0; background: #2563EB; color: #fff; cursor: pointer; }' +
-    '</style></head><body>' +
-    '<div class="paper">' +
-      '<div class="head"><div><div class="brand">School<b>Sys</b></div><div class="school">' + escapeHtml(school) + (cls && cls.name ? ' · třída ' + escapeHtml(cls.name) : '') + '</div></div>' +
-      '<div class="sem">' + sem + '. pololetí<br>Školní rok ' + schoolYearLabel() + '</div></div>' +
-      '<h1>Vysvědčení</h1>' +
-      '<div class="who">' + escapeHtml(st.first + ' ' + st.last) + '</div>' +
-      '<table><thead><tr><th>Předmět</th><th style="text-align:center">Výsledná známka</th></tr></thead><tbody>' + rows + '</tbody></table>' +
-      '<div class="foot"><div class="line">Třídní/učitel</div><div class="line">Rodič/žák</div><div class="line">Datum: ' + escapeHtml(today) + '</div></div>' +
-    '</div>' +
-    '<div class="noprint"><button onclick="window.print()">⬇ Uložit jako PDF / Vytisknout</button></div>' +
-    '</body></html>');
-  w.document.close();
+    '</div>';
+  /* Vysvědčení k tisku nemají žáci ani rodiče – PDF vydává výhradně třídní
+     učitel v Pololetní klasifikaci (tlačítko Tisk u každého žáka). */
 }
 
 /* ================= VÝUKA (žák: probírané učivo podle předmětů) ================= */
