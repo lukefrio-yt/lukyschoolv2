@@ -362,12 +362,12 @@ onAct('t-col-edit:', el => {
     '<h3>Upravit sloupec</h3>' +
     '<form data-form="t-col-save">' +
       '<input type="hidden" name="col" value="' + col.id + '">' +
-      '<div class="field"><label>Název</label><input name="title" value="' + escapeHtml(col.title) + '" required></div>' +
+      '<div class="field"><label>Název</label><input name="title" maxlength="60" value="' + escapeHtml(col.title) + '" required></div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">' +
         '<div class="field"><label>Datum</label><input type="date" name="date" value="' + col.date + '" required></div>' +
         '<div class="field"><label>Váha</label><select name="weight">' + [1, 2, 3, 5, 10].map(w => '<option value="' + w + '"' + (col.weight === w ? ' selected' : '') + '>' + w + '×</option>').join('') + '</select></div>' +
       '</div>' +
-      '<div class="field"><label>Poznámka</label><input name="note" value="' + escapeHtml(col.note || '') + '"></div>' +
+      '<div class="field"><label>Poznámka</label><input name="note" maxlength="120" value="' + escapeHtml(col.note || '') + '"></div>' +
       '<button class="btn btn-primary">Uložit</button>' +
     '</form>');
 });
@@ -584,9 +584,9 @@ function tKniha() {
         '</select>' +
       '</div>' +
       (existing ? '<div class="ok-line">' + ic('check', 15) + ' <span>Tento zápis už existuje – upravujete ho.</span></div>' : '') +
-      '<div class="field"><label>Téma hodiny</label><input class="txt" id="cb-tema" value="' + escapeHtml((existing && existing.tema) || (SVP_TOPICS[subjAuto] || DEFAULT_TOPICS)[0]) + '"></div>' +
-      '<div class="field"><label>Probrané učivo</label><textarea class="ta" id="cb-ucivo" rows="2">' + escapeHtml((existing && existing.ucivo) || '') + '</textarea></div>' +
-      '<div class="field"><label>Domácí úkol (propíše se do účtů žáků)</label><input class="txt" id="cb-ukol" value="' + escapeHtml((existing && existing.ukol) || '') + '" placeholder="Např. PS str. 42, cvičení 3"></div>' +
+      '<div class="field"><label>Téma hodiny</label><input class="txt" id="cb-tema" maxlength="120" value="' + escapeHtml((existing && existing.tema) || (SVP_TOPICS[subjAuto] || DEFAULT_TOPICS)[0]) + '"></div>' +
+      '<div class="field"><label>Probrané učivo</label><textarea class="ta" id="cb-ucivo" rows="2" maxlength="300">' + escapeHtml((existing && existing.ucivo) || '') + '</textarea></div>' +
+      '<div class="field"><label>Domácí úkol (propíše se do účtů žáků)</label><input class="txt" id="cb-ukol" maxlength="120" value="' + escapeHtml((existing && existing.ukol) || '') + '" placeholder="Např. PS str. 42, cvičení 3"></div>' +
       '<button class="btn btn-primary" style="margin-top:8px" data-act="t-cb-save">' + ic('check', 16) + ' Uložit zápis</button>' +
     '</div>';
   const secZapisy =
@@ -864,7 +864,7 @@ function tZpravy() {
             }).join('') +
           '</select></div>'
         : '') +
-      '<div class="field"><label>Předmět konverzace <span class="small-note" style="margin:0 0 0 4px">(volitelné – vytvoří samostatnou konverzaci s tímto předmětem)</span></label><input id="tmsg-subj" placeholder="Např. Konzultace, dotaz k písemce…"></div>' +
+      '<div class="field"><label>Předmět konverzace <span class="small-note" style="margin:0 0 0 4px">(volitelné – vytvoří samostatnou konverzaci s tímto předmětem)</span></label><input id="tmsg-subj" maxlength="80" placeholder="Např. Konzultace, dotaz k písemce…"></div>' +
       '<div class="field"><label>Text zprávy</label><textarea class="ta" id="tmsg-text" rows="4" maxlength="2000" placeholder="' + (TMSG.who === 'student' ? 'Ahoj, … (žákovi)' : 'Dobrý den, …') + '"></textarea></div>' +
       '<div style="display:flex;gap:10px;flex-wrap:wrap">' +
         '<button class="btn btn-primary" data-act="t-msg-send">' + ic('send', 15) + ' Odeslat nyní' +
@@ -928,7 +928,7 @@ function tZpravy() {
           }).join('') + '</div>' +
           (threadOpen(curThread)
             ? '<form data-form="t-reply" style="margin-top:10px"><div class="compose">' +
-              '<textarea name="text" rows="1" placeholder="Odpovědět…" required style="min-height:44px"></textarea>' +
+              '<textarea name="text" rows="1" maxlength="1000" placeholder="Odpovědět…" required style="min-height:44px"></textarea>' +
               '<button class="btn btn-primary">' + ic('send', 16) + '</button></div></form>'
             : '<div class="warn-line" style="margin-top:12px">' + ic('lock', 15) + ' <span>Konverzaci jste uzavřeli – křížkem (✗) ji můžete znovu otevřít.</span></div>')
         : '') +
@@ -1602,7 +1602,7 @@ function tUkoly() {
           '<div class="field"><label>Zadání</label><input name="title" maxlength="120" placeholder="Např. PS str. 42, cvičení 3" required></div>' +
           '<div class="field-row">' +
             '<div class="field"><label>Termín</label><input type="date" name="due" value="' + nextSchoolDayISO(today, 1) + '"></div>' +
-            '<div class="field"><label>Váha / poznámka (volitelné)</label><input name="note" placeholder="Např. za známku, dobrovolné…"></div>' +
+            '<div class="field"><label>Váha / poznámka (volitelné)</label><input name="note" maxlength="80" placeholder="Např. za známku, dobrovolné…"></div>' +
           '</div>' +
           '<button class="btn btn-primary">' + ic('check', 15) + ' Zadat úkol</button>' +
         '</form>' +
@@ -1967,7 +1967,7 @@ function tOznameni() {
             whoOpts.map(o => '<option value="' + o[0] + '"' + (o[0] === 'both' ? ' selected' : '') + '>' + o[1] + '</option>').join('') +
           '</select></div>' +
         '</div>' +
-        '<div class="field"><label>Text oznámení</label><textarea name="text" rows="3" required placeholder="např. Ve středu píšeme čtvrtletní písemku z matematiky. Připravte si…"></textarea></div>' +
+        '<div class="field"><label>Text oznámení</label><textarea name="text" rows="3" maxlength="1000" required placeholder="např. Ve středu píšeme čtvrtletní písemku z matematiky. Připravte si…"></textarea></div>' +
         '<button class="btn btn-primary">' + ic('send', 15) + ' Odeslat oznámení</button>' +
       '</form></div>'
     : '<div class="card" style="margin-bottom:16px"><div class="empty"><b>Nejste třídním učitelem žádné třídy</b>Oznámení se posílají třídě – nejdřív vám správce přiřadí třídu.</div></div>';
@@ -2117,7 +2117,7 @@ function tNoteModalFor(noteId) {
         REC_TYPES.map(t => '<option value="' + t.id + '">' + escapeHtml(t.label) + '</option>').join('') +
       '</select></div>') +
       '<div class="field"><label>Název</label><input name="title" required maxlength="120" placeholder="např. Pozdní příchody, Pomoc spolužákovi…" value="' + (n ? escapeHtml(n.title || '') : '') + '"></div>' +
-      '<div class="field"><label>Důvod / popis</label><textarea name="reason" class="ta" rows="3" required placeholder="Co se stalo nebo za co záznam je…">' + (n ? escapeHtml(n.reason || '') : '') + '</textarea></div>' +
+      '<div class="field"><label>Důvod / popis</label><textarea name="reason" class="ta" rows="3" maxlength="300" required placeholder="Co se stalo nebo za co záznam je…">' + (n ? escapeHtml(n.reason || '') : '') + '</textarea></div>' +
       '<div class="field"><label>Závažnost</label><select name="sev">' + NOTE_SEVS.map(s =>
         '<option value="' + s.id + '"' + (n && Number(n.sev) === s.id ? ' selected' : '') + '>' + s.label + '</option>').join('') + '</select></div>' +
       '<div class="field"><label>Datum</label><input name="date" type="date" value="' + (n ? n.date : todayISO()) + '"></div>' +
@@ -2357,10 +2357,10 @@ function tZmenyRozvrh() {
         CHANGE_KINDS.map(k => '<option value="' + k.id + '">' + k.label + '</option>').join('') + '</select></div>' +
       '<div class="field" id="zr-room-wrap" style="display:none"><label>Nová místnost</label><select class="sel" id="zr-room">' +
         roomsList().map(r => '<option value="' + r.id + '">' + escapeHtml(r.name + (r.short ? ' (' + r.short + ')' : '')) + '</option>').join('') + '</select></div>' +
-      '<div class="field" id="zr-teacher-wrap" style="display:none"><label>Jméno nového učitele</label><input class="txt" id="zr-teacher" placeholder="Např. Mgr. Nováková"></div>' +
+      '<div class="field" id="zr-teacher-wrap" style="display:none"><label>Jméno nového učitele</label><input class="txt" id="zr-teacher" maxlength="60" placeholder="Např. Mgr. Nováková"></div>' +
       '<div class="field" id="zr-subj-wrap" style="display:none"><label>Nový předmět (náhrada)</label><select class="sel" id="zr-subj">' +
         SUBJ_KEYS.map(s => '<option value="' + s + '">' + escapeHtml(SUBJECTS[s].name) + '</option>').join('') + '</select></div>' +
-      '<div class="field"><label>Důvod</label><input class="txt" id="zr-reason" placeholder="Např. nemoc učitele, školení…"></div>' +
+      '<div class="field"><label>Důvod</label><input class="txt" id="zr-reason" maxlength="120" placeholder="Např. nemoc učitele, školení…"></div>' +
       '<button class="btn btn-primary" data-act="t-zr-save">' + ic('check', 15) + ' Uložit změnu</button>' +
       '<div class="small-note" style="margin-top:10px">Žáci a rodiče uvidí změnu červeně v Rozvrhu</div>' +
     '</div>' +

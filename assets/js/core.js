@@ -349,7 +349,7 @@ function renderLogin() {
       '<p class="login-sub">Přihlaste se do aplikace.</p>' +
       '<form data-form="login">' +
         '<div class="field"><label>Uživatelské jméno</label><input name="user" autocomplete="username" placeholder="admin" required></div>' +
-        '<div class="field"><label>Heslo</label><div class="pass-wrap"><input name="pass" type="password" autocomplete="current-password" placeholder="••••••••" required>' + passEyeHtml('pass') + '</div></div>' +
+        '<div class="field"><label>Heslo</label><div class="pass-wrap"><input name="pass" type="password" autocomplete="current-password" maxlength="64" placeholder="••••••••" required>' + passEyeHtml('pass') + '</div></div>' +
         '<label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;margin:10px 0 2px"><input type="checkbox" name="remember" style="width:16px;height:16px;accent-color:var(--accent)"> Zapamatovat si účet (rychlé přihlášení)</label>' +
         '<button class="btn btn-primary" style="width:100%;margin-top:6px">' + ic('arrowR', 16) + ' Přihlásit se</button>' +
       '</form>' +
@@ -460,8 +460,8 @@ function passFieldsHtml(hidden, role) {
   const hint = (role === 'ucitel') ? 'min. 8 znaků, velké + malé písmeno, číslice a speciální znak' : 'min. 8 znaků, velké + malé písmeno a číslice';
   const eye = passEyeHtml('new1');
   return (hidden || '') +
-    '<div class="field"><label>Nové heslo</label><div class="pass-wrap"><input name="new1" autocomplete="new-password" required placeholder="' + hint + '">' + eye + '</div></div>' +
-    '<div class="field"><label>Potvrzení hesla</label><div class="pass-wrap"><input name="new2" autocomplete="new-password" required placeholder="stejné heslo znovu">' + passEyeHtml('new2') + '</div></div>';
+    '<div class="field"><label>Nové heslo</label><div class="pass-wrap"><input name="new1" autocomplete="new-password" required maxlength="64" placeholder="' + hint + '">' + eye + '</div></div>' +
+    '<div class="field"><label>Potvrzení hesla</label><div class="pass-wrap"><input name="new2" autocomplete="new-password" required maxlength="64" placeholder="stejné heslo znovu">' + passEyeHtml('new2') + '</div></div>';
 }
 function passEyeHtml(nameAttr) {
   return '<button type="button" class="pass-eye" data-act="pass-eye" title="Zobrazit / skrýt heslo">' + ic('eye', 16) + '</button>';
@@ -508,7 +508,7 @@ onAct('forgot-pass', () => {
     '<h3>Zapomněli jste heslo?</h3>' +
     '<p class="small-note" style="margin-bottom:12px">Zadejte přihlašovací jméno – žádost dorazí tomu, kdo ji vyřídí</p>' +
     '<form data-form="forgot-send">' +
-      '<div class="field"><label>Přihlašovací jméno</label><input name="login" required autocomplete="username" placeholder="např. hana.dostupilova" style="font-family:monospace"></div>' +
+      '<div class="field"><label>Přihlašovací jméno</label><input name="login" required maxlength="40" autocomplete="username" placeholder="např. hana.dostupilova" style="font-family:monospace"></div>' +
       '<button class="btn btn-primary">' + ic('arrowR', 15) + ' Odeslat žádost</button>' +
     '</form>');
 });

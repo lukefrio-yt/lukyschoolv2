@@ -699,7 +699,7 @@ function pOmluvenky() {
               return '<label><input type="checkbox" class="exc-per" name="per" value="' + p + '"' + (checked ? ' checked' : '') + '> ' + (p + 1) + '. hod. (' + t.s + (s ? ' · ' + SUBJECTS[s].name : '') + ')</label>';
             }).join('') + '</div></div>'
           : '<div class="warn-line">' + ic('alert', 15) + ' <span>Ve zvolený den není podle rozvrhu vyučování (víkend / prázdniny?).</span></div>') +
-        '<div class="field"><label>Poznámka (volitelné)</label><textarea id="exc-note" name="note" rows="2" placeholder="Např. teplota od rána, u doktora v 9 hodin…">' + escapeHtml(EXC.note) + '</textarea></div>' +
+        '<div class="field"><label>Poznámka (volitelné)</label><textarea id="exc-note" name="note" rows="2" maxlength="300" placeholder="Např. teplota od rána, u doktora v 9 hodin…">' + escapeHtml(EXC.note) + '</textarea></div>' +
         '<button class="btn btn-primary">' + ic('send', 15) + ' Odeslat omluvenku</button>' +
       '</form>' +
       '' +
@@ -827,7 +827,7 @@ function pConvDetailHtml(u, th) {
     (closed
       ? '<div class="warn-line" style="margin-top:12px">' + ic('lock', 15) + ' <span>Učitel tuto konverzaci uzavřel – novou mu napište v nové konverzaci.</span></div>'
       : '<form data-form="pmsg"><div class="compose">' +
-        '<textarea name="text" rows="1" placeholder="Napište zprávu…" required style="min-height:44px"></textarea>' +
+        '<textarea name="text" rows="1" maxlength="1000" placeholder="Napište zprávu…" required style="min-height:44px"></textarea>' +
         '<button class="btn btn-primary">' + ic('send', 16) + '</button></div></form>' +
         '<div class="rcpt-row" style="margin:12px 0 0">' +
           ['Omlouvám, dnes nepřijde…', 'Můžete mi prosím zavolat?', 'Děkujeme za zprávu!'].map(t2 =>
@@ -854,7 +854,7 @@ function pZpravy() {
           ? '<div class="field"><label>Dítě</label><select id="p-new-child" data-chg="p-new-child">' +
             kids.map(k => '<option value="' + k.id + '"' + (k.id === curCid ? ' selected' : '') + '>' + escapeHtml(k.first + ' ' + k.last) + '</option>').join('') + '</select></div>'
           : '<input type="hidden" id="p-new-child" value="' + kids[0].id + '">') +
-        '<div class="field"><label>Předmět</label><input id="p-new-subj" placeholder="Např. Dotaz k písemce, konzultace…"></div>' +
+        '<div class="field"><label>Předmět</label><input id="p-new-subj" maxlength="80" placeholder="Např. Dotaz k písemce, konzultace…"></div>' +
         '<div class="field"><label>Učitel</label><select id="p-new-teach">' +
           (teachOpts.length
             ? teachOpts.map(t2 => '<option value="' + t2.id + '">' + escapeHtml(t2.name) + '</option>').join('')
@@ -959,7 +959,7 @@ function stuConvDetailHtml(u, th) {
     (closed
       ? '<div class="warn-line" style="margin-top:12px">' + ic('lock', 15) + ' <span>Učitel konverzaci uzavřel. Pokud potřebujete něco vyřešit, založte novou konverzaci.</span></div>'
       : '<form data-form="smsg"><div class="compose">' +
-        '<textarea name="text" rows="1" placeholder="Napište zprávu…" required style="min-height:44px"></textarea>' +
+        '<textarea name="text" rows="1" maxlength="1000" placeholder="Napište zprávu…" required style="min-height:44px"></textarea>' +
         '<button class="btn btn-primary">' + ic('send', 16) + '</button></div></form>') +
   '</div>';
 }
@@ -980,7 +980,7 @@ function sZpravy() {
     '<div>' +
       '<div class="card"><div class="card-title">' + ic('plus', 16) + ' Nová konverzace</div>' +
         (teachers.length
-          ? '<div class="field"><label>Předmět zprávy</label><input id="s-new-subj" placeholder="Např. Otázka k písemce, omluvenka, úkol…"></div>' +
+          ? '<div class="field"><label>Předmět zprávy</label><input id="s-new-subj" maxlength="80" placeholder="Např. Otázka k písemce, omluvenka, úkol…"></div>' +
             '<div class="field"><label>Učitel</label><select id="s-new-teach">' +
               teachers.map(t => '<option value="' + t.id + '">' + escapeHtml(t.name) + '</option>').join('') + '</select></div>' +
             '<button class="btn btn-primary" data-act="s-new-conv">' + ic('chat', 15) + ' Založit konverzaci</button>'
