@@ -744,7 +744,7 @@ function showTeacherMobileBlock() {
     '<div class="teacher-block"><div class="teacher-block-in">' +
       '<div class="tb-ring">' + ic('home', 30) + '</div>' +
       '<h1>Pro učitele jen na počítači</h1>' +
-      '<p>Tato verze aplikace je na telefonu určena <b>pro žáky a rodiče</b>.<br>Učitelská rozhraní (třídní kniha, známkování, docházka…) otevřete prosím na počítači nebo tabletu.</p>' +
+      '<p>Tato verze aplikace je na telefonu určena <b>Pro žáky a rodiče</b>.<br>Učitelská rozhraní (třídní kniha, známkování, docházka…) otevřete prosím na počítači nebo tabletu.</p>' +
       '<button class="btn btn-ghost tb-btn" data-act="logout">' + ic('logout', 16) + ' Zpět na přihlášení</button>' +
     '</div></div>';
   document.body.classList.add('device-locked');
@@ -776,7 +776,7 @@ function showContactMobileBlock(user) {
     '<div class="teacher-block"><div class="teacher-block-in">' +
       '<div class="tb-ring">' + ic('home', 30) + '</div>' +
       '<h1>Kontaktní účet je jen pro počítač 🖥️</h1>' +
-      '<p>Účet kontaktu organizace <b>' + escapeHtml(user ? orgLabel(user.orgId) : '') + '</b> funguje pouze na počítači.<br>Přihlaste se na něm k správě tříd a loginů své organizace.</p>' +
+      '<p>Účet kontaktu organizace <b>' + escapeHtml(user ? orgLabel(user.orgId) : '') + '</b> funguje pouze na počítači.<br>Přihlaste se na něm ke správě tříd a loginů své organizace.</p>' +
       '<button class="btn btn-ghost tb-btn" data-act="logout">' + ic('logout', 16) + ' Zpět na přihlášení</button>' +
     '</div></div>';
   document.body.classList.add('device-locked');
