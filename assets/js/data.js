@@ -19,7 +19,7 @@ const DB_KEY_PREV = 'lukySchool.db.v13';
 const SES_KEY = 'lukySchool.session';
 const THEME_KEY = 'lukySchool.theme';
 const DB_TS_KEY = 'lukySchool.cloud.ts'; /* čas posledního lokálního uložení (cloud sync) */
-const DB_VERSION = 17;
+const DB_VERSION = 18;
 
 /* ---------- hashování hesel ----------
    Hesla se nikdy neukládají v čitelné podobě – v localStorage ani v cloudu.
@@ -455,8 +455,9 @@ function buildSeed() {
     v: DB_VERSION,
     meta: { seededAt: now, schoolYear: schoolYearLabel() },
     schoolName: 'LukySchool',           /* název hlavní (vlastní) školy – nadále se nepoužívá, admin žádnou hlavní školu nemá */
-    organizations: [],                  /* cizí organizace: {id,name,first,last,phone,email,contactId,createdAt} */
+    organizations: [],                  /* cizí organizace: {id,name,first,last,phone,email,contactId,createdAt,suspended} */
     orgRequests: [],                    /* žádosti o založení: {id,first,last,orgName,phone,email,username,pass,status,ts} */
+    orgNotices: [],                     /* oznámení admina zakladatelům: {id,orgId,text,ts,by} */
     classes: [],
     users: [Object.assign(JSON.parse(JSON.stringify(ADMIN_USER)), { pass: hashPassword(ADMIN_USER.pass) })],
     students: [],
@@ -483,7 +484,7 @@ function buildSeed() {
   /* naplnění testovací organizace (struktura identická aplikačním tvůrcům) */
   try {
     const orgId = 'org_testorg';
-    seed.organizations.push({ id: orgId, name: 'testorg', first: 'Test', last: 'Kontakt', phone: '+420 900 000 000', email: 'testorg@example.com', createdAt: now });
+    seed.organizations.push({ id: orgId, name: 'testorg', first: 'Test', last: 'Kontakt', phone: '+420 900 000 000', email: 'testorg@example.com', createdAt: now, suspended: false });
     seed.users.push(
       { id: 'u_testkontakt', username: 'testzakladatel', pass: hashPassword('TestZakladatel1'), role: 'ucitel', passChanged: false, name: 'Test Kontakt', note: 'Kontakt · testorg', isAdmin: false, isOrgContact: true, orgId },
       { id: 'u_testucitel', username: 'testucitel', pass: hashPassword('TestUcitel1*'), role: 'ucitel', passChanged: false, name: 'Test Učitel', note: 'Třídní · testtrida', isAdmin: false, orgId }
@@ -534,6 +535,11 @@ let db = null;
       (parsed.users || []).forEach(u => {
         if (u.passChanged || (u.role !== 'student' && u.role !== 'rodic')) delete u.genPass;
       });
+    }
+    if (parsed.v < 18) {
+      /* v17 → v18: oznámení admina zakladatelům organizací + pozastavení organizace */
+      parsed.orgNotices = parsed.orgNotices || [];
+      (parsed.organizations || []).forEach(o => { if (o.suspended === undefined) o.suspended = false; });
     }
     if (parsed.v < 17) {
       /* v16 → v17: končí hlavní škola (LukySchool). Admin už žádnou hlavní školu
@@ -635,6 +641,7 @@ function wipeSchool() {
     schoolName: db.schoolName || 'LukySchool',
     organizations: db.organizations || [],
     orgRequests: db.orgRequests || [],
+    orgNotices: db.orgNotices || [],
     classes: [], users: [Object.assign(JSON.parse(JSON.stringify(ADMIN_USER)), { pass: hashPassword(ADMIN_USER.pass) })],
     students: [], rooms: JSON.parse(JSON.stringify(DEFAULT_ROOMS)), subjects: {}, schedule: {}, columns: [], tasks: [], classbook: [],
     threads: {},
@@ -733,6 +740,33 @@ function orgStats(orgId) {
     students: (db.students || []).filter(s => clsIds.includes(s.cls)).length,
     logins: (db.users || []).filter(u => (u.orgId || null) === orgId).length
   };
+}
+/* ---------- oznámení admina zakladatelům organizací + pozastavení ---------- */
+function orgNoticesList(orgId) {
+  return (db.orgNotices || []).filter(n => !orgId || n.orgId === orgId).sort((a, b) => (a.ts < b.ts ? 1 : -1));
+}
+function addOrgNotice(orgId, text) {
+  const u = currentUser();
+  db.orgNotices = db.orgNotices || [];
+  db.orgNotices.push({ id: uid(), orgId, text, ts: nowISO(), by: (u && u.username) || 'admin' });
+  /* notifikace pro kontaktní účet (zakladatele organizace) */
+  const o = orgById(orgId);
+  if (o && o.contactId) db.notifs.push({ userId: o.contactId, type: 'notice', text: '📢 Nové oznámení od admina: ' + text, ts: nowISO() });
+  saveDB();
+}
+function deleteOrgNotice(id) {
+  db.orgNotices = (db.orgNotices || []).filter(n => n.id !== id);
+  saveDB();
+}
+function orgSuspended(orgId) {
+  const o = orgById(orgId);
+  return !!(o && o.suspended);
+}
+function setOrgSuspended(orgId, val) {
+  const o = orgById(orgId);
+  if (!o) return;
+  o.suspended = !!val;
+  saveDB();
 }
 /* vytvoření organizace ze schválené žádosti: vrací {org, contact} */
 function createOrganization(req) {

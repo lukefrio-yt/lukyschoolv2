@@ -255,7 +255,7 @@ function shellHTML(user, activeKey) {
   const roleLabel = (role === 'ucitel' && user.isAdmin) ? 'Ředitel'
     : isContactUser(user) ? 'Kontakt · ' + orgLabel(user.orgId)
     : ROLES_CS[role];
-  const bell = (role === 'student' || role === 'rodic')
+  const bell = (role === 'student' || role === 'rodic' || isContactUser(user))
     ? '<button class="icon-btn" data-act="bell" id="bell-btn" style="position:relative">' + ic('bell', 18) +
       (notifUnreadFor(user.id) ? '<span style="position:absolute;top:-2px;right:-2px;background:var(--bad);color:#fff;border-radius:99px;min-width:15px;height:15px;font-size:10px;font-weight:900;display:grid;place-items:center;padding:0 3px">' + notifUnreadFor(user.id) + '</span>' : '') + '</button>'
     : '';
@@ -304,6 +304,8 @@ function route() {
   /* kontaktní účet i admin účet na mobilu/tabletu = zámek s vysvětlením */
   if (isContact && isAppMode()) { showContactMobileBlock(user); return; }
   if (user.isAdmin && isAppMode()) { showAdminMobileBlock(user); return; }
+  /* pozastavená organizace: učitelé i kontakt mají jen obrazovku s oznámením (admina to netýká) */
+  if (user.orgId && !user.isAdmin && orgSuspended(user.orgId)) { orgBlockedScreen(user); return; }
   let h = location.hash.replace(/^#\/?/, '');
   const parts = h.split('/');
   // povolíme parametr za „|" (např. #/student/znamky|M) – base klíč pro lookup
@@ -332,7 +334,7 @@ function route() {
   }
   app.innerHTML = shellHTML(user, useKey);
   document.body.classList.remove('nav-open', 'dock-open');
-  if (user.role === 'student' || user.role === 'rodic') renderBell();
+  if (user.role === 'student' || user.role === 'rodic' || isContactUser(user)) renderBell();
   const fn = VIEWS[role][useKey];
   if (fn) { document.getElementById('view').innerHTML = fn(user); bindView(); }
 }
@@ -372,6 +374,14 @@ function tryLogin(user, pass) {
   if (u.isAdmin && isAppMode()) {
     toast('Admin účet je dostupný pouze na počítači 🖥️', 'bad');
     return false;
+  }
+  /* pozastavená organizace: učitelé i kontakt se přihlásí, ale uvidí jen obrazovku s oznámením */
+  if (u.orgId && !u.isAdmin && orgSuspended(u.orgId)) {
+    saveSession({ user: u.username });
+    location.hash = '#/login';
+    orgBlockedScreen(u);
+    toast('Organizace je pozastavena správcem aplikace', 'bad');
+    return true;
   }
   saveSession({ user: u.username });
   location.hash = '#/' + (u.isAdmin ? 'admin' : u.role) + '/' + defKeyFor(u);
@@ -736,6 +746,25 @@ function showTeacherMobileBlock() {
       '<h1>Pro učitele jen na počítači</h1>' +
       '<p>Tato verze aplikace je na telefonu určena <b>pro žáky a rodiče</b>.<br>Učitelská rozhraní (třídní kniha, známkování, docházka…) otevřete prosím na počítači nebo tabletu.</p>' +
       '<button class="btn btn-ghost tb-btn" data-act="logout">' + ic('logout', 16) + ' Zpět na přihlášení</button>' +
+    '</div></div>';
+  document.body.classList.add('device-locked');
+}
+/* pozastavená organizace: účty org (učitelé + kontakt) uvidí jen obrazovku s oznámením admina */
+function orgBlockedScreen(user) {
+  const app = document.getElementById('app');
+  document.body.classList.remove('nav-open', 'dock-open');
+  const notices = orgNoticesList(user.orgId).slice(0, 5);
+  if (app) app.innerHTML =
+    '<div class="teacher-block"><div class="teacher-block-in">' +
+      '<div class="tb-ring" style="background:rgba(239,68,68,.15);color:var(--bad)">' + ic('shield', 30) + '</div>' +
+      '<h1>Organizace je pozastavena</h1>' +
+      '<p>Správce aplikace pozastavil fungování organizace <b>' + escapeHtml(orgLabel(user.orgId)) + '</b>.<br>Pro obnovení dodržte pokyny z oznámení níže – poté správce pozastavení zruší.</p>' +
+      (notices.length
+        ? '<div class="card" style="max-width:520px;margin:16px auto 0;text-align:left">' +
+            notices.map(n => '<div style="padding:10px 4px;border-bottom:1px solid var(--border)"><div style="font-weight:700;margin-bottom:3px">' + escapeHtml(n.text) + '</div><div style="font-size:11.5px;color:var(--muted)">' + escapeHtml(n.by) + ' · ' + tsLabel(n.ts) + '</div></div>').join('') +
+          '</div>'
+        : '') +
+      '<button class="btn btn-ghost tb-btn" style="margin-top:18px" data-act="logout">' + ic('logout', 16) + ' Zpět na přihlášení</button>' +
     '</div></div>';
   document.body.classList.add('device-locked');
 }
