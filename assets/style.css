@@ -865,3 +865,13 @@ body[data-mob="1"] .nav-backdrop { display: none !important; }
 }
 .zk-seg-scroll .zk-seg-b { flex: 0 0 auto; }
 @media (min-width: 981px) { .zk-seg-scroll { flex-wrap: wrap; overflow: visible; } }
+
+/* ---- Kategorie Změny (žák + rodič): karty změn rozvrhu ---- */
+.chg-list { display: grid; gap: 10px; margin-top: 14px; }
+.chg-item { background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; }
+.chg-item.chg-bad { border-color: rgba(239, 68, 68, .45); }
+.chg-item.chg-good { border-color: rgba(34, 197, 94, .45); }
+.chg-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.chg-date { font-weight: 800; font-size: 13.5px; }
+.chg-detail { margin-top: 6px; font-size: 14px; color: var(--text); line-height: 1.5; }
+.chg-reason { display: block; margin-top: 4px; font-size: 12.5px; color: var(--muted); }

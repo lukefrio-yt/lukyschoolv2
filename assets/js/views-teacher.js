@@ -337,7 +337,8 @@ onAct('t-col-add', () => {
       '<div class="field"><label>Název testu / sloupce</label><input name="title" maxlength="60" value="Test č. ' + n + '" placeholder="Např. Diktát č. 1" required></div>' +
       '<div class="field-row-3">' +
         '<div class="field"><label>Datum</label><input type="date" name="date" value="' + todayISO() + '" required></div>' +
-        '<div class="field"><label>Váha</label><select name="weight">' + [1, 2, 3, 5, 10].map(w => '<option value="' + w + '"' + (w === 1 ? ' selected' : '') + '>' + w + '×</option>').join('') + '</select></div>' +
+        '<div class="field"><label>Váha (1–10)</label><input type="hidden" name="weight" id="col-w-inp" value="1">' +
+          '<div class="zk-seg zk-seg-scroll" style="padding-bottom:6px">' + Array.from({ length: 10 }, (_, i) => i + 1).map(w => '<button type="button" class="zk-seg-b wb' + (w === 1 ? ' on' : '') + '" data-act="col-w:' + w + '">' + w + '</button>').join('') + '</div></div>' +
         '<div class="field"><label>&nbsp;</label><select name="prefill"><option value="">bez předvyplnění</option><option value="?">? pro všechny (budoucí test)</option></select></div>' +
       '</div>' +
       '<div class="field"><label>Poznámka (volitelné)</label><input name="note" maxlength="120" placeholder="Např. opravný termín, podmínky IVP…"></div>' +
@@ -362,6 +363,19 @@ onAct('form:t-col-create', f => {
   toast('Sloupec „' + escapeHtml(title) + '“ vytvořen ✓', 'ok');
   route();
 });
+/* váha sloupce – 1–10 na jednom řádku se scrollem (stejný komponent jako v předvídači) */
+Array.from({ length: 10 }, (_, i) => i + 1).forEach(w => {
+  onAct('col-w:' + w, el => {
+    const inp = document.getElementById('col-w-inp');
+    if (inp) inp.value = w;
+    el.closest('.zk-seg').querySelectorAll('.zk-seg-b').forEach(b => b.classList.toggle('on', b === el));
+  });
+  onAct('col-edit-w:' + w, el => {
+    const inp = document.getElementById('col-edit-w-inp');
+    if (inp) inp.value = w;
+    el.closest('.zk-seg').querySelectorAll('.zk-seg-b').forEach(b => b.classList.toggle('on', b === el));
+  });
+});
 onAct('t-col-edit:', el => {
   const col = (db.columns || []).find(c => c.id === el.getAttribute('data-act').slice(11));
   if (!col) return;
@@ -372,7 +386,8 @@ onAct('t-col-edit:', el => {
       '<div class="field"><label>Název</label><input name="title" maxlength="60" value="' + escapeHtml(col.title) + '" required></div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">' +
         '<div class="field"><label>Datum</label><input type="date" name="date" value="' + col.date + '" required></div>' +
-        '<div class="field"><label>Váha</label><select name="weight">' + [1, 2, 3, 5, 10].map(w => '<option value="' + w + '"' + (col.weight === w ? ' selected' : '') + '>' + w + '×</option>').join('') + '</select></div>' +
+        '<div class="field"><label>Váha (1–10)</label><input type="hidden" name="weight" id="col-edit-w-inp" value="' + (col.weight || 1) + '">' +
+          '<div class="zk-seg zk-seg-scroll" style="padding-bottom:6px">' + Array.from({ length: 10 }, (_, i) => i + 1).map(w => '<button type="button" class="zk-seg-b wb' + (w === (col.weight || 1) ? ' on' : '') + '" data-act="col-edit-w:' + w + '">' + w + '</button>').join('') + '</div></div>' +
       '</div>' +
       '<div class="field"><label>Poznámka</label><input name="note" maxlength="120" value="' + escapeHtml(col.note || '') + '"></div>' +
       '<button class="btn btn-primary">Uložit</button>' +
@@ -1747,7 +1762,13 @@ function printStudentCreds(studentAccId) {
   const stAcc = (db.users || []).find(x => x.id === studentAccId && x.role === 'student');
   if (!stAcc) return;
   const st = studentOf(stAcc.studentId);
-  if (!st || !myClasses().some(c => c.id === st.cls)) { toast('Žák není z vaší třídy', 'bad'); return; }
+  /* učitel: jen žáci jeho tříd · admin/kontakt: jakýkoli žák své organizace */
+  const me = currentUser();
+  const myOrg = orgOfUser(me);
+  const allowed = (me.isAdmin || isContactUser(me))
+    ? (myOrg ? st && st.orgId === myOrg.id : !!st)
+    : !!st && myClasses().some(c => c.id === st.cls);
+  if (!st || !allowed) { toast('Žák není z vaší třídy ani organizace', 'bad'); return; }
   const parAcc = parentOfStudent(st.id);
   const cls = classOf(st.cls);
   const school = schoolName();

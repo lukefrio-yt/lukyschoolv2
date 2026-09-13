@@ -388,6 +388,8 @@ function todayISO() { return isoDate(new Date()); }
 function nowISO() { return new Date().toISOString(); }
 function addDaysISO(iso, n) { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return isoDate(d); }
 function weekdayOf(iso) { return new Date(iso + 'T12:00:00').getDay(); }
+/* pondělí týdne, do kterého datum patří (1 = Po, 7 = Ne → Ne řadím do předchozího týdne) */
+function mondayOfISO(iso) { const d = weekdayOf(iso); return addDaysISO(iso, d === 0 ? -6 : -(d - 1)); }
 function isSchoolDay(iso) { const w = weekdayOf(iso); return w >= 1 && w <= 5; }
 function fmtDate(iso) {
   if (!iso) return '—';
@@ -1098,6 +1100,12 @@ function changeFor(clsId, iso, period) {
   return (db.changes || []).find(c => c.cls === clsId && c.date === iso && c.period === period) || null;
 }
 function changesOfClass(clsId) { return (db.changes || []).filter(c => c.cls === clsId); }
+/* změny rozvrhu třídy v rozsahu dat (včetně), seřazené od nejdřívějších */
+function changesOfClsInRange(clsId, fromISO, toISO) {
+  return (db.changes || [])
+    .filter(c => c.cls === clsId && c.date >= fromISO && c.date <= toISO)
+    .sort((a, b) => (a.date === b.date ? (a.period - b.period) : (a.date < b.date ? -1 : 1)));
+}
 function changeShortLabel(c) {
   return ({ odpadla: 'odpadlá', mistnost: 'místnost', ucitel: 'suplování', predmet: 'předmět', pridana: 'přidaná' })[c.kind] || 'změna';
 }
