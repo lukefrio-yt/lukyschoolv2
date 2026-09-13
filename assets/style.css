@@ -843,3 +843,25 @@ body[data-mob="1"] .nav-backdrop { display: none !important; }
   .pol-pc { display: none; }
   .pol-mob { display: block; }
 }
+
+/* ---- Compose okno zprávy (nový styl) ---- */
+.compose {
+  display: flex; gap: 10px; margin-top: 16px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 14px; padding: 10px;
+}
+.compose:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59, 130, 246, .14); }
+.compose textarea {
+  flex: 1; resize: none; background: transparent; border: 0; outline: none;
+  color: var(--text); font: inherit; font-size: 14.5px; padding: 6px 4px; min-height: 44px;
+}
+.compose textarea::placeholder { color: var(--muted); }
+.compose .btn { flex: 0 0 auto; width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; padding: 0; }
+
+/* ---- Váha v Předvídači: jeden řádek s posuvem (mobil) ---- */
+.zk-seg-scroll {
+  flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch; padding-bottom: 6px; margin-bottom: 2px;
+}
+.zk-seg-scroll .zk-seg-b { flex: 0 0 auto; }
+@media (min-width: 981px) { .zk-seg-scroll { flex-wrap: wrap; overflow: visible; } }
