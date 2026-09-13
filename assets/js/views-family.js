@@ -484,15 +484,14 @@ function dochazkaBodyHtml(sid) {
     statMini('Omluveno', t.A, 'var(--ok)') +
     statMini('Čeká', t.C, 'var(--warn)') +
     statMini('Neomluveno', t.N, 'var(--bad)') +
-    (t.D ? statMini('Dočasně (byl jen chvíli)', t.D, 'var(--accent)') : '') +
   '</div>' +
   (over
-    ? '<div class="warn-line" style="margin-top:14px">' + ic('alert', 15) + ' <span>Neomluvená absence přesáhla <b>25 %</b> zapsaných hodin (' + t.unexPct + ' %). Učitel to vidí mezi ohroženými žáky.</span></div>'
+    ? '<div class="warn-line" style="margin-top:14px">' + ic('alert', 15) + ' <span>Neomluvená absence přesáhla <b>25 %</b> zapsaných hodin (' + t.unexPct + ' %).</span></div>'
     : '') +
   '<div class="card" style="margin-top:16px">' +
     '<div class="card-title">' + ic('calendar', 16) + ' Zameškané hodiny po předmětech' +
     '</div>' +
-    '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Předmět</th><th class="num">Zameškáno</th><th class="num">Z hodin</th><th>Detail</th></tr></thead><tbody>' +
+    '<div class="pol-pc"><div class="tbl-wrap"><table class="tbl"><thead><tr><th style="text-align:left">Předmět</th><th class="num">Zameškáno</th><th class="num">Z hodin</th><th>Detail</th></tr></thead><tbody>' +
     subs.map(sub => {
       const b = ov.bySubj[sub];
       if (!b || !b.lessons) {
@@ -502,12 +501,24 @@ function dochazkaBodyHtml(sid) {
       const col = b.N ? 'var(--bad)' : b.missing ? 'var(--warn)' : 'var(--muted)';
       const detail = (b.missing
         ? 'Omluveno <b style="color:var(--ok)">' + b.A + '</b> · Čeká <b style="color:var(--warn)">' + b.C + '</b> · Neomluveno <b style="color:var(--bad)">' + b.N + '</b>'
-        : 'Bez absence') + (b.D ? ' · Dočasně <b style="color:var(--accent)">' + b.D + '</b>' : '');
+        : 'Bez absence');
       return '<tr><td>' + subjBadge(sub, 26) + ' <b>' + escapeHtml(SUBJECTS[sub].name) + '</b></td>' +
         '<td class="num abs-cell" style="color:' + col + '">' + b.missing + '</td>' +
         '<td class="num abs-cell">' + b.lessons + '</td>' +
         '<td style="font-size:11.5px;color:var(--muted)">' + detail + '</td></tr>';
-    }).join('') + '</tbody></table></div>' +
+    }).join('') + '</tbody></table></div></div>' +
+    '<div class="pol-mob">' + subs.map(sub => {
+      const b = ov.bySubj[sub];
+      const lessons = (b && b.lessons) || 0;
+      const missing = (b && b.missing) || 0;
+      const col = (b && b.N) ? 'var(--bad)' : missing ? 'var(--warn)' : 'var(--muted)';
+      const detail = (b && b.missing
+        ? 'Omluveno <b style="color:var(--ok)">' + b.A + '</b> · Čeká <b style="color:var(--warn)">' + b.C + '</b> · Neomluveno <b style="color:var(--bad)">' + b.N + '</b>'
+        : 'Bez absence');
+      return '<div class="pol-row"><div class="pol-subj">' + subjBadge(sub, 30) + '<b>' + escapeHtml(SUBJECTS[sub].name) + '</b></div>' +
+        '<div class="pol-sems" style="justify-content:flex-end"><div class="pol-sem"><div class="pol-sem-tag">Zameškáno</div><b style="font-size:17px;color:' + col + '">' + (lessons ? missing : '—') + '</b><div class="small-note" style="margin-top:2px">z ' + lessons + ' hod.</div></div>' +
+        '<div class="pol-sem" style="flex:1;min-width:150px"><div class="pol-sem-tag">Detail</div><div class="small-note" style="margin-top:4px">' + detail + '</div></div></div></div>';
+    }).join('') + '</div>' +
     (t.lessons === 0 ? '<div class="small-note" style="margin:10px 2px 0">Učitel zatím nic nezapsal</div>' : '') +
   '</div>' +
   '<div class="card" style="margin-top:16px">' +
@@ -517,10 +528,10 @@ function dochazkaBodyHtml(sid) {
           const [txt, chipCls] = absEventChip(e.stts);
           return '<div class="list-row">' + subjBadge(e.subj, 34) +
             '<div class="grow"><div class="row-title">' + fmtDate(e.date) + ' · ' + (e.period + 1) + '. hod. · ' + escapeHtml(SUBJECTS[e.subj].name) + '</div>' +
-            (e.note ? '<div class="row-sub">' + escapeHtml(e.note) + '</div>' : '<div class="row-sub">dle třídní knihy</div>') + '</div>' +
+            (e.note ? '<div class="row-sub">' + escapeHtml(e.note) + '</div>' : '<div class="row-sub">Dle třídní knihy</div>') + '</div>' +
             '<span class="chip ' + chipCls + '">' + txt + '</span></div>';
         }).join('') + '</div>'
-      : '<div class="empty"><b>Žádná zameškaná hodina</b>Skvělá docházka! 🎉</div>') +
+      : '<div class="empty"><b>Žádná zameškaná hodina</b></div>') +
   '</div>';
 }
 function sDochazka() {
@@ -528,7 +539,7 @@ function sDochazka() {
   const sid = mySid();
   if (!sid) return '<div class="card"><div class="empty"><b>Nemáte přiřazený žákovský účet</b></div></div>';
   return '' +
-  '<div class="page-head"><div><h1>Docházka</h1><div class="sub">Zameškané hodiny podle třídní knihy – učitel zapisuje stav u každé hodiny</div></div>' +
+  '<div class="page-head"><div><h1>Docházka</h1><div class="sub">Zameškané hodiny podle třídní knihy</div></div>' +
     '<button class="btn btn-soft btn-sm" data-act="theme-toggle">' + ic('moon', 15) + ' Tmavý / světlý režim</button></div>' +
   dochazkaBodyHtml(sid);
 }
@@ -1117,23 +1128,32 @@ function prubeznaView() {
   const myRecs = (db.records || []).filter(r => r.sid === sid)
     .concat(notesOf(sid).filter(n => Number(n.sev) === 3).map(n => ({ type: 'sev3', reason: (n.title ? n.title + '\n' : '') + (n.reason || ''), date: n.date, sem: semOfDate(n.date) })))
     .sort((a, z) => (a.date === z.date ? 0 : a.date < z.date ? 1 : -1));
-  const cell = sub => {
-    let out = '';
-    [1, 2].forEach(sem => {
-      const cols = semesterColumnGradesOf(sid, sub, sem);
-      const a = semesterAvgOf(sid, sub, sem);
-      out += '<td style="border-left:2px solid ' + (sem === 1 ? 'rgba(59,130,246,.5)' : 'rgba(16,185,129,.5)') + ';text-align:center">' +
-        (cols.length
-          ? '<div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:center">' + cols.map(col => {
-              const v = col.cells[sid];
-              const counted = tokenCounted(v);
-              return '<span class="g-cell' + (counted ? ' ' + gradeColor(v) : '') + '" title="' + escapeHtml(col.title || '') + ' · ' + fmtDate(col.date) + '">' + escapeHtml(v === '?' ? '?' : v) + '</span>';
-            }).join('') + '</div>'
-          : '<span style="opacity:.3">—</span>') +
-        (a.avg !== null ? '<div class="small-note" style="margin:4px 0 0;font-weight:700;color:' + avgColor(a.avg) + '">Ø ' + a.avg.toFixed(2) + '</div>' : '') +
-        '</td>';
-    });
-    return out;
+  /* Viditelnost pololetí: učitel ho uzavřel NEBO už žákovi do klasifikačního
+     lístku napsal známky. Dokud ne, známky ani průměr se nezobrazí. */
+  const repOf = sem => classReport(st.cls, sem);
+  const semVisible = sem => {
+    const r = repOf(sem);
+    if (r.closed) return true;
+    const chk = (r.checked || {})[sid] || {};
+    return Object.values(chk).some(v => v !== '' && v !== null && v !== undefined);
+  };
+  const vis = { 1: semVisible(1), 2: semVisible(2) };
+  const finalOf = (sem, sub) => ((repOf(sem).checked || {})[sid] || {})[sub] || '';
+  const semCellHtml = (sem, sub) => {
+    if (!vis[sem]) return '<div class="pol-sem" style="opacity:.45"><div class="pol-sem-tag">' + sem + '. pol · Skryté</div><span style="opacity:.4">—</span></div>';
+    const fin = finalOf(sem, sub);
+    const cols = semesterColumnGradesOf(sid, sub, sem);
+    const a = semesterAvgOf(sid, sub, sem);
+    let inner = '';
+    if (fin) inner += '<span class="g-cell ' + gradeColor(String(fin)) + '" style="width:30px;height:30px;font-size:15px" title="Známka na vysvědčení">' + escapeHtml(String(fin)) + '</span>';
+    if (cols.length) inner += '<div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:center;margin-top:5px">' + cols.map(col => {
+      const v = col.cells[sid];
+      const counted = tokenCounted(v);
+      return '<span class="g-cell' + (counted ? ' ' + gradeColor(v) : '') + '" title="' + escapeHtml(col.title || '') + ' · ' + fmtDate(col.date) + '">' + escapeHtml(v === '?' ? '?' : v) + '</span>';
+    }).join('') + '</div>';
+    if (a.avg !== null) inner += '<div class="small-note" style="margin:4px 0 0;font-weight:700;color:' + avgColor(a.avg) + '">Ø ' + a.avg.toFixed(2) + '</div>';
+    if (!inner) inner = '<span style="opacity:.3">—</span>';
+    return '<div class="pol-sem"><div class="pol-sem-tag">' + sem + '. pol' + (repOf(sem).closed ? ' · Uzavřeno ✓' : '') + '</div>' + inner + '</div>';
   };
   const headRow = (isRod ? (parentChildren().length > 1
     ? '<div class="rcpt-row">' + parentChildren().map(k =>
@@ -1145,14 +1165,20 @@ function prubeznaView() {
     '<div class="sub">' + (isRod ? 'Hodnocení vašeho dítěte za 1. a 2. pololetí' : 'Tvoje hodnocení za 1. a 2. pololetí') + ' · ' + escapeHtml(cls ? cls.name : st.cls) + '</div></div></div>' +
     headRow +
     '<div class="card"><div class="card-title">' + ic('list', 16) + ' Známky za pololetí' +
-      '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">1. pol do 31. 1. · 2. pol od 1. 2.</span></div>' +
-    (subjects.length
-      ? '<div class="tbl-wrap" style="max-height:560px;overflow:auto"><table class="tbl" style="min-width:640px"><thead><tr>' +
-        '<th style="position:sticky;left:0;background:var(--surface);z-index:2;min-width:170px;text-align:left">Předmět</th>' +
-        '<th style="min-width:160px">1. pololetí</th><th style="min-width:160px">2. pololetí</th></tr></thead><tbody>' +
-        subjects.map(sub => '<tr><td style="position:sticky;left:0;background:var(--surface);z-index:1"><div style="display:flex;align-items:center;gap:8px">' + subjBadge(sub, 26) + '<b>' + escapeHtml(SUBJECTS[sub].name) + '</b></div></td>' + cell(sub) + '</tr>').join('') +
-        '</tbody></table></div>'
-      : '<div class="empty">Zatím žádné předměty – známky se tu objeví, jakmile učitel začne zapisovat.</div>') +
+      '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">' + (vis[1] || vis[2] ? ([1, 2].filter(s => vis[s]).map(s => s + '. pol: ' + (repOf(s).closed ? 'Uzavřeno ✓' : 'Zapsáno')).join(' · ')) : 'Čeká na zápis učitelem') + '</span></div>' +
+    (!vis[1] && !vis[2]
+      ? '<div class="empty"><b>Klasifikace se zatím nezobrazuje</b>Známky a průměr se ukáží, jakmile je učitel napíše nebo pololetí uzavře.</div>'
+      : (subjects.length
+        ? '<div class="pol-pc"><div class="tbl-wrap" style="max-height:560px;overflow:auto"><table class="tbl" style="min-width:640px"><thead><tr>' +
+          '<th style="position:sticky;left:0;background:var(--surface);z-index:2;min-width:170px;text-align:left">Předmět</th>' +
+          '<th style="min-width:160px">1. pololetí</th><th style="min-width:160px">2. pololetí</th></tr></thead><tbody>' +
+          subjects.map(sub => '<tr><td style="position:sticky;left:0;background:var(--surface);z-index:1"><div style="display:flex;align-items:center;gap:8px">' + subjBadge(sub, 26) + '<b>' + escapeHtml(SUBJECTS[sub].name) + '</b></div></td>' +
+            '<td style="text-align:center">' + semCellHtml(1, sub) + '</td><td style="text-align:center">' + semCellHtml(2, sub) + '</td></tr>').join('') +
+          '</tbody></table></div></div>' +
+          '<div class="pol-mob">' + subjects.map(sub =>
+            '<div class="pol-row"><div class="pol-subj">' + subjBadge(sub, 30) + '<b>' + escapeHtml(SUBJECTS[sub].name) + '</b></div>' +
+            '<div class="pol-sems">' + semCellHtml(1, sub) + semCellHtml(2, sub) + '</div></div>').join('') + '</div>'
+        : '<div class="empty">Zatím žádné předměty – známky se tu objeví, jakmile učitel začne zapisovat.</div>')) +
     '</div>' +
     '<div class="card" style="margin-top:16px"><div class="card-title">' + ic('check', 16) + ' Pochvaly a výchovná opatření' +
       '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">' + myRecs.length + ' ' + csPlural(myRecs.length, 'záznam', 'záznamy', 'záznamů') + '</span></div>' +
@@ -1169,7 +1195,7 @@ function prubeznaView() {
             '<div style="margin-top:3px">' + escapeHtml(r.reason || '') + '</div>' +
             '<div class="row-sub">' + semLabel(r.sem || semOfDate(r.date)) + ' · ' + fmtDate(r.date) + '</div></div></div>';
         }).join('') + '</div>'
-      : '<div class="empty"><b>Zatím žádné záznamy</b>Pochvaly a výchovná opatření tu zapisuje třídní učitel.</div>') +
+      : '<div class="empty"><b>Zatím žádné záznamy</b>Zapisuje třídní učitel.</div>') +
     '</div>';
 }
 

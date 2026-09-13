@@ -1685,31 +1685,31 @@ function tUdaje() {
     const par = parentOfStudent(s.id);
     return { s, acc, par };
   });
+  const passCell = (acc, gen, who) => acc
+    ? '<div class="mob-cred-line"><span>' + who + '</span><code class="mono">' + escapeHtml(acc.username) + '</code></div>' +
+      '<div class="mob-cred-line"><span>Heslo</span>' +
+        (gen ? '<code class="mono">' + escapeHtml(gen) + '</code>' : '<i style="color:var(--muted);font-style:normal;font-size:12.5px">' + (acc.passChanged ? 'Změněno uživatelem' : 'Nezobrazuje se') + '</i>') +
+      '</div>'
+    : '';
   const rowHtml = (r) => {
     const genSt = r.acc && visibleGenPass(r.acc);
     const genPar = r.par && visibleGenPass(r.par);
-    return '<div class="list-row">' +
-      '<span class="ava">' + escapeHtml(r.s.first.charAt(0)) + '</span>' +
-      '<div class="grow"><div class="row-title">' + escapeHtml(r.s.first + ' ' + r.s.last) +
-        ' <span style="font-size:11px;color:var(--muted);font-weight:700">' + escapeHtml((myClsNames.find(c => c.id === r.s.cls) || {}).name || '') + '</span></div>' +
-        '<div class="row-sub">' +
-          (r.acc
-            ? 'Žák: <code class="mono">' + escapeHtml(r.acc.username) + '</code> · Heslo: ' +
-              (genSt ? '<code class="mono">' + escapeHtml(genSt) + '</code>' : '<span style="color:var(--muted)">' + (r.acc.passChanged ? 'změněno žákem' : 'nezobrazuje se') + '</span>')
-            : '<span style="color:var(--warn)">Žák bez účtu</span>') +
-          (r.par
-            ? '<br>Rodič: <code class="mono">' + escapeHtml(r.par.username) + '</code> · Heslo: ' +
-              (genPar ? '<code class="mono">' + escapeHtml(genPar) + '</code>' : '<span style="color:var(--muted)">' + (r.par.passChanged ? 'změněno rodičem' : 'nezobrazuje se') + '</span>')
-            : '') +
-        '</div></div>' +
-      '<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">' +
+    return '<div class="mob-cred">' +
+      '<div class="mob-cred-head"><span class="ava">' + escapeHtml(r.s.first.charAt(0)) + '</span>' +
+        '<b>' + escapeHtml(r.s.first + ' ' + r.s.last) + '</b>' +
+        '<span class="chip" style="margin-left:auto;font-size:11px">' + escapeHtml((myClsNames.find(c => c.id === r.s.cls) || {}).name || '') + '</span></div>' +
+      '<div class="mob-cred-logins">' +
+        (r.acc ? passCell(r.acc, genSt, 'Žák') : '<div class="mob-cred-line"><span style="color:var(--warn)">Žák bez účtu</span></div>') +
+        (r.par ? passCell(r.par, genPar, 'Rodič') : '') +
+      '</div>' +
+      '<div class="mob-cred-btns">' +
         (r.acc ? '<button class="btn btn-soft btn-sm" data-act="t-creds:' + r.acc.id + '">' + ic('eye', 13) + ' Údaje</button>' : '') +
         (r.acc ? '<button class="btn btn-soft btn-sm" data-act="t-print:' + r.acc.id + '" title="Vytisknout údaje žáka a rodiče">' + ic('print', 13) + ' Tisk</button>' : '') +
         (!r.par ? '<button class="btn btn-soft btn-sm" data-act="t-par-new:' + r.s.id + '">' + ic('users', 13) + ' Rodič</button>' : '') +
       '</div></div>';
   };
   return '<div class="page-head"><div><h1>Údaje – loginy žáků a rodičů</h1>' +
-    '<div class="sub">Zakládáte tady přihlášky žáků a rodičů svých tříd. Vygenerované heslo vidíte, dokud si ho žák/rodič poprvé nezmění sám – pak se u účtu zobrazí „Změněno“.</div></div>' +
+    '<div class="sub">Přihlášky žáků a rodičů vašich tříd. Heslo vidíte do první změny uživatelem.</div></div>' +
     '<div class="page-acts">' + (isAppMode()
       ? '<span class="chip chip-info">Přidávání žáků jen na PC 🖥️</span>'
       : '<button class="btn btn-primary btn-sm" data-act="t-udaje-add">' + ic('plus', 15) + ' Přidat žáka + login</button>') + '</div></div>' +
@@ -1843,7 +1843,7 @@ function tHesla() {
     return acc && resetResolverOf(acc).kind === 'teacher' && resetResolverOf(acc).teacherId === u.id;
   });
   return '<div class="page-head"><div><h1>Resetování hesel</h1>' +
-    '<div class="sub">Čekající žádosti o reset a upozornění. Loginy a hesla žáků/rodičů spravujte v záložce <b>Údaje</b> – tam je vidíte i později (dokud si je uživatel nezmění).</div></div></div>' +
+    '<div class="sub">Čekající žádosti o reset. Loginy a hesla spravujte v záložce <b>Údaje</b> – tam je vidíte i později.</div></div></div>' +
     (reqs.length
       ? '<div class="card" style="margin-bottom:16px;border-color:var(--warn)"><div class="card-title">' + ic('zap', 16) + ' Čekající žádosti o reset</div>' +
         '<div class="list">' + reqs.map(r => {

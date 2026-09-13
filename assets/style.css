@@ -829,3 +829,17 @@ body[data-mob="1"] .nav-backdrop { display: none !important; }
 .teacher-block h1 { font-size: 21px; margin-bottom: 10px; color: var(--text); }
 .teacher-block p { color: var(--muted); font-size: 14.5px; line-height: 1.55; }
 .tb-btn { margin-top: 16px; }
+
+/* ================= Pololetní klasifikace + Docházka: mobilní karty ================= */
+.pol-pc { display: block; }
+.pol-mob { display: none; }
+.pol-row { border: 1px solid var(--border); border-radius: 14px; padding: 12px; margin-bottom: 10px; background: var(--surface-2); }
+.pol-subj { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 14.5px; }
+.pol-subj .subj-badge { flex: 0 0 auto; }
+.pol-sems { display: flex; gap: 10px; flex-wrap: wrap; }
+.pol-sem { flex: 1; min-width: 96px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px; text-align: center; }
+.pol-sem-tag { font-size: 10.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 5px; }
+@media (max-width: 760px) {
+  .pol-pc { display: none; }
+  .pol-mob { display: block; }
+}
