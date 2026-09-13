@@ -94,7 +94,12 @@ stále zobrazuje jen jednorázově při vygenerování.
   organizace (žádosti přijímá/zamítá jen admin); data bývalé hlavní školy se
   při migraci uklidí. Seed nově zakládá testovací organizaci **testorg**:
   kontakt `testzakladatel` / `TestZakladatel1` (jen PC), třída `testtrida`
-  s třídním `testucitel` / `TestUcitel1*` a žák `testzak` / `TestZak1`.
+  s třídním `testucitel` / `TestUcitel1` a žák `testzak` / `TestZak1`.
+- **v18** – pole `db.orgNotices` (oznámení admina zakladatelům organizací:
+  `{id, orgId, text, ts, by}`) a příznak `suspended` na organizaci.
+  Pozastavená organizace zobrazuje učitelům i kontaktu jen obrazovku
+  s oznámením (přihlásit se dá, aplikace nefunguje); admin ruší tlačítkem
+  „Zrušit pozastavení“.
 - **Verze aplikace** – v záložce Data a release (vidí admin i kontakt) se
   zobrazuje **Beta 1.x** počítaná z počtu commitů repozitáře (marker
   `window.SS_COMMIT_COUNT` v `app.html` doplňuje deploy). Po 1.100 přechod

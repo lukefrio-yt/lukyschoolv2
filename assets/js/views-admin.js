@@ -46,8 +46,10 @@ function spravaHome() {
   ];
   if (overviewMode) {
     tabs.push({ k: 'orgs', label: 'Organizace' + (pendingOrgReqs ? ' (' + pendingOrgReqs + ' nová' + (pendingOrgReqs === 1 ? '' : 'é') + ')' : pendingOrgs ? ' (' + pendingOrgs + ')' : '') });
+    tabs.push({ k: 'notices', label: 'Oznámení' });
     tabs.push({ k: 'data', label: 'Data a release' });
   } else if (isRoot || contact) {
+    tabs.push({ k: 'notices', label: 'Oznámení' });
     tabs.push({ k: 'data', label: 'Data a release' });
   }
   /* pojistka: zastaralá uložená záložka (např. „data" u kontaktu) → zpět na Třídy */
@@ -65,6 +67,9 @@ function spravaHome() {
   const ctxBanner = (isRoot && org)
     ? '<div class="card" style="border-color:var(--accent);margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><b>' + ic('eye', 16) + ' Režim organizace</b>' +
       '<span class="small-note" style="margin:0">Spravujete cizí organizaci <b>' + escapeHtml(org.name) + '</b> – změny se týkají jen jejích dat.</span>' +
+      (org.suspended
+        ? '<button class="btn btn-soft btn-sm" data-act="sp-org-unsuspend:' + org.id + '">' + ic('check', 14) + ' Zrušit pozastavení</button>'
+        : '<button class="btn btn-ghost btn-sm" data-act="sp-org-suspend:' + org.id + '">' + ic('shield', 14) + ' Pozastavit</button>') +
       '<button class="btn btn-ghost btn-sm" style="margin-left:auto" data-act="sp-org-exit">' + ic('back', 14) + ' Zpět na přehled organizací</button></div>'
     : '';
   const renameBtn = (org && (isRoot || contact))
@@ -90,6 +95,7 @@ function spravaHome() {
       : SP_TAB === 'students' ? spStudents(canManage)
       : SP_TAB === 'resets' ? spResets()
       : SP_TAB === 'orgs' ? spOrgs()
+      : SP_TAB === 'notices' ? spNotices()
       : spData());
 }
 onAct('sp-tab:', el => { SP_TAB = el.getAttribute('data-act').slice(7); localStorage.setItem('sprava_tab', SP_TAB); route(); });
@@ -634,7 +640,7 @@ function appReleaseVersion() {
   return {
     commits,
     label: 'Beta ' + (base + 1) + '.' + minor,
-    desc: 'Verze se zvyšuje s každým commitem – aktuálně ' + commits + ' commitů. Po ' + nextAt + '. commitu přijde ' + nextMajor + '.0 a číslování pokračuje (' + nextMajor + '.1, ' + nextMajor + '.2 …).'
+    desc: ''
   };
 }
 function spData() {
@@ -722,9 +728,10 @@ function spOrgs() {
       ? '<div class="grid grid-2">' + found.map(o => {
           const st = orgStats(o.id);
           const contact = (db.users || []).find(u => u.id === o.contactId);
-          return '<div class="card">' +
-            '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">' +
+          return '<div class="card"' + (o.suspended ? ' style="border-color:var(--bad)"' : '') + '>' +
+            '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">' +
               '<span class="chip chip-accent" style="font-size:14px;padding:6px 12px">' + escapeHtml(o.name) + '</span>' +
+              (o.suspended ? '<span class="chip chip-bad" style="padding:5px 10px">Pozastavena</span>' : '') +
               '<span style="margin-left:auto;color:var(--muted);font-size:12px;font-weight:700">založeno ' + tsLabel(o.createdAt) + '</span>' +
             '</div>' +
             '<div class="small-note" style="margin-bottom:10px">Zakladatel: <b>' + escapeHtml(o.first + ' ' + o.last) + '</b><br>' +
@@ -734,12 +741,111 @@ function spOrgs() {
             '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
               '<button class="btn btn-primary btn-sm" data-act="sp-org-open:' + o.id + '">' + ic('eye', 14) + ' Rozkliknout</button>' +
               (contact ? '<button class="btn btn-soft btn-sm" data-act="sp-creds:' + escapeHtml(contact.username) + '">' + ic('lock', 14) + ' Účet kontaktu</button>' : '') +
-              '<button class="btn btn-bad btn-sm" data-act="sp-org-del:' + o.id + '" style="margin-left:auto">' + ic('trash', 14) + ' Smazat organizaci</button>' +
+              (o.suspended
+                ? '<button class="btn btn-soft btn-sm" data-act="sp-org-unsuspend:' + o.id + '" style="margin-left:auto" title="Obnovit fungování organizace">' + ic('check', 14) + ' Zrušit pozastavení</button>'
+                : '<button class="btn btn-bad btn-sm" data-act="sp-org-suspend:' + o.id + '" style="margin-left:auto" title="Pozastavit fungování organizace">' + ic('shield', 14) + ' Pozastavit</button>') +
+              '<button class="btn btn-bad btn-sm" data-act="sp-org-del:' + o.id + '">' + ic('trash', 14) + ' Smazat</button>' +
             '</div>' +
           '</div>';
         }).join('') + '</div>'
       : '<div class="empty"><b>Zatím žádné organizace</b>Po schválení žádosti se organizace objeví tady.</div>');
 }
+/* ---------- oznámení zakladatelům organizací (admin) ---------- */
+function spNotices() {
+  const u = currentUser();
+  const isRoot = !!u.isAdmin;
+  const scopeOrg = isRoot ? null : (u.orgId || null);
+  const notices = orgNoticesList(scopeOrg);
+  const orgs = organizationsList().slice().sort((a, b) => a.name.localeCompare(b.name, 'cs'));
+  const o = scopeOrg ? orgById(scopeOrg) : null;
+  return '' +
+    (isRoot
+      ? '<div class="card" style="max-width:680px;margin-bottom:18px"><div class="card-title">' + ic('send', 16) + ' Nové oznámení zakladateli organizace</div>' +
+        '<form data-form="sp-notice-send" style="display:grid;gap:10px;margin-top:10px">' +
+          '<div class="field"><label>Organizace</label><select name="org" class="sel">' +
+            orgs.map(x => '<option value="' + escapeHtml(x.id) + '">' + escapeHtml(x.name) + (x.suspended ? ' (pozastavena)' : '') + '</option>').join('') +
+          '</select></div>' +
+          '<div class="field"><label>Text oznámení</label><textarea name="text" class="ta" rows="3" maxlength="400" required placeholder="Např. Název organizace je irelevantní – pokud ho do 10 dnů nezměníte, bude organizace pozastavena."></textarea></div>' +
+          '<div style="display:flex;gap:10px;flex-wrap:wrap">' +
+            '<button class="btn btn-primary">' + ic('send', 15) + ' Odeslat oznámení</button>' +
+            '<button type="button" class="btn btn-soft" data-act="sp-notice-suspend-from-form">' + ic('shield', 15) + ' Odeslat a pozastavit organizaci</button>' +
+          '</div>' +
+        '</form></div>'
+      : (o && o.suspended
+        ? '<div class="warn-line" style="margin-bottom:14px">' + ic('shield', 15) + ' <span><b>Vaše organizace je pozastavena.</b> Dodržte pokyny z oznámení níže – správce pak pozastavení zruší.</span></div>'
+        : '')) +
+    '<h2 style="margin:4px 0 10px;font-size:17px">' + (isRoot ? 'Odeslaná oznámení (' + notices.length + ')' : 'Oznámení od admina (' + notices.length + ')') + '</h2>' +
+    (notices.length
+      ? '<div class="list">' + notices.map(n => {
+          const org = orgById(n.orgId);
+          return '<div class="list-row"><span class="ava" style="background:linear-gradient(135deg,#3B82F6,#2563EB)">' + ic('bell', 16) + '</span>' +
+            '<div class="grow"><div class="row-title">' + (isRoot && org ? escapeHtml(org.name) + ' · ' : '') + escapeHtml(n.text) + '</div>' +
+            '<div class="row-sub">' + escapeHtml(n.by) + ' · ' + tsLabel(n.ts) + '</div></div>' +
+            (isRoot ? '<button class="icon-btn sm" style="color:var(--bad)" data-act="sp-notice-del:' + n.id + '" title="Smazat oznámení">' + ic('trash', 15) + '</button>' : '') +
+          '</div>';
+        }).join('') + '</div>'
+      : '<div class="empty"><b>Žádná oznámení</b>' + (isRoot ? 'Sem se řadí všechna oznámení odeslaná zakladatelům organizací.' : 'Oznámení od správce aplikace se objeví tady.') + '</div>');
+}
+onAct('form:sp-notice-send', f => {
+  const cu = currentUser();
+  if (!cu || !cu.isAdmin) { toast('Oznámení posílá pouze admin', 'bad'); return; }
+  const orgId = f.org.value;
+  const text = (f.text.value || '').trim().slice(0, 400);
+  if (!orgId || !text) { toast('Vyberte organizaci a napište text', 'bad'); return; }
+  addOrgNotice(orgId, text);
+  toast('Oznámení odesláno zakladateli organizace ✓', 'ok');
+  route();
+});
+onAct('sp-notice-suspend-from-form', () => {
+  const cu = currentUser();
+  if (!cu || !cu.isAdmin) return;
+  const sel = document.querySelector('form[data-form="sp-notice-send"] select[name="org"]');
+  const ta = document.querySelector('form[data-form="sp-notice-send"] textarea[name="text"]');
+  const orgId = sel && sel.value, text = ta && (ta.value || '').trim();
+  if (!orgId || !text) { toast('Nejdřív vyberte organizaci a napište text', 'bad'); return; }
+  addOrgNotice(orgId, text);
+  setOrgSuspended(orgId, true);
+  const o = orgById(orgId);
+  toast('Oznámení odesláno a organizace ' + (o ? escapeHtml(o.name) : '') + ' pozastavena', 'ok');
+  route();
+});
+onAct('sp-notice-del:', el => {
+  const cu = currentUser();
+  if (!cu || !cu.isAdmin) return;
+  deleteOrgNotice(el.getAttribute('data-act').slice(14));
+  route();
+});
+/* pozastavení / obnovení organizace z karty v přehledu */
+onAct('sp-org-suspend:', el => {
+  const cu = currentUser();
+  if (!cu || !cu.isAdmin) return;
+  const org = orgById(el.getAttribute('data-act').slice(15));
+  if (!org) return;
+  openModal(
+    '<h3>Pozastavit organizaci „' + escapeHtml(org.name) + '“?</h3>' +
+    '<p class="small-note" style="margin-bottom:12px">Učitelé i kontakt organizace uvidí místo aplikace jen obrazovku s oznámením. Nejdřív jim pošlete oznámení s pokyny (záložka Oznámení).</p>' +
+    '<div style="display:flex;gap:10px"><button class="btn btn-bad" data-act="sp-org-suspend-ok:' + org.id + '">' + ic('shield', 15) + ' Pozastavit</button>' +
+    '<button class="btn btn-ghost" data-act="close-modal">Zrušit</button></div>');
+});
+onAct('sp-org-suspend-ok:', el => {
+  const cu = currentUser();
+  if (!cu || !cu.isAdmin) return;
+  const org = orgById(el.getAttribute('data-act').slice(19));
+  if (!org) return;
+  setOrgSuspended(org.id, true);
+  closeModal();
+  toast('Organizace „' + escapeHtml(org.name) + '“ pozastavena', 'ok');
+  route();
+});
+onAct('sp-org-unsuspend:', el => {
+  const cu = currentUser();
+  if (!cu || !cu.isAdmin) return;
+  const org = orgById(el.getAttribute('data-act').slice(17));
+  if (!org) return;
+  setOrgSuspended(org.id, false);
+  toast('Organizace „' + escapeHtml(org.name) + '“ obnovena – funguje dál ✓', 'ok');
+  route();
+});
 onAct('sp-org-acc:', el => {
   const cu = currentUser();
   if (!cu || !cu.isAdmin) { toast('Žádosti o organizace přijímá a zamítá pouze admin', 'bad'); return; }
