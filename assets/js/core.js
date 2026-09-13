@@ -369,6 +369,8 @@ function renderLogin() {
 function tryLogin(user, pass) {
   const u = (db.users || []).find(x => x.username === user);
   if (!u || !verifyPassword(u, pass)) { toast('Nesprávné uživatelské jméno nebo heslo', 'bad'); return false; }
+  /* starý ss1 hash (nebo plain ze seedu) se teď transparentně povýší na ss2 PBKDF2 */
+  upgradeUserPass(u, pass);
   if (contactPcBlocked(u)) {
     toast('Kontaktní účet organizace je dostupný pouze na počítači 🖥️', 'bad');
     return false;
@@ -508,7 +510,7 @@ onAct('form:pass-change', f => {
   const u = currentUser();
   if (!u) return;
   if (applyPassError(String(fd.get('new1') || ''), String(fd.get('new2') || ''), u.role)) return;
-  u.pass = hashPassword(String(fd.get('new1')));
+  u.pass = hashPassword(String(fd.get('new1')));   /* ss2 = PBKDF2 (60 000 iterací) */
   u.passChanged = true; /* generované heslo už nikdo neuvidí – jen uživatel */
   delete u.genPass;   /* třídní už původní heslo neuvidí */
   saveDB();
