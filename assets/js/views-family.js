@@ -614,6 +614,43 @@ function parentCurChild() {
 function statMini(label, val, color) {
   return '<div style="background:var(--surface-2);border-radius:12px;padding:10px 12px;text-align:center"><b style="color:' + color + ';font-size:22px;display:block">' + val + '</b><span style="font-size:11px;color:var(--muted);font-weight:700">' + label + '</span></div>';
 }
+/* Souhrn nadcházejících akcí a úkolů dítěte – karta v Přehledu rodiče */
+function pUpcomingHtml(sid) {
+  const st = studentOf(sid);
+  const today = todayISO();
+  const acts = actionsFor(sid)
+    .filter(a => daysUntilAction(a.date) >= 0)
+    .sort((a, z) => (a.date < z.date ? -1 : 1))
+    .slice(0, 4);
+  const tasks = tasksFor(sid)
+    .filter(t => !t.done[sid])
+    .sort((a, z) => (a.due < z.due ? -1 : 1))
+    .slice(0, 4);
+  if (!acts.length && !tasks.length) return '';
+  const actRow = a =>
+    '<div class="list-row" style="padding:8px 10px;cursor:pointer" data-act="goto:#/rodic/planakci">' +
+      '<span class="ava" style="width:30px;height:30px;background:linear-gradient(135deg,#F59E0B,#D97706)">' + ic('flag', 14) + '</span>' +
+      '<div class="grow"><div class="row-title" style="font-size:13px">' + escapeHtml(a.title) + '</div>' +
+      '<div class="row-sub">' + fmtDate(a.date) + (a.sid ? ' · Jen pro ' + escapeHtml(st.first) : ' · Celá třída') + '</div></div>' +
+      actionCountdownChip(daysUntilAction(a.date)) + '</div>';
+  const tskRow = t => {
+    const late = t.due < today;
+    const subjName = t.subj && SUBJECTS[t.subj] ? SUBJECTS[t.subj].name : 'Úkol';
+    return '<div class="list-row" style="padding:8px 10px">' +
+      subjBadge(t.subj || 'CJ', 30) +
+      '<div class="grow"><div class="row-title" style="font-size:13px">' + escapeHtml(t.title) + '</div>' +
+      '<div class="row-sub">' + escapeHtml(subjName) + '</div></div>' +
+      '<span class="chip ' + (late ? 'chip-bad' : t.due === today ? 'chip-warn' : 'chip-accent') + '">' + (late ? 'Po termínu' : t.due === today ? 'Na dnes' : 'Do ' + fmtDate(t.due)) + '</span></div>';
+  };
+  return '<div class="card" style="margin-top:16px"><div class="card-title">' + ic('calendar', 16) + ' Nadcházející – ' + escapeHtml(st.first) +
+      '<button class="btn btn-ghost btn-sm" style="margin-left:auto" data-act="goto:#/rodic/planakci">Plán akcí</button></div>' +
+    '<div class="p-up-grid">' +
+      '<div><div class="small-note" style="margin:0 0 6px;font-weight:800">Akce</div>' +
+        (acts.length ? '<div class="list">' + acts.map(actRow).join('') + '</div>' : '<div class="empty" style="padding:12px">Žádné plánované akce</div>') + '</div>' +
+      '<div><div class="small-note" style="margin:0 0 6px;font-weight:800">Úkoly</div>' +
+        (tasks.length ? '<div class="list">' + tasks.map(tskRow).join('') + '</div>' : '<div class="empty" style="padding:12px">Všechny úkoly hotové 🎉</div>') + '</div>' +
+    '</div></div>';
+}
 function pPrehled() {
   clearTick();
   const u = currentUser();
@@ -685,7 +722,8 @@ function pPrehled() {
       '<button class="btn btn-soft btn-sm" style="width:100%;margin-top:10px" data-act="goto:#/rodic/omluvenky">Nová omluvenka / historie</button>' +
       '' +
     '</div>' +
-  '</div>';
+  '</div>' +
+  pUpcomingHtml(cid);
 }
 onAct('p-child:', el => { localStorage.setItem('ls_child', el.getAttribute('data-act').slice(8)); route(); });
 onAct('ch-child-pass:', el => {
