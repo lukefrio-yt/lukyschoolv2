@@ -1152,6 +1152,22 @@ function actionsFor(sid) {
   if (!st) return [];
   return (db.actions || []).filter(a => a.cls === st.cls && (!a.sid || a.sid === sid));
 }
+/* Potvrzení akce rodičem: a.acks = { parentUserId: ts }. Učitel vidí kdo potvrdil. */
+function ackAction(actionId, parentUserId) {
+  const a = (db.actions || []).find(x => x.id === actionId);
+  if (!a) return;
+  a.acks = a.acks || {};
+  a.acks[parentUserId] = nowISO();
+  saveDB();
+}
+function ackActionInfo(a, clsId) {
+  a.acks = a.acks || {};
+  const parents = (db.users || []).filter(u => u.role === 'rodic' && (u.children || []).some(sid => studentsOfClass(clsId).some(s => s.id === sid)));
+  const total = parents.length;
+  const acked = parents.filter(p => a.acks[p.id]).map(p => ({ name: p.name || p.username, ts: a.acks[p.id] }));
+  const waiting = parents.filter(p => !a.acks[p.id]).map(p => p.name || p.username);
+  return { total, acked, waiting };
+}
 /* kolik dní zbývá do akce: 0 = dnes, záporné = proběhla před |d| dny */
 function daysUntilAction(iso) {
   if (!iso) return 0;
