@@ -19,7 +19,7 @@ const DB_KEY_PREV = 'lukySchool.db.v13';
 const SES_KEY = 'lukySchool.session';
 const THEME_KEY = 'lukySchool.theme';
 const DB_TS_KEY = 'lukySchool.cloud.ts'; /* čas posledního lokálního uložení (cloud sync) */
-const DB_VERSION = 16;
+const DB_VERSION = 17;
 
 /* ---------- hashování hesel ----------
    Hesla se nikdy neukládají v čitelné podobě – v localStorage ani v cloudu.
@@ -448,10 +448,13 @@ const ADMIN_USER = {
 };
 function buildSeed() {
   const now = nowISO();
-  return {
+  /* Testovací organizace v seedu (necháno k vyzkoušení – admin ji může smazat):
+     testorg → třída testtrida (třídní testucitel) → žák Test Žák (testzak).
+     Uživatelé si třídy/loginy dotvoří přes Správu organizace (PC) resp. Známkování/Údaje. */
+  const seed = {
     v: DB_VERSION,
     meta: { seededAt: now, schoolYear: schoolYearLabel() },
-    schoolName: 'LukySchool',           /* název hlavní (vlastní) školy */
+    schoolName: 'LukySchool',           /* název hlavní (vlastní) školy – nadále se nepoužívá, admin žádnou hlavní školu nemá */
     organizations: [],                  /* cizí organizace: {id,name,first,last,phone,email,contactId,createdAt} */
     orgRequests: [],                    /* žádosti o založení: {id,first,last,orgName,phone,email,username,pass,status,ts} */
     classes: [],
@@ -477,6 +480,20 @@ function buildSeed() {
     actions: [], /* plán akcí: {id,cls,sid?,title,desc,date,by,ts} */
     seen: { 'u-admin': null }
   };
+  /* naplnění testovací organizace (struktura identická aplikačním tvůrcům) */
+  try {
+    const orgId = 'org_testorg';
+    seed.organizations.push({ id: orgId, name: 'testorg', first: 'Test', last: 'Kontakt', phone: '+420 900 000 000', email: 'testorg@example.com', createdAt: now });
+    seed.users.push(
+      { id: 'u_testkontakt', username: 'testzakladatel', pass: hashPassword('TestZakladatel1'), role: 'ucitel', passChanged: false, name: 'Test Kontakt', note: 'Kontakt · testorg', isAdmin: false, isOrgContact: true, orgId },
+      { id: 'u_testucitel', username: 'testucitel', pass: hashPassword('TestUcitel1*'), role: 'ucitel', passChanged: false, name: 'Test Učitel', note: 'Třídní · testtrida', isAdmin: false, orgId }
+    );
+    seed.classes.push({ id: 'testtrida', name: 'testtrida', orgId, teacherIds: ['u_testucitel'], mainTeacher: 'u_testucitel' });
+    seed.students.push({ id: 's_testzak', first: 'Test', last: 'Žák', cls: 'testtrida', ivp: false, demo: false, orgId });
+    seed.users.push({ id: 'u_testzak', username: 'testzak', pass: hashPassword('TestZak1'), role: 'student', passChanged: false, name: 'Test Žák', note: 'testtrida', studentId: 's_testzak', isAdmin: false, orgId });
+    seed.seen = { 'u-admin': null, u_testkontakt: null, u_testucitel: null, u_testzak: null };
+  } catch (e) { console.warn('Seed testorg selhal', e); }
+  return seed;
 }
 
 /* ---------- načtení / uložení ---------- */
@@ -518,14 +535,23 @@ let db = null;
         if (u.passChanged || (u.role !== 'student' && u.role !== 'rodic')) delete u.genPass;
       });
     }
-    if (parsed.v < 16) {
-      /* v15 → v16: hesla učitelů jsou nově viditelná kontaktu organizace/adminovi
-         (zašifrovaně, do první vlastní změny). Existujícím učitelům se pole
-         doplnit nedá (hash nejde zpětně dešifrovat) – uvidí se až u nově
-         zakládaných/resetovaných účtů; změněná hesla se nezobrazují. */
-      (parsed.users || []).forEach(u => {
-        if (u.role === 'ucitel' && !u.passChanged && !u.genPass) { /* bez genPass – heslo uživatelů starších instalací se nezobrazí, jen „nezobrazuje se“ */ }
-      });
+    if (parsed.v < 17) {
+      /* v16 → v17: končí hlavní škola (LukySchool). Admin už žádnou hlavní školu
+         nemá – spravuje výhradně organizace. Stávající data hlavní školy (třídy,
+         učitelé, žáci, známky, třídní kniha…) se uvolní; organizace zůstávají. */
+      const mainCls = (parsed.classes || []).filter(c => !c.orgId).map(c => c.id);
+      (parsed.students || []).filter(s => !s.orgId).forEach(s => { s._del = true; });
+      parsed.users = (parsed.users || []).filter(u => !(!u.isRoot && !u.orgId && !u.isOrgContact));
+      parsed.students = (parsed.students || []).filter(s => !s._del);
+      mainCls.forEach(id => { if (parsed.schedule) delete parsed.schedule[id]; });
+      parsed.classes = (parsed.classes || []).filter(c => c.orgId);
+      parsed.columns = (parsed.columns || []).filter(c => !mainCls.includes(c.cls));
+      parsed.classbook = (parsed.classbook || []).filter(r => !mainCls.includes(r.cls));
+      parsed.tasks = (parsed.tasks || []).filter(t => !mainCls.includes(t.cls));
+      parsed.subs = (parsed.subs || []).filter(t => !mainCls.includes(t.cls));
+      parsed.actions = (parsed.actions || []).filter(a => !mainCls.includes(a.cls));
+      parsed.records = (parsed.records || []).filter(r => !(parsed.students || []).some(s => s.id === r.sid));
+      parsed.notes = (parsed.notes || []).filter(n => !(parsed.students || []).some(s => s.id === n.sid));
     }
     if (parsed.v < 10) {
       /* v9 → v10: vlákna zpráv dostanou typ „rodič“ (do v9 uměli psát jen rodiče) */

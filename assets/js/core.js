@@ -132,10 +132,10 @@ function registerView(role, key, fn) { (VIEWS[role] = VIEWS[role] || {})[key] = 
 const ROLES_CS = { ucitel: 'Učitel', student: 'Žák', rodic: 'Rodič', admin: 'Správce' };
 /* kontaktní účet organizace je přístupný POUZE na počítači */
 function contactPcBlocked(u) { return isContactUser(u) && isAppMode(); }
-const ADMIN_NAV = [{ key: 'sprava', icon: 'users', label: 'Správa školy' }];
+const ADMIN_NAV = [{ key: 'sprava', icon: 'users', label: 'Správa organizací' }];
 const ROLE_NAV = {
   admin: [
-    { key: 'sprava', icon: 'users', label: 'Správa školy' }
+    { key: 'sprava', icon: 'users', label: 'Správa organizací' }
   ],
   ucitel: [
     { key: 'prehled',   icon: 'home', label: 'Přehled' },
@@ -290,8 +290,9 @@ function route() {
   }
   const role = user.isAdmin ? 'admin' : user.role;   /* admin i kontakt = rozhoduje isAdmin, ne role */
   const isContact = isContactUser(user);
-  /* kontaktní účet na mobilu/tabletu = zámek s vysvětlením */
+  /* kontaktní účet i admin účet na mobilu/tabletu = zámek s vysvětlením */
   if (isContact && isAppMode()) { showContactMobileBlock(user); return; }
+  if (user.isAdmin && isAppMode()) { showAdminMobileBlock(user); return; }
   let h = location.hash.replace(/^#\/?/, '');
   const parts = h.split('/');
   // povolíme parametr za „|" (např. #/student/znamky|M) – base klíč pro lookup
@@ -357,6 +358,10 @@ function tryLogin(user, pass) {
     toast('Kontaktní účet organizace je dostupný pouze na počítači 🖥️', 'bad');
     return false;
   }
+  if (u.isAdmin && isAppMode()) {
+    toast('Admin účet je dostupný pouze na počítači 🖥️', 'bad');
+    return false;
+  }
   saveSession({ user: u.username });
   location.hash = '#/' + (u.isAdmin ? 'admin' : u.role) + '/' + defKeyFor(u);
   route();
@@ -402,6 +407,7 @@ onAct('quick-login:', el => {
   const u = (db.users || []).find(x => x.username === username);
   if (!u) { forgetAccount(username); route(); toast('Účet už neexistuje – odebrán ze seznamu', 'bad'); return; }
   if (contactPcBlocked(u)) { toast('Kontaktní účet organizace je dostupný pouze na počítači 🖥️', 'bad'); return; }
+  if (u.isAdmin && isAppMode()) { toast('Admin účet je dostupný pouze na počítači 🖥️', 'bad'); return; }
   saveSession({ user: u.username });
   location.hash = '#/' + (u.isAdmin ? 'admin' : u.role) + '/' + defKeyFor(u);
   route();
@@ -731,6 +737,19 @@ function showContactMobileBlock(user) {
       '<div class="tb-ring">' + ic('home', 30) + '</div>' +
       '<h1>Kontaktní účet je jen pro počítač 🖥️</h1>' +
       '<p>Účet kontaktu organizace <b>' + escapeHtml(user ? orgLabel(user.orgId) : '') + '</b> funguje pouze na počítači.<br>Přihlaste se na něm k správě tříd a loginů své organizace.</p>' +
+      '<button class="btn btn-ghost tb-btn" data-act="logout">' + ic('logout', 16) + ' Zpět na přihlášení</button>' +
+    '</div></div>';
+  document.body.classList.add('device-locked');
+}
+/* admin (zakladatel aplikace) funguje jen na počítači */
+function showAdminMobileBlock(user) {
+  const app = document.getElementById('app');
+  document.body.classList.remove('nav-open', 'dock-open');
+  if (app) app.innerHTML =
+    '<div class="teacher-block"><div class="teacher-block-in">' +
+      '<div class="tb-ring">' + ic('shield', 30) + '</div>' +
+      '<h1>Admin účet je jen pro počítač 🖥️</h1>' +
+      '<p>Zakladatelský účet aplikace funguje pouze na počítači.<br>Přihlaste se na něm k správě organizací a jejich účtů.</p>' +
       '<button class="btn btn-ghost tb-btn" data-act="logout">' + ic('logout', 16) + ' Zpět na přihlášení</button>' +
     '</div></div>';
   document.body.classList.add('device-locked');

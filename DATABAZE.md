@@ -90,6 +90,19 @@ neexistuje). Jakmile si uživatel heslo změní sám (`passChanged=true`), pole
 se smaže a heslo už nikdo neuvidí. Heslo **kontaktního účtu a admina** se
 stále zobrazuje jen jednorázově při vygenerování.
 
+- **v17** – končí hlavní škola (LukySchool). Admin spravuje výhradně
+  organizace (žádosti přijímá/zamítá jen admin); data bývalé hlavní školy se
+  při migraci uklidí. Seed nově zakládá testovací organizaci **testorg**:
+  kontakt `testzakladatel` / `TestZakladatel1` (jen PC), třída `testtrida`
+  s třídním `testucitel` / `TestUcitel1*` a žák `testzak` / `TestZak1`.
+- **Verze aplikace** – v záložce Data a release (vidí admin i kontakt) se
+  zobrazuje **Beta 1.x** počítaná z počtu commitů repozitáře (marker
+  `window.SS_COMMIT_COUNT` v `app.html` doplňuje deploy). Po 1.100 přechod
+  na 2.0, pak 2.1, 2.2… (Po 99 → 1.100? Ne: 1.99 → 100 commitů = **2.0**.)
+- **Admin účet** funguje pouze na počítači (na mobilu se zobrazí zámek).
+- **Pololetní klasifikace žáka/rodiče** se skryje, dokud učitel do daného
+  pololetí nenapíše známky nebo ho neuzavře.
+
 ### Kontaktní účet organizace (rolá „zakladatel organizace“)
 
 Účet založený se organizací (`isOrgContact`) slouží **pouze ke správě své

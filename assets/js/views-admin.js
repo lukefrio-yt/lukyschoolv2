@@ -34,33 +34,38 @@ function spravaHome() {
   const pendingResets = resetRequestsInView().filter(r => r.status === 'ceka').length;
   const pendingOrgReqs = orgRequestsList().filter(r => r.status === 'ceka').length;
   const pendingOrgs = organizationsList().length;
-  const tabs = [
+  /* Admin bez rozkliknuté organizace = jen přehled organizací (žádná „hlavní škola“).
+     Kontakt = své třídy/učitele/žáky + Data a release. */
+  const overviewMode = isRoot && !org;
+  const tabs = overviewMode ? [] : [
     { k: 'classes', label: 'Třídy (' + cls.length + ')' },
     { k: 'teachers', label: 'Učitelé (' + teachers.length + ')' },
     { k: 'students', label: 'Žáci (' + students.length + ')' },
     { k: 'resets', label: 'Žádosti o reset' + (pendingResets ? ' (' + pendingResets + ')' : '') }
   ];
-  if (isRoot) {
+  if (overviewMode) {
     tabs.push({ k: 'orgs', label: 'Organizace' + (pendingOrgReqs ? ' (' + pendingOrgReqs + ' nová' + (pendingOrgReqs === 1 ? '' : 'é') + ')' : pendingOrgs ? ' (' + pendingOrgs + ')' : '') });
+    tabs.push({ k: 'data', label: 'Data a release' });
+  } else if (isRoot || contact) {
     tabs.push({ k: 'data', label: 'Data a release' });
   }
   /* pojistka: zastaralá uložená záložka (např. „data" u kontaktu) → zpět na Třídy */
-  if (!tabs.some(t => t.k === SP_TAB)) SP_TAB = 'classes';
+  if (!tabs.some(t => t.k === SP_TAB)) SP_TAB = overviewMode ? 'orgs' : 'classes';
   const org = scopeOrg ? orgById(scopeOrg) : null;
   const headTitle = contact
     ? 'Správa organizace · ' + escapeHtml(org ? org.name : '?')
-    : (org ? 'Organizace · ' + escapeHtml(org.name) : 'Správa školy · ' + escapeHtml(schoolName()));
+    : (org ? 'Organizace · ' + escapeHtml(org.name) : 'Organizace');
   const headSub = contact
     ? (canManage
       ? 'Vaše organizace · přihlašovací údaje se generují automaticky'
       : 'Zakládání tříd a loginů je dostupné jen na počítači 🖥️ – na mobilu se rozhraní jen čte')
     : (org
       ? 'Rozkliknutá organizace – vidíte všechna data včetně přihlašovacích údajů'
-      : 'Hlavní škola · třídy, učitelé a žáci · přihlašovací údaje se generují automaticky');
+      : 'Přehled všech organizací · žádosti o založení přijímá a zamítá pouze admin');
   const ctxBanner = (isRoot && org)
     ? '<div class="card" style="border-color:var(--accent);margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><b>' + ic('eye', 16) + ' Režim organizace</b>' +
       '<span class="small-note" style="margin:0">Spravujete cizí organizaci <b>' + escapeHtml(org.name) + '</b> – změny se týkají jen jejích dat.</span>' +
-      '<button class="btn btn-ghost btn-sm" style="margin-left:auto" data-act="sp-org-exit">' + ic('back', 14) + ' Zpět na LukySchool</button></div>'
+      '<button class="btn btn-ghost btn-sm" style="margin-left:auto" data-act="sp-org-exit">' + ic('back', 14) + ' Zpět na přehled organizací</button></div>'
     : '';
   const renameBtn = (org && (isRoot || contact))
     ? '<button class="btn btn-ghost btn-sm" data-act="sp-org-rename" title="Přejmenovat organizaci">' + ic('edit', 14) + ' Přejmenovat</button>'
@@ -70,12 +75,13 @@ function spravaHome() {
       '<div class="sub">' + headSub + '</div></div>' +
       (renameBtn ? '<div class="page-acts">' + renameBtn + '</div>' : '') + '</div>' +
     ctxBanner +
+    (overviewMode ? '' :
     '<div class="grid grid-4" style="margin-bottom:16px">' +
       '<div class="stat"><span class="s-ic" style="background:rgba(59,130,246,.14);color:var(--accent)">' + ic('home', 20) + '</span><div><b>' + cls.length + '</b><span>tříd</span></div></div>' +
       '<div class="stat"><span class="s-ic" style="background:rgba(139,92,246,.14);color:#A78BFA">' + ic('users', 20) + '</span><div><b>' + teachers.length + '</b><span>učitelů</span></div></div>' +
       '<div class="stat"><span class="s-ic" style="background:rgba(245,158,11,.14);color:var(--warn)">' + ic('book', 20) + '</span><div><b>' + students.length + '</b><span>žáků</span></div></div>' +
       '<div class="stat"><span class="s-ic" style="background:rgba(16,185,129,.14);color:var(--ok)">' + ic('user', 20) + '</span><div><b>' + (db.users || []).filter(x => (x.orgId || null) === scopeOrg).length + '</b><span>loginů</span></div></div>' +
-    '</div>' +
+    '</div>') +
     '<div class="tabs">' + tabs.map(t =>
       '<button class="tab' + (SP_TAB === t.k ? ' active' : '') + '" data-act="sp-tab:' + t.k + '">' + t.label + '</button>').join('') +
     '</div>' +
@@ -554,7 +560,7 @@ function showCreds(user) {
       (user.isOrgContact ? '(zvolil si žadatel sám)' : (user.passChanged ? '(Změněno uživatelem)' : '(Nezobrazuje se)')) + '</span></div>';
   const note = plain
     ? (user.role === 'student' || user.role === 'rodic'
-      ? '<b>Heslo zůstane viditelné</b> – uvidíte ho kdykoli tady, dokud si ho žák/rodič poprvé sám nezmění (pak se tady přepíše na „změněno uživatelem“).'
+      ? '<b>Heslo zůstane viditelné</b> – dokud si ho žák/rodič poprvé sám nezmění.'
       : '<b>Zapište si ho hned</b> – z bezpečnostních důvodů se heslo zobrazí jen jednou. V databázi zůstane pouze hash.')
     : (user.isOrgContact
       ? 'Kontaktní účet si heslo zvolil sám při žádosti o organizaci – nikdo jiný ho nezná. Když ho zapomene, vygenerujte mu nové.'
@@ -613,13 +619,41 @@ onAct('gen-pass', () => {
 });
 
 /* ---------- data a release ---------- */
+/* Verze aplikace roste s každým commitem: Beta 1.28 → … → Beta 1.100? ne –
+   po 1.99? Ne. Stovky commitů = celková nula: 1.100 → 2.0 → 2.1 … 2.100 → 3.0.
+   Hodnotu průběžně doplňuje deploy (marker SS_COMMIT_COUNT v app.html). */
+function appReleaseVersion() {
+  const commits = Number(window.SS_COMMIT_COUNT || 0);
+  if (!commits) return { commits: 0, label: 'Beta (vývojová)', desc: '' };
+  const major = Math.floor(commits / 100);
+  const minor = commits % 100;
+  return {
+    commits,
+    label: 'Beta ' + major + '.' + minor,
+    desc: 'Verze se zvyšuje s každým commitem – aktuálně ' + commits + ' commitů. Po ' + ((major + 1) * 100) + '. commitu přijde ' + (major + 1) + '.0 a číslování pokračuje (' + (major + 1) + '.1, ' + (major + 1) + '.2 …).'
+  };
+}
 function spData() {
-  return '<div class="card" style="max-width:640px">' +
-    '<div class="card-title">' + ic('trash', 16) + ' Vyčistit hlavní školu (čistý start)</div>' +
-    '<p class="small-note" style="margin:0 0 12px">Smaže všechny třídy, učitele, žáky, známky, rozvrhy i zprávy hlavní školy ' + escapeHtml(schoolName()) + '. Zůstane pouze zakladatelský účet <code class="mono">admin</code> a organizace s jejich daty. Školu pak postavíte přes Správu: třída → učitel → žáci.</p>' +
-    '<button class="btn btn-bad" data-act="sp-wipe">' + ic('trash', 15) + ' Vyčistit školu</button>' +
-    '<div class="small-note" style="margin-top:12px">Pozor: data se ukládají v prohlížeči (localStorage). Před čistěním si případně udělejte export – viz návod DATABAZE.md.</div>' +
-  '</div>';
+  const v = appReleaseVersion();
+  const isRoot = !!(currentUser() && currentUser().isAdmin);
+  const mainLeft = (db.classes || []).filter(c => !c.orgId).length + (db.students || []).filter(s => !s.orgId).length + (db.users || []).filter(u => !u.isRoot && !u.orgId && !u.isOrgContact).length;
+  return '' +
+    '<div class="card" style="max-width:640px">' +
+      '<div class="card-title">' + ic('zap', 16) + ' Release verze aplikace</div>' +
+      '<div style="display:flex;align-items:center;gap:12px;margin:8px 0 10px;flex-wrap:wrap">' +
+        '<span class="chip chip-accent" style="font-size:15px;font-weight:800;padding:6px 14px">' + escapeHtml(v.label) + '</span>' +
+        (v.desc ? '<span class="small-note" style="margin:0">' + escapeHtml(v.desc) + '</span>' : '') +
+      '</div>' +
+    '</div>' +
+    (isRoot
+      ? '<div class="card" style="max-width:640px;margin-top:16px">' +
+          '<div class="card-title">' + ic('trash', 16) + (mainLeft ? ' Úklid zbytků bývalé hlavní školy' : ' Hlavní škola už neexistuje') + '</div>' +
+          '<p class="small-note" style="margin:0 0 12px">' + (mainLeft
+            ? 'Nalezeny staré záznamy hlavní školy (' + mainLeft + ') – po jejím zrušení už nikam nepatří. Můžete je uklidit. Organizace se nedotkne.'
+            : 'Admin žádnou hlavní školu nemá – spravuje výhradně organizace. Třídy, učitele a žáky vidíte po rozkliknutí konkrétní organizace.') + '</p>' +
+          (mainLeft ? '<button class="btn btn-bad" data-act="sp-wipe">' + ic('trash', 15) + ' Uklidit zbytky</button>' : '') +
+        '</div>'
+      : '');
 }
 onAct('sp-wipe', () => {
   openModal('<h3>Opravdu vyčistit hlavní školu?</h3>' +
@@ -633,7 +667,7 @@ onAct('sp-wipe-ok', () => {
   closeModal();
   location.hash = '#/admin/sprava';
   route();
-  toast('Hlavní škola vyčištěna – začněte přidáním třídy', 'ok');
+  toast('Zbytky hlavní školy uklizeny', 'ok');
 });
 
 /* ============================================================
@@ -683,6 +717,8 @@ function spOrgs() {
       : '<div class="empty"><b>Zatím žádné organizace</b>Po schválení žádosti se organizace objeví tady.</div>');
 }
 onAct('sp-org-acc:', el => {
+  const cu = currentUser();
+  if (!cu || !cu.isAdmin) { toast('Žádosti o organizace přijímá a zamítá pouze admin', 'bad'); return; }
   const r = orgRequestsList().find(x => x.id === el.getAttribute('data-act').slice(11));
   if (!r || r.status !== 'ceka') return;
   if (usernameTaken(r.username, r.id)) { toast('Login „' + escapeHtml(r.username) + '“ už existuje – odmítněte žádost a žadatel ji pošle znovu', 'bad'); return; }
@@ -694,6 +730,8 @@ onAct('sp-org-acc:', el => {
     '<button class="btn btn-ghost" data-act="close-modal">Zrušit</button></div>');
 });
 onAct('sp-org-acc-ok:', el => {
+  const cu = currentUser();
+  if (!cu || !cu.isAdmin) { toast('Žádosti o organizace přijímá a zamítá pouze admin', 'bad'); return; }
   const r = orgRequestsList().find(x => x.id === el.getAttribute('data-act').slice(14));
   if (!r || r.status !== 'ceka') return;
   const { org, contact } = createOrganization(r);
@@ -706,6 +744,8 @@ onAct('sp-org-acc-ok:', el => {
   route();
 });
 onAct('sp-org-rej:', el => {
+  const cu = currentUser();
+  if (!cu || !cu.isAdmin) { toast('Žádosti o organizace přijímá a zamítá pouze admin', 'bad'); return; }
   const r = orgRequestsList().find(x => x.id === el.getAttribute('data-act').slice(11));
   if (!r) return;
   openModal(
@@ -715,6 +755,8 @@ onAct('sp-org-rej:', el => {
     '<button class="btn btn-ghost" data-act="close-modal">Zrušit</button></div>');
 });
 onAct('sp-org-rej-ok:', el => {
+  const cu = currentUser();
+  if (!cu || !cu.isAdmin) { toast('Žádosti o organizace přijímá a zamítá pouze admin', 'bad'); return; }
   const r = orgRequestsList().find(x => x.id === el.getAttribute('data-act').slice(14));
   if (!r) return;
   r.status = 'odmitnuto';
