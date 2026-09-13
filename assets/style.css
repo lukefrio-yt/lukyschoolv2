@@ -896,14 +896,14 @@ body[data-mob="1"] .nav-backdrop { display: none !important; }
 @media (max-width: 900px) { .p-up-grid { grid-template-columns: 1fr; } }
 
 /* ---- Potvrzení rodičů u akce (učitel) ---- */
-.ack-box { margin-top: 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+.ack-box { margin-top: 8px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 7px 10px; }
 .ack-box.ack-ok { border-color: rgba(16, 185, 129, .45); background: rgba(16, 185, 129, .07); }
-.ack-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .02em; color: var(--muted); }
-.ack-head span { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+.ack-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .02em; color: var(--muted); }
+.ack-head span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .ack-box.ack-ok .ack-head { color: var(--ok); }
-.ack-head b { color: var(--text); font-size: 14px; white-space: nowrap; }
-.ack-names { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.ack-pill { background: rgba(16,185,129,.14); color: var(--ok); border: 1px solid rgba(16,185,129,.35); border-radius: 99px; padding: 3px 10px; font-size: 12px; font-weight: 700; }
+.ack-head b { color: var(--text); font-size: 13px; white-space: nowrap; }
+.ack-names { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.ack-pill { background: rgba(16,185,129,.14); color: var(--ok); border: 1px solid rgba(16,185,129,.35); border-radius: 99px; padding: 2px 9px; font-size: 11.5px; font-weight: 700; }
 
-/* ---- Potvrzený chip rodiče (vlastní řádek, výrazný) ---- */
-.ack-mine { margin-top: 10px; display: flex; align-items: center; gap: 8px; background: rgba(16,185,129,.1); border: 1px solid rgba(16,185,129,.4); border-radius: 10px; padding: 9px 12px; font-size: 13px; font-weight: 800; color: var(--ok); }
+/* ---- Potvrzený chip rodiče (kompaktní, inline) ---- */
+.ack-mine { margin-top: 8px; display: inline-flex; align-items: center; gap: 6px; background: rgba(16,185,129,.1); border: 1px solid rgba(16,185,129,.4); border-radius: 99px; padding: 4px 11px; font-size: 12px; font-weight: 800; color: var(--ok); }

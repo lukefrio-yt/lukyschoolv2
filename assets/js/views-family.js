@@ -1507,8 +1507,8 @@ function planAkciView() {
       '<div class="row-sub">' + fmtDate(a.date) + (isPast ? ' · proběhlo' : '') + (a.sid ? ' · akce jen pro ' + (isRod ? 'vaše dítě' : 'tebe') : ' · celá třída') + '</div>' +
       (canAck
         ? (acked
-          ? '<div class="ack-mine">' + ic('check', 14) + ' Potvrzeno – Učitel Ví, Že O Akci Víte</div>'
-          : '<button class="btn btn-soft btn-sm" style="margin-top:8px;width:100%" data-act="ack-act:' + a.id + '">' + ic('check', 14) + ' Potvrzuji, Že O Akci Vím</button>')
+          ? '<div class="ack-mine">' + ic('check', 13) + ' Potvrzeno – Učitel Ví, Že O Akci Víte</div>'
+          : '<button class="btn btn-soft btn-sm" style="margin-top:8px" data-act="ack-act:' + a.id + '">' + ic('check', 13) + ' Potvrzuji, Že O Akci Vím</button>')
         : '') +
       '</div></div>';
   };
