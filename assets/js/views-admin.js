@@ -59,11 +59,11 @@ function spravaHome() {
     : (org ? 'Organizace · ' + escapeHtml(org.name) : 'Organizace');
   const headSub = contact
     ? (canManage
-      ? 'Vaše organizace · přihlašovací údaje se generují automaticky'
+      ? 'Vaše organizace · Přihlašovací údaje se generují automaticky'
       : 'Zakládání tříd a loginů je dostupné jen na počítači 🖥️ – na mobilu se rozhraní jen čte')
     : (org
       ? 'Rozkliknutá organizace – vidíte všechna data včetně přihlašovacích údajů'
-      : 'Přehled všech organizací · žádosti o založení přijímá a zamítá pouze admin');
+      : 'Přehled všech organizací · Žádosti o založení přijímá a zamítá pouze admin');
   const ctxBanner = (isRoot && org)
     ? '<div class="card" style="border-color:var(--accent);margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap"><b>' + ic('eye', 16) + ' Režim organizace</b>' +
       '<span class="small-note" style="margin:0">Spravujete cizí organizaci <b>' + escapeHtml(org.name) + '</b> – změny se týkají jen jejích dat.</span>' +
@@ -82,10 +82,10 @@ function spravaHome() {
     ctxBanner +
     (overviewMode ? '' :
     '<div class="grid grid-4" style="margin-bottom:16px">' +
-      '<div class="stat"><span class="s-ic" style="background:rgba(59,130,246,.14);color:var(--accent)">' + ic('home', 20) + '</span><div><b>' + cls.length + '</b><span>tříd</span></div></div>' +
-      '<div class="stat"><span class="s-ic" style="background:rgba(139,92,246,.14);color:#A78BFA">' + ic('users', 20) + '</span><div><b>' + teachers.length + '</b><span>učitelů</span></div></div>' +
-      '<div class="stat"><span class="s-ic" style="background:rgba(245,158,11,.14);color:var(--warn)">' + ic('book', 20) + '</span><div><b>' + students.length + '</b><span>žáků</span></div></div>' +
-      '<div class="stat"><span class="s-ic" style="background:rgba(16,185,129,.14);color:var(--ok)">' + ic('user', 20) + '</span><div><b>' + (db.users || []).filter(x => (x.orgId || null) === scopeOrg).length + '</b><span>loginů</span></div></div>' +
+      '<div class="stat"><span class="s-ic" style="background:rgba(59,130,246,.14);color:var(--accent)">' + ic('home', 20) + '</span><div><b>' + cls.length + '</b><span>Tříd</span></div></div>' +
+      '<div class="stat"><span class="s-ic" style="background:rgba(139,92,246,.14);color:#A78BFA">' + ic('users', 20) + '</span><div><b>' + teachers.length + '</b><span>Učitelů</span></div></div>' +
+      '<div class="stat"><span class="s-ic" style="background:rgba(245,158,11,.14);color:var(--warn)">' + ic('book', 20) + '</span><div><b>' + students.length + '</b><span>Žáků</span></div></div>' +
+      '<div class="stat"><span class="s-ic" style="background:rgba(16,185,129,.14);color:var(--ok)">' + ic('user', 20) + '</span><div><b>' + (db.users || []).filter(x => (x.orgId || null) === scopeOrg).length + '</b><span>Loginů</span></div></div>' +
     '</div>') +
     '<div class="tabs">' + tabs.map(t =>
       '<button class="tab' + (SP_TAB === t.k ? ' active' : '') + '" data-act="sp-tab:' + t.k + '">' + t.label + '</button>').join('') +
@@ -155,7 +155,7 @@ function spClasses(canManage) {
               selectableTeachers().map(x =>
                 '<option value="' + x.id + '"' + (c.mainTeacher === x.id ? ' selected' : '') + '>' + escapeHtml(x.name) + ' (' + escapeHtml(x.username) + ')</option>').join('') +
             '</select></div>' +
-            '<div class="small-note">Učí: ' + (t.length ? t.map(x => escapeHtml(x.name)).join(', ') : 'nikdo – přiřaďte učitele') + '</div>' +
+            '<div class="small-note">Učí: ' + (t.length ? t.map(x => escapeHtml(x.name)).join(', ') : 'Nikdo – přiřaďte učitele') + '</div>' +
             '</div>';
         }).join('') + '</div>'
       : '<div class="empty"><b>Zatím žádná třída</b>Přidejte první třídu, např. 1. A.</div>');
@@ -259,10 +259,10 @@ function spTeachers() {
           const genTw = visibleGenPass(t);
           return '<div class="list-row">' +
             '<span class="ava" style="background:linear-gradient(135deg,#8B5CF6,#3B82F6)">' + escapeHtml(t.name.charAt(0)) + '</span>' +
-            '<div class="grow"><div class="row-title">' + escapeHtml(t.name) + (t.isAdmin ? ' <span class="chip chip-accent" style="padding:0 7px;font-size:10px">správce</span>' : '') + (t.isOrgContact ? ' <span class="chip chip-info" style="padding:0 7px;font-size:10px">kontakt · jen PC</span>' : '') + '</div>' +
-            '<div class="row-sub">přihlášení: <code class="mono">' + escapeHtml(t.username) + '</code>' +
-              (genTw ? ' · heslo: <code class="mono">' + escapeHtml(genTw) + '</code>' : (t.passChanged ? ' · <span style="color:var(--muted)">heslo změněno</span>' : '')) +
-              ' · učí: ' + (clsTaught.length ? clsTaught.map(c => escapeHtml(c.name)).join(', ') : '<span style="color:var(--warn)">zatím žádnou třídu</span>') + '</div></div>' +
+            '<div class="grow"><div class="row-title">' + escapeHtml(t.name) + (t.isAdmin ? ' <span class="chip chip-accent" style="padding:0 7px;font-size:10px">Správce</span>' : '') + (t.isOrgContact ? ' <span class="chip chip-info" style="padding:0 7px;font-size:10px">Kontakt · jen PC</span>' : '') + '</div>' +
+            '<div class="row-sub">Přihlášení: <code class="mono">' + escapeHtml(t.username) + '</code>' +
+              (genTw ? ' · Heslo: <code class="mono">' + escapeHtml(genTw) + '</code>' : (t.passChanged ? ' · <span style="color:var(--muted)">Heslo změněno</span>' : '')) +
+              ' · Učí: ' + (clsTaught.length ? clsTaught.map(c => escapeHtml(c.name)).join(', ') : '<span style="color:var(--warn)">Zatím žádnou třídu</span>') + '</div></div>' +
             '<button class="btn btn-soft btn-sm" data-act="sp-creds:' + t.username + '">' + ic('eye', 14) + ' Přihlášení</button>' +
             (!t.isRoot && !(t.isAdmin && !t.isOrgContact && !t.orgId) ? '<button class="btn btn-soft btn-sm" data-act="sp-teach-reset:' + t.id + '">' + ic('zap', 13) + ' Reset</button>' : '') +
             (!t.isAdmin && !t.isOrgContact ? '<button class="icon-btn sm" data-act="sp-teach-del:' + t.id + '" style="color:var(--bad)">' + ic('trash', 15) + '</button>' : '') +
@@ -384,7 +384,7 @@ function spStudents(canManage) {
               const genPw = acc ? visibleGenPass(acc) : null;
               return '<tr><td>' + escapeHtml(s.first + ' ' + s.last) + '</td>' +
                 '<td><code class="mono">' + escapeHtml(acc ? acc.username : '—') + '</code>' +
-                  (genPw ? '<br><span style="font-size:11px;color:var(--muted)">heslo: <code class="mono">' + escapeHtml(genPw) + '</code></span>' : '') +
+                  (genPw ? '<br><span style="font-size:11px;color:var(--muted)">Heslo: <code class="mono">' + escapeHtml(genPw) + '</code></span>' : '') +
                   (acc ? ' <button class="btn btn-soft btn-sm" data-act="sp-creds:' + acc.username + '" title="Přihlášení žáka">' + ic('eye', 13) + '</button>' : '') + '</td>' +
                 '<td>' + (s.ivp ? '<span class="chip chip-info">IVP</span>' : '') + '</td>' +
                 '<td style="text-align:right;white-space:nowrap">' +
@@ -558,7 +558,7 @@ function showCreds(user) {
   const stored = visibleGenPass(user);              /* generované heslo žáka/rodiče – viditelné do vlastní změny */
   const plain = fresh || stored;
   const org = orgOfUser(user);
-  const passNoteForStored = '<span class="chip chip-info" style="padding:0 7px;font-size:10px">platné do první změně</span>';
+  const passNoteForStored = '<span class="chip chip-info" style="padding:0 7px;font-size:10px">Platné do první změně</span>';
   const passRow = plain
     ? '<div class="mob-cred-line"><span>Heslo</span><code class="mono">' + escapeHtml(plain) + '</code>' + passNoteForStored +
       '<button class="btn btn-soft btn-sm" data-act="copy:' + escapeHtml(plain) + '">' + ic('check', 13) + ' Kopírovat</button></div>'
@@ -713,7 +713,7 @@ function spOrgs() {
             '<span class="chip ' + (r.status === 'ceka' ? 'chip-accent' : r.status === 'schvaleno' ? 'chip-ok' : '') + '">' +
               (r.status === 'ceka' ? 'Čeká' : r.status === 'schvaleno' ? 'Přijato' : 'Odmítnuto') + '</span>' +
             '<div class="grow"><div class="row-title">' + escapeHtml(r.orgName) + ' · ' + escapeHtml(r.first + ' ' + r.last) + '</div>' +
-            '<div class="row-sub">kontakt: <code class="mono">' + escapeHtml(r.username) + '</code> · ' + escapeHtml(r.email) + ' · ' + escapeHtml(r.phone) + ' · ' + tsLabel(r.ts) + '</div></div>' +
+            '<div class="row-sub">Kontakt: <code class="mono">' + escapeHtml(r.username) + '</code> · ' + escapeHtml(r.email) + ' · ' + escapeHtml(r.phone) + ' · ' + tsLabel(r.ts) + '</div></div>' +
             (r.status === 'ceka'
               ? '<div style="display:flex;gap:8px"><button class="btn btn-primary btn-sm" data-act="sp-org-acc:' + r.id + '">' + ic('check', 14) + ' Přijmout</button>' +
                 '<button class="btn btn-bad btn-sm" data-act="sp-org-rej:' + r.id + '">' + ic('x', 14) + ' Odmítnout</button></div>'
@@ -732,9 +732,9 @@ function spOrgs() {
             '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">' +
               '<span class="chip chip-accent" style="font-size:14px;padding:6px 12px">' + escapeHtml(o.name) + '</span>' +
               (o.suspended ? '<span class="chip chip-bad" style="padding:5px 10px">Pozastavena</span>' : '') +
-              '<span style="margin-left:auto;color:var(--muted);font-size:12px;font-weight:700">založeno ' + tsLabel(o.createdAt) + '</span>' +
+              '<span style="margin-left:auto;color:var(--muted);font-size:12px;font-weight:700">Založeno ' + tsLabel(o.createdAt) + '</span>' +
             '</div>' +
-            '<div class="small-note" style="margin-bottom:10px">Zakladatel: <b>' + escapeHtml(o.first + ' ' + o.last) + '</b><br>' +
+          '<div class="small-note" style="margin-bottom:10px">Zakladatel: <b>' + escapeHtml(o.first + ' ' + o.last) + '</b><br>' +
               'Kontakt: ' + escapeHtml(o.phone) + ' · ' + escapeHtml(o.email) + (contact ? '<br>Login kontaktu: <code class="mono">' + escapeHtml(contact.username) + '</code>' : '') + '</div>' +
             '<div class="small-note" style="margin-bottom:12px">' + st.classes + ' ' + csPlural(st.classes, 'třída', 'třídy', 'tříd') + ' · ' +
               st.teachers + ' ' + csPlural(st.teachers, 'učitel', 'učitelé', 'učitelů') + ' · ' + st.students + ' ' + csPlural(st.students, 'žák', 'žáci', 'žáků') + '</div>' +
@@ -971,11 +971,11 @@ function resetResolverOf(acc) {
 }
 function resetResolverText(acc) {
   const r = resetResolverOf(acc);
-  if (r.kind === 'none') return 'heslo správce aplikace se žádostí resetovat nedá – mění si ho jen sám v aplikaci';
-  if (r.kind === 'root') return 'vyřizuje zakladatel aplikace (admin)';
-  if (r.kind === 'contact') { const o = orgById(r.orgId); return 'vyřizuje zakladatel organizace' + (o ? ' · ' + o.name : ''); }
+  if (r.kind === 'none') return 'Heslo správce aplikace se žádostí resetovat nedá – mění si ho jen sám v aplikaci';
+  if (r.kind === 'root') return 'Vyřizuje zakladatel aplikace (admin)';
+  if (r.kind === 'contact') { const o = orgById(r.orgId); return 'Vyřizuje zakladatel organizace' + (o ? ' · ' + o.name : ''); }
   const t = (db.users || []).find(u => u.id === r.teacherId);
-  return 'vyřizuje třídní učitel' + (t ? ' · ' + t.name : '');
+  return 'Vyřizuje třídní učitel' + (t ? ' · ' + t.name : '');
 }
 function viewerCanResolve(acc) {
   const u = currentUser();
