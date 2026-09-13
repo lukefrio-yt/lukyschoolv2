@@ -2342,10 +2342,12 @@ function tPlanAkci() {
     const target = a.sid ? 'jen: ' + studentFull(a.sid) : 'celá třída';
     const inf = ackActionInfo(a, cid);
     const ackLine = inf.total
-      ? (inf.acked.length
-        ? '<div style="margin-top:8px;font-size:12.5px"><span class="chip chip-ok" style="padding:2px 8px">' + ic('check', 11) + ' Potvrzeno ' + inf.acked.length + '/' + inf.total + '</span>' +
-          '<span style="color:var(--muted);margin-left:8px">' + escapeHtml(inf.acked.map(x => x.name).join(', ')) + '</span></div>'
-        : '<div style="margin-top:8px;font-size:12.5px;color:var(--muted)">Rodiče zatím nikdo nepotvrdil (0/' + inf.total + ')</div>')
+      ? '<div class="ack-box' + (inf.acked.length ? ' ack-ok' : '') + '">' +
+          '<div class="ack-head"><span>' + ic(inf.acked.length ? 'check' : 'bell', 13) + (inf.acked.length ? ' Potvrzeno' : ' Nepotvrdil Nikdo') + '</span><b>' + inf.acked.length + ' / ' + inf.total + '</b></div>' +
+          (inf.acked.length
+            ? '<div class="ack-names">' + inf.acked.map(x => '<span class="ack-pill">' + escapeHtml(x.name) + '</span>').join('') + '</div>'
+            : '') +
+        '</div>'
       : '';
     return '<div class="list-row" style="align-items:flex-start"><span class="ava" style="background:linear-gradient(135deg,#F59E0B,#D97706)">' + ic('flag', 15) + '</span>' +
       '<div class="grow"><div class="row-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' + escapeHtml(a.title) +
