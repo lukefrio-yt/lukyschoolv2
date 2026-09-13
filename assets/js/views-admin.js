@@ -558,9 +558,8 @@ function showCreds(user) {
   const stored = visibleGenPass(user);              /* generované heslo žáka/rodiče – viditelné do vlastní změny */
   const plain = fresh || stored;
   const org = orgOfUser(user);
-  const passNoteForStored = '<span class="chip chip-info" style="padding:0 7px;font-size:10px">Platné do první změně</span>';
   const passRow = plain
-    ? '<div class="mob-cred-line"><span>Heslo</span><code class="mono">' + escapeHtml(plain) + '</code>' + passNoteForStored +
+    ? '<div class="mob-cred-line"><span>Heslo</span><code class="mono">' + escapeHtml(plain) + '</code>' +
       '<button class="btn btn-soft btn-sm" data-act="copy:' + escapeHtml(plain) + '">' + ic('check', 13) + ' Kopírovat</button></div>'
     : '<div class="mob-cred-line"><span>Heslo</span><span style="color:var(--muted);font-weight:700">•••••••• ' +
       (user.isOrgContact ? '(zvolil si žadatel sám)' : (user.passChanged ? '(Změněno uživatelem)' : '(Nezobrazuje se)')) + '</span></div>';

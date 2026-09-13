@@ -1296,6 +1296,68 @@ registerView('student', 'ukoly', sUkoly);
 registerView('student', 'zpravy', sZpravy);
 registerView('student', 'oznameni', sOznameni);
 registerView('student', 'poznamky', studentPoznamkyView);
+/* ================= ZMĚNY ROZVRHU (žák + rodič) ================= */
+const CHG_WEEK_KEY = 'chg_week';
+function chgWeekOffset() { return Number(localStorage.getItem(CHG_WEEK_KEY) || 0) || 0; }
+function changeKindChip(kind) {
+  const map = {
+    odpadla: ['chip-bad', 'Odpadlá hodina'],
+    mistnost: ['chip-info', 'Změna místnosti'],
+    ucitel: ['chip-warn', 'Suplování'],
+    predmet: ['chip-info', 'Změna předmětu'],
+    pridana: ['chip-ok', 'Přidaná hodina']
+  };
+  const m = map[kind] || ['', 'Změna'];
+  return '<span class="chip ' + m[0] + '">' + m[1] + '</span>';
+}
+function changesWeekView() {
+  const sid = currentUser().role === 'student' ? currentUser().studentId : parentCurChild();
+  const st = studentOf(sid);
+  if (!st) return '<div class="empty"><b>Nejprve vyberte dítě</b></div>';
+  const off = chgWeekOffset();
+  const mon = addDaysISO(mondayOfISO(todayISO()), off * 7);
+  const week = [0, 1, 2, 3, 4].map(i => addDaysISO(mon, i));
+  const isThis = off === 0;
+  const all = week.flatMap(iso => changesOfClsInRange(st.cls, iso, iso).map(c => ({ c, iso })));
+  const tabs = [
+    ['0', 'Současný týden'],
+    ['1', 'Další týden']
+  ];
+  const rows = all.map(({ c, iso }) => {
+    const en = ((db.schedule || {})[st.cls] || { days: {} }).days[weekdayOf(iso)] || [];
+    const en0 = (en || [])[c.period] || null;
+    const origSubj = en0 && en0.subj ? SUBJECTS[en0.subj] : null;
+    const nu = c.newTeacherId ? (db.users || []).find(x => x.id === c.newTeacherId) : null;
+    const detail = c.kind === 'odpadla'
+      ? (origSubj ? escapeHtml(origSubj.name) + ' – hodina odpadá' : 'Hodina odpadá')
+      : c.kind === 'mistnost'
+        ? (origSubj ? escapeHtml(origSubj.name) : 'Hodina') + ' – nová učebna: <b>' + escapeHtml(c.newRoom || '—') + '</b>'
+        : c.kind === 'ucitel'
+          ? (origSubj ? escapeHtml(origSubj.name) : 'Hodina') + ' – supluje: <b>' + (nu ? escapeHtml(nu.name || nu.username) : escapeHtml(c.newTeacher || '—')) + '</b>'
+          : c.kind === 'predmet'
+            ? 'Nový předmět: <b>' + (c.newSubj && SUBJECTS[c.newSubj] ? SUBJECTS[c.newSubj].name : '—') + '</b>'
+            : (c.newSubj && SUBJECTS[c.newSubj] ? SUBJECTS[c.newSubj].name : 'Hodina') + ' – přidaná hodina';
+    return '<div class="chg-item' + (c.kind === 'odpadla' ? ' chg-bad' : c.kind === 'pridana' ? ' chg-good' : '') + '">' +
+      '<div class="chg-head"><span class="chg-date">' + fmtDateLong(c.date) + '</span>' + changeKindChip(c.kind) + '</div>' +
+      '<div class="chg-detail">' + (c.period + 1) + '. hodina · ' + detail +
+      (c.reason ? '<span class="chg-reason">Důvod: ' + escapeHtml(c.reason) + '</span>' : '') + '</div>' +
+    '</div>';
+  });
+  return '<div class="page-head"><h2>Změny v rozvrhu</h2>' +
+      '<p class="small-note">Suplování, Odpadlé hodiny a další změny pro třídu ' + escapeHtml((classOf(st.cls) || {}).name || '') + '</p>' +
+    '</div>' +
+    '<div class="tabs">' + tabs.map(([k, l]) =>
+      '<button class="tab' + (String(off) === k ? ' active' : '') + '" data-act="chg-week:' + k + '">' + l + '</button>').join('') + '</div>' +
+    (rows.length
+      ? '<div class="chg-list">' + rows.join('') + '</div>'
+      : '<div class="empty"><b>' + (isThis ? 'Tento týden' : 'Příští týden') + ' – žádné změny</b>Rozvrh je bez změn, hodiny probíhají podle plánu.</div>');
+}
+onAct('chg-week:', el => {
+  localStorage.setItem(CHG_WEEK_KEY, el.getAttribute('data-act').slice(9));
+  route();
+});
+registerView('student', 'zmenyrozvrh', changesWeekView);
+registerView('rodic', 'zmenyrozvrh', changesWeekView);
 registerView('rodic', 'prehled', pPrehled);
 registerView('rodic', 'pololetka', prubeznaView);
 registerView('rodic', 'dochazka', pDochazka);
