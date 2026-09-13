@@ -1125,9 +1125,6 @@ function prubeznaView() {
   if (!st) return '';
   const subjects = classSubjects(st.cls);
   const cls = classOf(st.cls);
-  const myRecs = (db.records || []).filter(r => r.sid === sid)
-    .concat(notesOf(sid).filter(n => Number(n.sev) === 3).map(n => ({ type: 'sev3', reason: (n.title ? n.title + '\n' : '') + (n.reason || ''), date: n.date, sem: semOfDate(n.date) })))
-    .sort((a, z) => (a.date === z.date ? 0 : a.date < z.date ? 1 : -1));
   /* Viditelnost pololetí: učitel ho uzavřel NEBO už žákovi do klasifikačního
      lístku napsal známky. Dokud ne, známky ani průměr se nezobrazí. */
   const repOf = sem => classReport(st.cls, sem);
@@ -1179,23 +1176,6 @@ function prubeznaView() {
             '<div class="pol-row"><div class="pol-subj">' + subjBadge(sub, 30) + '<b>' + escapeHtml(SUBJECTS[sub].name) + '</b></div>' +
             '<div class="pol-sems">' + semCellHtml(1, sub) + semCellHtml(2, sub) + '</div></div>').join('') + '</div>'
         : '<div class="empty">Zatím žádné předměty – známky se tu objeví, jakmile učitel začne zapisovat.</div>')) +
-    '</div>' +
-    '<div class="card" style="margin-top:16px"><div class="card-title">' + ic('check', 16) + ' Pochvaly a výchovná opatření' +
-      '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">' + myRecs.length + ' ' + csPlural(myRecs.length, 'záznam', 'záznamy', 'záznamů') + '</span></div>' +
-    (myRecs.length
-      ? '<div class="list">' + myRecs.map(r => {
-          if (r.type === 'sev3') {
-            return '<div class="list-row"><span class="ava" style="background:linear-gradient(135deg,#EF4444,#DC2626)">' + ic('edit', 16) + '</span>' +
-              '<div class="grow"><div class="row-title">' + recChip('du-tu') + '</div>' +
-              '<div style="margin-top:3px">' + escapeHtml(r.reason || '') + '</div>' +
-              '<div class="row-sub">' + semLabel(r.sem || semOfDate(r.date)) + ' · ' + fmtDate(r.date) + '</div></div></div>';
-          }
-          return '<div class="list-row"><span class="ava" style="background:' + ({ ok: 'linear-gradient(135deg,#10B981,#059669)', accent: 'linear-gradient(135deg,#3B82F6,#2563EB)', warn: 'linear-gradient(135deg,#F59E0B,#D97706)', bad: 'linear-gradient(135deg,#EF4444,#DC2626)' }[REC_BY_ID[r.type] && REC_BY_ID[r.type].tone] || 'linear-gradient(135deg,#64748B,#475569)') + '">' + ic({ ok: 'check', accent: 'check', warn: 'alert', bad: 'x' }[REC_BY_ID[r.type] && REC_BY_ID[r.type].tone] || 'flag', 16) + '</span>' +
-            '<div class="grow"><div class="row-title">' + recChip(r.type) + '</div>' +
-            '<div style="margin-top:3px">' + escapeHtml(r.reason || '') + '</div>' +
-            '<div class="row-sub">' + semLabel(r.sem || semOfDate(r.date)) + ' · ' + fmtDate(r.date) + '</div></div></div>';
-        }).join('') + '</div>'
-      : '<div class="empty"><b>Zatím žádné záznamy</b>Zapisuje třídní učitel.</div>') +
     '</div>';
 }
 
