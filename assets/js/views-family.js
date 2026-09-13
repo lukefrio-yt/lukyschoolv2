@@ -385,8 +385,30 @@ function sRozvrh() {
   (weekdayOf(cur) >= 1 && weekdayOf(cur) <= 5 && !hasAnyLesson && lessonsToday.length === 0
     ? '<div class="empty"><b>Volný den</b>V tento den podle rozvrhu není žádné vyučování 🎈</div>'
     : (weekdayOf(cur) < 1 || weekdayOf(cur) > 5 ? '<div class="empty"><b>Víkend</b>Žádné vyučování 🎈</div>' : '')) +
-  '<div class="small-note" style="margin-top:14px">S = Suplování · O = Odpadá · M = Změna místnosti · P = Přidaná · Z = Změna předmětu. Přehled všech změn najdete v kategorii Změny.</div>';
+  rozLegendHtml();
 }
+/* Rozklikávací legenda značek změn (S/O/M/P/Z) pod rozvrhem */
+function rozLegendHtml() {
+  const items = [
+    ['S', 'Suplování', 'Hodinu místo obvyklého učitele povede jiný učitel. Jméno suplujícího je napsané přímo u hodiny.'],
+    ['O', 'Odpadá', 'Hodina se nekoná – předmět je přeškrtnutý. Do zaměškaných hodin se nezapočítává.'],
+    ['M', 'Změna místnosti', 'Hodina se bude konat v jiné učebně – název učebny najdete přímo u hodiny.'],
+    ['P', 'Přidaná hodina', 'Nová hodina, která v rozvrhu běžně není – učitel ji přidal do volné hodiny.'],
+    ['Z', 'Změna předmětu', 'Místo obvyklého předmětu bude probíhat jiný – u hodiny je uveden nový předmět.']
+  ];
+  return '<div class="zk-acc leg-acc">' +
+    '<button class="zk-acc-head" data-act="roz-leg">' +
+      '<span class="zk-acc-subj">' + ic('info', 16) + ' Legenda značek změn</span>' +
+      '<span class="zk-acc-meta">S · O · M · P · Z</span>' +
+      '<span class="zk-chev">' + ic('arrowR', 15) + '</span></button>' +
+    '<div class="zk-acc-body"><div class="leg-list">' +
+      items.map(it =>
+        '<div class="leg-row"><span class="l-ic chg-mark">' + it[0] + '</span>' +
+          '<div class="leg-txt"><b>' + it[1] + '</b><span>' + it[2] + '</span></div></div>').join('') +
+      '<div class="leg-note">Změny zadává třídní učitel. Kompletní přehled všech změn najdete v kategorii <b>Změny</b>.</div>' +
+    '</div></div></div>';
+}
+onAct('roz-leg', el => { const acc = el.closest('.zk-acc'); if (acc) acc.classList.toggle('open'); });
 onAct('roz-den:', el => { localStorage.setItem('ls_rozvrh_den', el.getAttribute('data-act').slice(8)); route(); });
 /* „Vlastní“ datum: vyjede kalendář (native date picker) – funguje v mobilu i na PC */
 onAct('roz-custom', () => {

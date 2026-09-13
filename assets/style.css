@@ -878,3 +878,15 @@ body[data-mob="1"] .nav-backdrop { display: none !important; }
 
 /* ---- Písmenná značka změny u hodiny v rozvrhu (S/O/M/P/Z) ---- */
 .l-ic.chg-mark { background: var(--bad); color: #fff; font-size: 12px; width: 22px; height: 22px; border-radius: 7px; }
+
+/* ---- Rozklikávací legenda značek změn v Rozvrhu ---- */
+.leg-acc { margin-top: 16px; }
+.leg-acc .zk-acc-subj { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; }
+.leg-list { display: grid; gap: 10px; padding: 13px 14px; }
+.leg-row { display: flex; align-items: flex-start; gap: 10px; }
+.leg-row .chg-mark { flex: 0 0 auto; margin-top: 1px; }
+.leg-txt { display: grid; gap: 2px; min-width: 0; }
+.leg-txt b { font-size: 13.5px; }
+.leg-txt span { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+.leg-note { font-size: 12px; color: var(--muted); border-top: 1px dashed var(--border); padding-top: 10px; }
+.leg-note b { color: var(--text); }
