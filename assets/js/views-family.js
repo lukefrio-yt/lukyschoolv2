@@ -173,7 +173,7 @@ function zkPredHtml(sid) {
       '<div class="zk-lbl">Známka</div>' +
       '<div class="zk-seg">' + tokens.map(v => '<button class="zk-seg-b' + (v === ZKP.g ? ' on' : '') + '" data-act="zk-pred-g:' + v + '">' + v + '</button>').join('') + '</div>' +
       '<div class="zk-lbl">Váha</div>' +
-      '<div class="zk-seg">' + Array.from({ length: 10 }, (_, i) => i + 1).map(w => '<button class="zk-seg-b wb' + (w === ZKP.w ? ' on' : '') + '" data-act="zk-pred-w:' + w + '">' + w + '</button>').join('') + '</div>' +
+      '<div class="zk-seg zk-seg-scroll">' + Array.from({ length: 10 }, (_, i) => i + 1).map(w => '<button class="zk-seg-b wb' + (w === ZKP.w ? ' on' : '') + '" data-act="zk-pred-w:' + w + '">' + w + '</button>').join('') + '</div>' +
     '</div>' +
     '<div class="zk-avgbar"><span>Průměr: <b>' + avgTxt(cur.avg) + '</b></span><span>Nový průměr: <b>' + avgTxt(preview.avg) + '</b></span></div>' +
     '<button class="btn btn-primary" style="width:100%;margin:12px 0" data-act="zk-pred-add">' + ic('plus', 15) + ' Přidat známku</button>' +
@@ -828,10 +828,7 @@ function pConvDetailHtml(u, th) {
       ? '<div class="warn-line" style="margin-top:12px">' + ic('lock', 15) + ' <span>Učitel tuto konverzaci uzavřel – novou mu napište v nové konverzaci.</span></div>'
       : '<form data-form="pmsg"><div class="compose">' +
         '<textarea name="text" rows="1" maxlength="1000" placeholder="Napište zprávu…" required style="min-height:44px"></textarea>' +
-        '<button class="btn btn-primary">' + ic('send', 16) + '</button></div></form>' +
-        '<div class="rcpt-row" style="margin:12px 0 0">' +
-          ['Omlouvám, dnes nepřijde…', 'Můžete mi prosím zavolat?', 'Děkujeme za zprávu!'].map(t2 =>
-            '<button class="rcpt-pill" data-act="p-tpl:' + escapeHtml(t2) + '" style="font-size:12px">' + escapeHtml(t2) + '</button>').join('') + '</div>') +
+        '<button class="btn btn-primary" title="Odeslat zprávu">' + ic('send', 17) + '</button></div></form>') +
   '</div>';
 }
 function pZpravy() {
@@ -1012,10 +1009,6 @@ function sZpravy() {
     '<div>' + (openTh ? stuConvDetailHtml(u, openTh) : '<div class="card"><div class="empty">Vyberte konverzaci vlevo.</div></div>') + '</div>' +
   '</div>';
 }
-onAct('p-tpl:', el => {
-  const ta = document.querySelector('.compose textarea');
-  if (ta) { ta.value = el.getAttribute('data-act').slice(6); ta.focus(); }
-});
 onAct('s-open:', el => {
   S_MSG.thread = el.getAttribute('data-act').slice(7);
   route();
