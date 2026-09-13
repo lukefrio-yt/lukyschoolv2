@@ -34,6 +34,7 @@ function spravaHome() {
   const pendingResets = resetRequestsInView().filter(r => r.status === 'ceka').length;
   const pendingOrgReqs = orgRequestsList().filter(r => r.status === 'ceka').length;
   const pendingOrgs = organizationsList().length;
+  const org = scopeOrg ? orgById(scopeOrg) : null;
   /* Admin bez rozkliknuté organizace = jen přehled organizací (žádná „hlavní škola“).
      Kontakt = své třídy/učitele/žáky + Data a release. */
   const overviewMode = isRoot && !org;
@@ -51,7 +52,6 @@ function spravaHome() {
   }
   /* pojistka: zastaralá uložená záložka (např. „data" u kontaktu) → zpět na Třídy */
   if (!tabs.some(t => t.k === SP_TAB)) SP_TAB = overviewMode ? 'orgs' : 'classes';
-  const org = scopeOrg ? orgById(scopeOrg) : null;
   const headTitle = contact
     ? 'Správa organizace · ' + escapeHtml(org ? org.name : '?')
     : (org ? 'Organizace · ' + escapeHtml(org.name) : 'Organizace');
@@ -682,7 +682,24 @@ function spOrgs() {
   const reqs = orgRequestsList().slice()
     .sort((a, b) => (a.status === b.status ? (a.ts < b.ts ? 1 : -1) : (a.status === 'ceka' ? -1 : 1)));
   const orgs = organizationsList().slice().sort((a, b) => a.name.localeCompare(b.name, 'cs'));
+  /* Souhrnné statistiky napříč organizacemi */
+  const totals = orgs.reduce((acc, o) => {
+    const st = orgStats(o.id);
+    acc.classes += st.classes; acc.teachers += st.teachers; acc.students += st.students;
+    return acc;
+  }, { classes: 0, teachers: 0, students: 0 });
+  /* Vyhledávání mezi organizacemi (jméno, zakladatel, login kontaktu) */
+  const q = liveInput('sp_org_q', '').trim().toLowerCase();
+  const match = o => !q || o.name.toLowerCase().includes(q) || (o.first + ' ' + o.last).toLowerCase().includes(q) ||
+    (() => { const c = (db.users || []).find(u => u.id === o.contactId); return c && c.username.toLowerCase().includes(q); })();
+  const found = orgs.filter(match);
   return '' +
+    (orgs.length ? '<div class="grid grid-4" style="margin-bottom:18px">' +
+      '<div class="stat"><span class="s-ic" style="background:rgba(59,130,246,.14);color:var(--accent)">' + ic('home', 20) + '</span><div><b>' + orgs.length + '</b><span>Organizac' + (orgs.length === 1 ? 'e' : 'í') + '</span></div></div>' +
+      '<div class="stat"><span class="s-ic" style="background:rgba(139,92,246,.14);color:#8B5CF6">' + ic('clipboard', 20) + '</span><div><b>' + totals.classes + '</b><span>' + csPlural(totals.classes, 'Třída', 'Třídy', 'Tříd') + '</span></div></div>' +
+      '<div class="stat"><span class="s-ic" style="background:rgba(16,185,129,.14);color:var(--ok)">' + ic('users', 20) + '</span><div><b>' + totals.teachers + '</b><span>' + csPlural(totals.teachers, 'Učitel', 'Učitelé', 'Učitelů') + '</span></div></div>' +
+      '<div class="stat"><span class="s-ic" style="background:rgba(245,158,11,.14);color:var(--warn)">' + ic('book', 20) + '</span><div><b>' + totals.students + '</b><span>' + csPlural(totals.students, 'Žák', 'Žáci', 'Žáků') + '</span></div></div>' +
+    '</div>' : '') +
     '<h2 style="margin:4px 0 10px;font-size:17px">Žádosti o založení organizace</h2>' +
     (reqs.length
       ? '<div class="list" style="margin-bottom:22px">' + reqs.map(r =>
@@ -697,9 +714,12 @@ function spOrgs() {
               : '<button class="btn btn-ghost btn-sm" data-act="sp-org-req-del:' + r.id + '">Smazat</button>') +
           '</div>').join('') + '</div>'
       : '<div class="empty" style="margin-bottom:22px"><b>Žádné žádosti</b>Nové žádosti z formuláře „Založit organizaci“ se objeví tady.</div>') +
-    '<h2 style="margin:4px 0 10px;font-size:17px">Založené organizace (' + orgs.length + ')</h2>' +
     (orgs.length
-      ? '<div class="grid grid-2">' + orgs.map(o => {
+      ? '<div style="margin:0 0 12px;max-width:420px"><input class="txt" type="search" data-inp="sp_org_q" id="sp_org_q" placeholder="🔍 Hledat organizaci, zakladatele i login kontaktu…" value="' + escapeHtml(liveInput('sp_org_q', '')) + '" autocomplete="off"></div>'
+      : '') +
+    '<h2 style="margin:4px 0 10px;font-size:17px">Založené organizace (' + found.length + (q ? ' z ' + orgs.length + ')' : ')') + '</h2>' +
+    (found.length
+      ? '<div class="grid grid-2">' + found.map(o => {
           const st = orgStats(o.id);
           const contact = (db.users || []).find(u => u.id === o.contactId);
           return '<div class="card">' +

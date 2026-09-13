@@ -67,6 +67,7 @@ function roomChip(roomId, size) {
 
 /* ---------- akce (delegace) ---------- */
 const ACT = {};
+const liveInputs = {};
 function fireAct(el) {
   const a = el.getAttribute('data-act') || el.getAttribute('data-chg');
   if (!a) return;
@@ -92,6 +93,16 @@ document.addEventListener('change', e => {
   const el = e.target.closest('[data-chg]');
   if (el) fireAct(el);
 });
+/* Živé psaní do polí s data-inp: překreslí view, ale ponechá fokus a pozici kurzoru. */
+document.addEventListener('input', e => {
+  const el = e.target.closest('[data-inp]');
+  if (!el) return;
+  const key = el.getAttribute('data-inp');
+  liveInputs[key] = el.value;
+  const id = el.id, pos = el.selectionStart, view = document.getElementById('view');
+  if (view) { route(); const again = document.getElementById(id); if (again && again !== el) { try { again.focus(); again.setSelectionRange(pos, pos); } catch (_) {} } }
+});
+function liveInput(key, def) { return (liveInputs[key] !== undefined) ? liveInputs[key] : (def || ''); }
 document.addEventListener('submit', e => {
   const f = e.target.closest('form[data-form]');
   if (!f) return;
