@@ -726,6 +726,14 @@ function pPrehled() {
   pUpcomingHtml(cid);
 }
 onAct('p-child:', el => { localStorage.setItem('ls_child', el.getAttribute('data-act').slice(8)); route(); });
+/* rodič potvrzuje, že o akci ví (učitel vidí kdo potvrdil) */
+onAct('ack-act:', el => {
+  const u = currentUser();
+  if (!u || u.role !== 'rodic') return;
+  ackAction(el.getAttribute('data-act').slice(8), u.id);
+  toast('Potvrzeno – učitel vidí, že o akci víte ✓', 'ok');
+  route();
+});
 onAct('ch-child-pass:', el => {
   const sid = el.getAttribute('data-act').slice(14);
   const st = studentOf(sid);
@@ -1491,10 +1499,18 @@ function planAkciView() {
   const past = acts.filter(a => daysUntilAction(a.date) < 0);
   const row = (a, isPast) => {
     const days = daysUntilAction(a.date);
+    const acked = !!(a.acks || {})[u.id];
+    const canAck = isRod && !isPast && days >= 0;
     return '<div class="list-row" style="align-items:flex-start"><span class="ava" style="background:linear-gradient(135deg,#F59E0B,#D97706)">' + ic('flag', 15) + '</span>' +
       '<div class="grow"><div class="row-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' + escapeHtml(a.title) + (isPast ? '' : actionCountdownChip(days)) + '</div>' +
       (a.desc ? '<div style="margin-top:3px;white-space:pre-wrap">' + escapeHtml(a.desc) + '</div>' : '') +
-      '<div class="row-sub">' + fmtDate(a.date) + (isPast ? ' · proběhlo' : '') + (a.sid ? ' · akce jen pro ' + (isRod ? 'vaše dítě' : 'tebe') : ' · celá třída') + '</div></div></div>';
+      '<div class="row-sub">' + fmtDate(a.date) + (isPast ? ' · proběhlo' : '') + (a.sid ? ' · akce jen pro ' + (isRod ? 'vaše dítě' : 'tebe') : ' · celá třída') + '</div>' +
+      (canAck
+        ? (acked
+          ? '<div style="margin-top:8px"><span class="chip chip-ok" style="padding:4px 10px">' + ic('check', 12) + ' Potvrzeno – učitel ví, že o akci víte</span></div>'
+          : '<button class="btn btn-soft btn-sm" style="margin-top:8px" data-act="ack-act:' + a.id + '">' + ic('check', 14) + ' Potvrzuji, že o akci vím</button>')
+        : '') +
+      '</div></div>';
   };
   const kidsRow = isRod && parentChildren().length > 1
     ? '<div class="rcpt-row">' + parentChildren().map(k =>

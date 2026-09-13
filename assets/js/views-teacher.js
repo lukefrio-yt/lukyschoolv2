@@ -2340,11 +2340,18 @@ function tPlanAkci() {
   const row = (a, isPast) => {
     const days = daysUntilAction(a.date);
     const target = a.sid ? 'jen: ' + studentFull(a.sid) : 'celá třída';
+    const inf = ackActionInfo(a, cid);
+    const ackLine = inf.total
+      ? (inf.acked.length
+        ? '<div style="margin-top:8px;font-size:12.5px"><span class="chip chip-ok" style="padding:2px 8px">' + ic('check', 11) + ' Potvrzeno ' + inf.acked.length + '/' + inf.total + '</span>' +
+          '<span style="color:var(--muted);margin-left:8px">' + escapeHtml(inf.acked.map(x => x.name).join(', ')) + '</span></div>'
+        : '<div style="margin-top:8px;font-size:12.5px;color:var(--muted)">Rodiče zatím nikdo nepotvrdil (0/' + inf.total + ')</div>')
+      : '';
     return '<div class="list-row" style="align-items:flex-start"><span class="ava" style="background:linear-gradient(135deg,#F59E0B,#D97706)">' + ic('flag', 15) + '</span>' +
       '<div class="grow"><div class="row-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' + escapeHtml(a.title) +
         (isPast ? '' : actionCountdownChip(days)) + '</div>' +
       (a.desc ? '<div style="margin-top:3px;white-space:pre-wrap">' + escapeHtml(a.desc) + '</div>' : '') +
-      '<div class="row-sub">' + fmtDate(a.date) + (isPast ? ' · proběhlo' : '') + ' · ' + escapeHtml(target) + '</div></div>' +
+      '<div class="row-sub">' + fmtDate(a.date) + (isPast ? ' · proběhlo' : '') + ' · ' + escapeHtml(target) + '</div>' + ackLine + '</div>' +
       '<button class="icon-btn sm" data-act="t-act-edit:' + a.id + '" title="Upravit">' + ic('edit', 13) + '</button>' +
       '<button class="icon-btn sm" style="color:var(--bad)" data-act="t-act-del:' + a.id + '" title="Smazat">' + ic('trash', 13) + '</button></div>';
   };
