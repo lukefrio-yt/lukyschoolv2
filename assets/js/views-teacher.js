@@ -152,12 +152,13 @@ function teacherAva(s, size) {
 }
 function teacherDayPlan(clsId, iso) {
   const sc = scheduleOf(clsId);
-  const lessons = lessonsOfDay(clsId, iso);
+  const lessons = effectiveLessonsOfDay(clsId, iso);
   const plan = [];
   for (let i = 0; i < sc.slots.length; i++) {
     const t = slotOf(clsId, i);
     const l = lessons.find(x => x.period === i);
-    if (l) plan.push({ period: i, type: 'hodina', subj: l.subj, room: l.room, teacherId: l.teacherId, cls: classOf(clsId) ? classOf(clsId).name : clsId, t });
+    if (l && l.cancelled) plan.push({ period: i, type: 'volno', t, odpadla: true });
+    else if (l) plan.push({ period: i, type: 'hodina', subj: l.subj, room: l.room, teacherId: l.substTeacherId || l.teacherId, subst: !!l.substTeacherId && l.substTeacherId !== l.teacherId, added: !!l.added, cls: classOf(clsId) ? classOf(clsId).name : clsId, t });
     else plan.push({ period: i, type: 'volno', t });
   }
   return plan;
@@ -323,6 +324,12 @@ onAct('t-stud-add', () => {
 });
 onAct('t-col-add', () => {
   const cid = activeClsId();
+  /* známkovat smí jen předměty, které v třídě reálně učí (rozvrh) – suplující ne */
+  const u = currentUser();
+  const teachesSubj = (db.schedule || {})[cid] && [1, 2, 3, 4, 5].some(d => ((db.schedule[cid].days || {})[d] || []).some(en => en && en.subj === GB.subj && (en.teacherId === u.id)));
+  const cls = classOf(cid);
+  const isClassTeacher = !!(cls && (cls.teacherIds || []).includes(u.id));
+  if (!teachesSubj && !isClassTeacher && !u.isAdmin && !isContactUser(u)) { toast('Známkovat smíte jen předměty, které v této třídě učíte – suplující hodina stačí na třídní knihu, ne na známky', 'warn'); return; }
   const n = (db.columns || []).filter(c => c.cls === cid && c.subj === GB.subj).length + 1;
   openModal(
     '<h3>Nový sloupec – ' + SUBJECTS[GB.subj].name + '</h3>' +
@@ -626,6 +633,16 @@ onAct('t-cb-save', () => {
   const ucivo = document.getElementById('cb-ucivo').value.trim();
   const ukol = document.getElementById('cb-ukol').value.trim();
   if (!tema && !ucivo) { toast('Vyplňte alespoň téma hodiny', 'warn'); return; }
+  /* do třídní knihy se píše jen k hodině, která existuje (rozvrh, suplování nebo přidaná) */
+  const u = currentUser();
+  if (!canTeacherWriteLesson(u.id, cid, date, period)) {
+    const exists = effectiveLessonsOfDay(cid, date).some(l => l.period === period);
+    if (!exists) { toast('V této hodině není žádná vyučovací hodina – zápis se netýká volné hodiny', 'warn'); return; }
+    /* hodina existuje, ale nepatří učiteli a nesupluje ji – třídní učitel třídy může výjimečně */
+    const cls = classOf(cid);
+    const isMain = cls && (cls.teacherIds || []).includes(u.id);
+    if (!isMain && !u.isAdmin) { toast('Tuto hodinu neučíte a nesuplujete ji', 'warn'); return; }
+  }
   let rec = (db.classbook || []).find(c => c.date === date && c.period === period && c.cls === cid);
   if (rec) { rec.tema = tema; rec.ucivo = ucivo; rec.ukol = ukol; }
   else {
@@ -1194,8 +1211,9 @@ function rzDenHtml(cid) {
       const who = p.teacherId ? teacherLabel(p.teacherId) : '';
       const rmChip = p.room ? roomChip(p.room, 22) : '';
       const meta = [who, p.cls].filter(Boolean).join(' · ');
+      const tag = p.subst ? ' <span class="chip chip-bad" style="padding:1px 8px;font-size:10.5px">Supluje</span>' : p.added ? ' <span class="chip chip-ok" style="padding:1px 8px;font-size:10.5px">Přidaná hodina</span>' : '';
       return '<div class="lesson"><span class="time">' + p.t.s + '<br>' + p.t.e + '</span>' + subjBadge(p.subj, 40) +
-        '<div class="grow"><div class="row-title">' + escapeHtml(SUBJECTS[p.subj].name) + '</div>' +
+        '<div class="grow"><div class="row-title">' + escapeHtml(SUBJECTS[p.subj].name) + tag + '</div>' +
         '<div class="row-sub">' + escapeHtml(meta || p.cls) + (rmChip ? '<span style="margin:0 0 0 7px">' + rmChip + '</span>' : '') + '</div></div>' +
         (!isAppMode() ? '<button class="btn btn-soft btn-sm" data-act="goto:#/ucitel/kniha">' + ic('edit', 14) + ' Zápis</button>' : '') + '</div>';
     }).join('') : '<div class="empty"><b>Rozvrh zatím není nastaven</b>Vyplňte ho v záložce „Nastavit rozvrh“.</div>') + '</div>' +
@@ -2337,8 +2355,11 @@ function tZmenyRozvrh() {
     if (c.kind === 'mistnost' && c.newRoom) {
       const r = roomsList().find(x => x.id === c.newRoom);
       detail = 'Nová místnost: ' + (r ? r.name : '?');
-    } else if (c.kind === 'ucitel' && c.newTeacher) detail = 'Nový učitel: ' + c.newTeacher;
-    else if (c.kind === 'predmet' && c.newSubj) detail = 'Náhrada: ' + subjectName(c.newSubj);
+    } else if (c.kind === 'ucitel' && c.newTeacherId) {
+      const tu = (db.users || []).find(x => x.id === c.newTeacherId);
+      detail = 'Supluje: ' + (tu ? tu.name : '?') + ' (' + (tu ? tu.username : '?') + ')';
+    } else if (c.kind === 'predmet' && c.newSubj) detail = 'Náhrada: ' + subjectName(c.newSubj);
+    else if (c.kind === 'pridana' && c.newSubj) detail = 'Přidaná hodina: ' + subjectName(c.newSubj) + (c.newTeacherId ? ' · ' + ((db.users || []).find(x => x.id === c.newTeacherId) || {}).name : '');
     return '<div class="list-row"><span class="chip chip-bad">' + changeShortLabel(c) + '</span>' +
       '<div class="grow"><div class="row-title">' + fmtDate(c.date) + ' · ' + (c.period + 1) + '. hodina</div>' +
       '<div class="row-sub">' + escapeHtml([detail, c.reason].filter(Boolean).join(' · ')) + '</div></div>' +
@@ -2346,27 +2367,30 @@ function tZmenyRozvrh() {
   };
   return '' +
   '<div class="page-head"><div><h1>Změny v rozvrhu</h1>' +
-    '<div class="sub">' + escapeHtml(cls.name) + ' · odpadlá hodina, změna místnosti, učitele nebo předmětu – žáci i rodiče změnu hned uvidí v rozvrhu</div></div></div>' +
+    '<div class="sub">' + escapeHtml(cls.name) + ' · Odpadlá hodina, suplování učitele, přidaná hodina i změna místnosti – žáci i rodiče změnu hned uvidí v rozvrhu</div></div></div>' +
   clsScopePills() +
   '<div class="grid grid-2">' +
     '<div class="card"><div class="card-title">' + ic('plus', 16) + ' Nová změna</div>' +
       '<div class="field-row"><div class="field"><label>Datum</label><input type="date" class="txt" value="' + date + '" data-chg="t-zr-date"></div>' +
       '<div class="field"><label>Číslo hodiny</label><select class="sel" data-chg="t-zr-period">' +
-        scheduleSlots(cid).map((sl, i) => '<option value="' + i + '"' + (i === period ? ' selected' : '') + '>' + (i + 1) + '. hod. (' + sl.s + '–' + sl.e + ')</option>').join('') + '</select></div></div>' +
+        scheduleSlots(cid).map((sl, i) => '<option value="' + i + '"' + (i === period ? ' selected' : '') + '>' + (i + 1) + '. hod. (' + sl.s + '–' + sl.e + ')' + (subjOf(cid, date, i) ? '' : ' · volno') + '</option>').join('') + '</select></div></div>' +
       '<div class="field"><label>Typ změny</label><select class="sel" id="zr-kind">' +
         CHANGE_KINDS.map(k => '<option value="' + k.id + '">' + k.label + '</option>').join('') + '</select></div>' +
       '<div class="field" id="zr-room-wrap" style="display:none"><label>Nová místnost</label><select class="sel" id="zr-room">' +
         roomsList().map(r => '<option value="' + r.id + '">' + escapeHtml(r.name + (r.short ? ' (' + r.short + ')' : '')) + '</option>').join('') + '</select></div>' +
-      '<div class="field" id="zr-teacher-wrap" style="display:none"><label>Jméno nového učitele</label><input class="txt" id="zr-teacher" maxlength="60" placeholder="Např. Mgr. Nováková"></div>' +
+      '<div class="field" id="zr-teacher-wrap" style="display:none"><label>Login suplujícího učitele</label><input class="txt" id="zr-teacher" maxlength="40" placeholder="např. petra.dvorakova" style="font-family:monospace"><div class="small-note" id="zr-teacher-hint" style="margin:5px 0 0">Zadejte login učitele – po uložení se hodina objeví i v jeho rozvrhu</div></div>' +
       '<div class="field" id="zr-subj-wrap" style="display:none"><label>Nový předmět (náhrada)</label><select class="sel" id="zr-subj">' +
         SUBJ_KEYS.map(s => '<option value="' + s + '">' + escapeHtml(SUBJECTS[s].name) + '</option>').join('') + '</select></div>' +
+      '<div class="field" id="zr-added-wrap" style="display:none"><label>Předmět přidané hodiny</label><select class="sel" id="zr-added-subj">' +
+        SUBJ_KEYS.map(s => '<option value="' + s + '">' + escapeHtml(SUBJECTS[s].name) + '</option>').join('') + '</select>' +
+        '<div class="small-note" style="margin:5px 0 0">Hodina se musí přidávat do volné hodiny – žáci ji dostanou do rozvrhu</div></div>' +
       '<div class="field"><label>Důvod</label><input class="txt" id="zr-reason" maxlength="120" placeholder="Např. nemoc učitele, školení…"></div>' +
       '<button class="btn btn-primary" data-act="t-zr-save">' + ic('check', 15) + ' Uložit změnu</button>' +
       '<div class="small-note" style="margin-top:10px">Žáci a rodiče uvidí změnu červeně v Rozvrhu</div>' +
     '</div>' +
     '<div class="card"><div class="card-title">' + ic('bell', 16) + ' Změny třídy (' + list.length + ')</div>' +
       (list.length ? '<div class="list">' + list.map(row).join('') + '</div>'
-        : '<div class="empty"><b>Žádné změny</b>Když hodina odpadne nebo se něco změní, přidejte to tady – žáci a rodiče to uvidí červeně v rozvrhu.</div>') +
+        : '<div class="empty"><b>Žádné změny</b>Když hodina odpadne, někdo supluje nebo se přidá hodina, přidejte to tady – žáci a rodiče to uvidí červeně v rozvrhu.</div>') +
     '</div>' +
   '</div>';
 }
@@ -2376,7 +2400,7 @@ document.addEventListener('change', e => {
   const kind = e.target.closest('#zr-kind');
   if (!kind) return;
   const v = kind.value;
-  const show = { 'zr-room-wrap': v === 'mistnost', 'zr-teacher-wrap': v === 'ucitel', 'zr-subj-wrap': v === 'predmet' };
+  const show = { 'zr-room-wrap': v === 'mistnost', 'zr-teacher-wrap': v === 'ucitel' || v === 'pridana', 'zr-subj-wrap': v === 'predmet', 'zr-added-wrap': v === 'pridana' };
   Object.keys(show).forEach(id => { const el = document.getElementById(id); if (el) el.style.display = show[id] ? 'flex' : 'none'; });
 });
 onAct('t-zr-save', () => {
@@ -2386,14 +2410,29 @@ onAct('t-zr-save', () => {
   const kind = ((document.getElementById('zr-kind') || {}).value) || 'odpadla';
   const reason = (((document.getElementById('zr-reason') || {}).value) || '').trim();
   const en = scheduleEntry(cid, date, period);
-  if (!en || !en.subj) { toast('V tento den a hodinu má třída volno – změna se týká jen naplánovaných hodin', 'warn'); return; }
+  const wd = weekdayOf(date);
+  if (wd < 1 || wd > 5) { toast('Víkend není školní den', 'warn'); return; }
   if (!reason) { toast('Napište důvod změny', 'warn'); return; }
-  let newRoom = null, newTeacher = null, newSubj = null;
+  const dup = (db.changes || []).find(c => c.cls === cid && c.date === date && c.period === period);
+  if (dup) { toast('Pro tuto hodinu už změna existuje – nejdřív ji smažte', 'warn'); return; }
+  let newRoom = null, newTeacher = null, newTeacherId = null, newSubj = null;
   if (kind === 'mistnost') { newRoom = (document.getElementById('zr-room') || {}).value || null; if (!newRoom) { toast('Vyberte novou místnost', 'warn'); return; } }
-  if (kind === 'ucitel') { newTeacher = (((document.getElementById('zr-teacher') || {}).value) || '').trim(); if (!newTeacher) { toast('Napište jméno nového učitele', 'warn'); return; } }
+  if (kind === 'ucitel' || kind === 'pridana') {
+    const login = (((document.getElementById('zr-teacher') || {}).value) || '').trim().toLowerCase();
+    if (!login) { toast('Napište login suplujícího učitele (např. petra.dvorakova)', 'warn'); return; }
+    const tu = (db.users || []).find(x => x.role === 'ucitel' && !x.isOrgContact && x.username.toLowerCase() === login);
+    if (!tu) { toast('Učitel s loginem „' + login + '“ neexistuje', 'bad'); return; }
+    newTeacherId = tu.id;
+    if (kind === 'pridana') {
+      if (en && en.subj) { toast('Tato hodina není volná – přidaná hodina jde jen do volné hodiny', 'warn'); return; }
+      newSubj = (document.getElementById('zr-added-subj') || {}).value || null;
+      if (!newSubj) { toast('Vyberte předmět přidané hodiny', 'warn'); return; }
+    }
+  }
+  if (kind !== 'odpadla' && kind !== 'pridana' && (!en || !en.subj)) { toast('V tento den a hodinu má třída volno – změna se týká jen naplánovaných hodin', 'warn'); return; }
   if (kind === 'predmet') { newSubj = (document.getElementById('zr-subj') || {}).value || null; if (!newSubj) { toast('Vyberte nový předmět', 'warn'); return; } }
   changesEnsure();
-  db.changes.push({ id: uid(), cls: cid, date, period, kind, reason, newRoom, newTeacher, newSubj, by: currentUser().id, ts: nowISO() });
+  db.changes.push({ id: uid(), cls: cid, date, period, kind, reason, newRoom, newTeacher, newTeacherId, newSubj, by: currentUser().id, ts: nowISO() });
   /* oznámení žákům i rodičům třídy */
   const kids = studentsOfClass(cid);
   (db.users || []).forEach(uu => {
@@ -2401,8 +2440,12 @@ onAct('t-zr-save', () => {
       (uu.role === 'rodic' && (uu.children || []).some(sid2 => kids.some(s => s.id === sid2)));
     if (hit) db.notifs.push({ userId: uu.id, type: 'msg', text: 'Změna v rozvrhu – ' + fmtDate(date) + ', ' + (period + 1) + '. hodina (' + changeShortLabel({ kind }) + ')', ts: nowISO(), route: 'rozvrh' });
   });
+  /* suplující učitel dostane oznámení taky */
+  if (newTeacherId && newTeacherId !== currentUser().id) {
+    db.notifs.push({ userId: newTeacherId, type: 'msg', text: (kind === 'pridana' ? 'Přidaná hodina – ' : 'Suplování – ') + fmtDate(date) + ', ' + (period + 1) + '. hodina, ' + (classOf(cid) ? classOf(cid).name : '') + (reason ? ' (' + reason + ')' : ''), ts: nowISO(), route: 'rozvrh' });
+  }
   saveDB();
-  toast('Změna v rozvrhu uložena – žáci i rodiče ji uvidí ✓', 'ok');
+  toast(kind === 'pridana' ? 'Přidaná hodina uložena – žáci ji uvidí v rozvrhu ✓' : 'Změna v rozvrhu uložena – žáci i rodiče ji uvidí ✓', 'ok');
   route();
 });
 onAct('t-chg-del:', el => {
