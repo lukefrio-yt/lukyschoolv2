@@ -625,12 +625,16 @@ onAct('gen-pass', () => {
 function appReleaseVersion() {
   const commits = Number(window.SS_COMMIT_COUNT || 0);
   if (!commits) return { commits: 0, label: 'Beta (vývojová)', desc: '' };
-  const major = Math.floor(commits / 100);
-  const minor = commits % 100;
+  /* Beta 1.1 … 1.99, pak 1.100 = 2.0 → 2.1 … 2.99, 2.100 = 3.0 … */
+  let base = Math.floor((commits - 1) / 100);   /* 0 pro 1–100, 1 pro 101–200 … */
+  let minor = commits - base * 100;             /* 1–100 */
+  if (minor === 100) { base += 1; minor = 0; }  /* 1.100 → 2.0 */
+  const nextAt = (base + 1) * 100;
+  const nextMajor = base + 2;
   return {
     commits,
-    label: 'Beta ' + major + '.' + minor,
-    desc: 'Verze se zvyšuje s každým commitem – aktuálně ' + commits + ' commitů. Po ' + ((major + 1) * 100) + '. commitu přijde ' + (major + 1) + '.0 a číslování pokračuje (' + (major + 1) + '.1, ' + (major + 1) + '.2 …).'
+    label: 'Beta ' + (base + 1) + '.' + minor,
+    desc: 'Verze se zvyšuje s každým commitem – aktuálně ' + commits + ' commitů. Po ' + nextAt + '. commitu přijde ' + nextMajor + '.0 a číslování pokračuje (' + nextMajor + '.1, ' + nextMajor + '.2 …).'
   };
 }
 function spData() {
