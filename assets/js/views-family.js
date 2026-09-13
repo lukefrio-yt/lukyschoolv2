@@ -691,7 +691,7 @@ function pOmluvenky() {
           '<div class="field"><label>Důvod</label><select name="reason"><option>Nemoc</option><option>Návštěva lékaře</option><option>Rodinná událost</option><option>Sportovní akce</option><option>Jiné</option></select></div>' +
         '</div>' +
         (per.length
-          ? '<div class="field"><label>Které hodiny dítě zameškalo? <span class="small-note" style="margin:0 0 0 4px">(dle rozvrhu – škrtněte ty, kdy přišel/šla)</span></label>' +
+          ? '<div class="field"><label>Které hodiny dítě zameškalo?</label>' +
             '<div class="exc-hrs">' + per.map(p => {
               const t = slotOf(cls, p);
               const s = subjOf(cls, EXC.date, p);
@@ -1176,7 +1176,74 @@ function prubeznaView() {
             '<div class="pol-row"><div class="pol-subj">' + subjBadge(sub, 30) + '<b>' + escapeHtml(SUBJECTS[sub].name) + '</b></div>' +
             '<div class="pol-sems">' + semCellHtml(1, sub) + semCellHtml(2, sub) + '</div></div>').join('') + '</div>'
         : '<div class="empty">Zatím žádné předměty – známky se tu objeví, jakmile učitel začne zapisovat.</div>')) +
-    '</div>';
+    '</div>' +
+    (vis[1] || vis[2]
+      ? '<div class="card" style="margin-top:16px"><div class="card-title">' + ic('print', 16) + ' Vysvědčení</div>' +
+        '<div class="small-note" style="margin:0 0 10px">PDF ke stažení – tiskněte po uzavření pololetí učitelem.</div>' +
+        '<div style="display:flex;gap:10px;flex-wrap:wrap">' +
+          (repOf(1).closed
+            ? '<button class="btn btn-primary btn-sm" data-act="vysvedceni-pdf:1">' + ic('download', 14) + ' Vysvědčení za 1. pololetí</button>'
+            : '<span class="chip" style="padding:7px 12px">1. pololetí zatím uzavřeno není</span>') +
+          (repOf(2).closed
+            ? '<button class="btn btn-primary btn-sm" data-act="vysvedceni-pdf:2">' + ic('download', 14) + ' Vysvědčení za 2. pololetí</button>'
+            : '<span class="chip" style="padding:7px 12px">2. pololetí zatím uzavřeno není</span>') +
+        '</div></div>'
+      : '');
+}
+onAct('vysvedceni-pdf:', el => {
+  const sem = Number(el.getAttribute('data-act').slice(14));
+  vysvedceniPdf(sem);
+});
+function vysvedceniPdf(sem) {
+  const u = currentUser();
+  if (!u) return;
+  const isRod = u.role === 'rodic';
+  let sid = u.role === 'student' ? u.studentId : parentCurChild();
+  const st = studentOf(sid);
+  if (!st) return;
+  const cls = classOf(st.cls);
+  const rep = classReport(st.cls, sem);
+  if (!rep.closed) { toast('Toto pololetí ještě učitel neuzavřel', 'bad'); return; }
+  const subjects = classSubjects(st.cls);
+  const school = schoolName();
+  const today = fmtDate(new Date().toISOString().slice(0, 10));
+  const rows = subjects.map(sub => {
+    const fin = ((rep.checked || {})[sid] || {})[sub] || '';
+    return '<tr><td>' + escapeHtml(SUBJECTS[sub].name) + '</td><td class="g">' + escapeHtml(String(fin || '—')) + '</td></tr>';
+  }).join('');
+  const w = window.open('', '_blank', 'width=860,height=940');
+  if (!w) { toast('Povolte prosím vyskakovací okna pro stažení PDF', 'bad'); return; }
+  w.document.write('<!DOCTYPE html><html lang="cs"><head><meta charset="UTF-8"><title>Vysvědčení – ' + escapeHtml(st.first + ' ' + st.last) + ' – ' + sem + '. pololetí</title>' +
+    '<style>' +
+      '* { box-sizing: border-box; margin: 0; padding: 0; }' +
+      'body { font-family: Georgia, "Times New Roman", serif; background: #F1F5F9; padding: 26px; color: #1E293B; }' +
+      '.paper { max-width: 720px; margin: 0 auto; background: #fff; border: 1px solid #CBD5E1; padding: 42px 48px; }' +
+      '.head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1E293B; padding-bottom: 14px; margin-bottom: 26px; }' +
+      '.brand { font-size: 21px; font-weight: 700; } .brand b { color: #2563EB; }' +
+      '.school { font-size: 12.5px; color: #475569; margin-top: 3px; }' +
+      '.sem { text-align: right; font-size: 12.5px; color: #475569; }' +
+      'h1 { font-size: 23px; margin-bottom: 4px; } .who { font-size: 14.5px; color: #475569; margin-bottom: 22px; }' +
+      'table { width: 100%; border-collapse: collapse; margin-bottom: 26px; }' +
+      'th { text-align: left; font-family: Arial, sans-serif; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: #64748B; border-bottom: 1.5px solid #94A3B8; padding: 8px 6px; }' +
+      'td { padding: 9px 6px; border-bottom: 1px solid #E2E8F0; font-size: 15px; }' +
+      'td.g { text-align: center; font-weight: 700; font-size: 17px; width: 70px; }' +
+      '.foot { display: flex; justify-content: space-between; margin-top: 44px; font-size: 12.5px; color: #475569; }' +
+      '.foot .line { border-top: 1px solid #475569; padding-top: 5px; min-width: 190px; text-align: center; }' +
+      '@media print { body { background: #fff; padding: 0; } .paper { border: 0; } .noprint { display: none; } }' +
+      '.noprint { max-width: 720px; margin: 14px auto 0; text-align: center; }' +
+      '.noprint button { font-family: Arial, sans-serif; font-size: 14.5px; font-weight: 700; padding: 11px 26px; border-radius: 10px; border: 0; background: #2563EB; color: #fff; cursor: pointer; }' +
+    '</style></head><body>' +
+    '<div class="paper">' +
+      '<div class="head"><div><div class="brand">School<b>Sys</b></div><div class="school">' + escapeHtml(school) + (cls && cls.name ? ' · třída ' + escapeHtml(cls.name) : '') + '</div></div>' +
+      '<div class="sem">' + sem + '. pololetí<br>Školní rok ' + schoolYearLabel() + '</div></div>' +
+      '<h1>Vysvědčení</h1>' +
+      '<div class="who">' + escapeHtml(st.first + ' ' + st.last) + '</div>' +
+      '<table><thead><tr><th>Předmět</th><th style="text-align:center">Výsledná známka</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+      '<div class="foot"><div class="line">Třídní/učitel</div><div class="line">Rodič/žák</div><div class="line">Datum: ' + escapeHtml(today) + '</div></div>' +
+    '</div>' +
+    '<div class="noprint"><button onclick="window.print()">⬇ Uložit jako PDF / Vytisknout</button></div>' +
+    '</body></html>');
+  w.document.close();
 }
 
 /* ================= VÝUKA (žák: probírané učivo podle předmětů) ================= */
