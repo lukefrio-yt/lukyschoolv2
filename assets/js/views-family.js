@@ -41,6 +41,7 @@ function sPrehled() {
     '<div class="sub">' + todayLabel() + ' · ' + escapeHtml(st.cls) + '</div></div>' +
     '<div class="page-acts"><button class="btn btn-ghost btn-sm" data-act="goto:#/student/znamky">' + ic('calc', 15) + ' Předvídač průměru</button></div></div>' +
   (state.txt && state.txt.indexOf('skončilo') === -1 && state.txt.indexOf('není škola') === -1 ? '<div class="warn-line" data-cd>' + state.icon + ' <span data-cd-txt>' + state.txt + '</span></div>' : '') +
+  chgAlertHtml(st.cls) +
   '<div class="grid grid-3">' +
     '<div class="card" style="grid-column:span 2">' +
       '<div class="card-title">' + ic('zap', 17) + ' Tvůj průměr</div>' +
@@ -98,6 +99,39 @@ function dayStateHtml(cls) {
   }
   if (chgToday.length) txt += ' &nbsp;·&nbsp; <span class="chip chip-bad" style="padding:1px 8px">' + chgToday.length + ' ' + csPlural(chgToday.length, 'Změna', 'Změny', 'Změn') + ' v rozvrhu</span>';
   return { icon, txt };
+}
+/* Upozornění v Přehledu: změny rozvrhu na dnešek a zítřek (S/O/M/P/Z) */
+function chgAlertHtml(cls) {
+  const days = [['Dnes', todayISO()], ['Zítra', addDaysISO(todayISO(), 1)]];
+  const CHG_MARK = { odpadla: ['O', 'Odpadá'], mistnost: ['M', 'Změna místnosti'], ucitel: ['S', 'Suplování'], predmet: ['Z', 'Změna předmětu'], pridana: ['P', 'Přidaná hodina'] };
+  const rows = [];
+  days.forEach(([label, iso]) => {
+    changesOfClsInRange(cls, iso, iso).forEach(c => {
+      const m = CHG_MARK[c.kind] || ['', 'Změna'];
+      const en0 = ((db.schedule || {})[cls] || { days: {} }).days[weekdayOf(c.date)] || [];
+      const orig = (en0 || [])[c.period] || null;
+      const origName = orig && orig.subj && SUBJECTS[orig.subj] ? SUBJECTS[orig.subj].name : null;
+      let detail = '';
+      if (c.kind === 'odpadla') detail = origName ? origName + ' odpadá' : 'Hodina odpadá';
+      else if (c.kind === 'mistnost') { const r = roomsList().find(x => x.id === c.newRoom); detail = (origName ? origName + ' – j' : 'J') + 'iná učebna: ' + (r ? r.name : (c.newRoom || '?')); }
+      else if (c.kind === 'ucitel') { const nu = c.newTeacherId ? (db.users || []).find(x => x.id === c.newTeacherId) : null; detail = (origName ? origName + ' – supluje ' : 'Supluje ') + (nu ? nu.name : (c.newTeacher || '?')); }
+      else if (c.kind === 'predmet') detail = origName ? origName + ' → ' + (c.newSubj && SUBJECTS[c.newSubj] ? SUBJECTS[c.newSubj].name : '?') : 'Změna předmětu';
+      else detail = (c.newSubj && SUBJECTS[c.newSubj] ? SUBJECTS[c.newSubj].name : 'Hodina') + ' – přidaná hodina';
+      rows.push('<div class="chg-item' + (c.kind === 'odpadla' ? ' chg-bad' : c.kind === 'pridana' ? ' chg-good' : '') + '" style="padding:10px 12px">' +
+        '<div class="chg-head"><span class="l-ic chg-mark" title="' + m[1] + '">' + m[0] + '</span>' +
+          '<span class="chg-date" style="flex:1">' + label + ' · ' + (c.period + 1) + '. hodina' + (origName && c.kind !== 'odpadla' && c.kind !== 'pridana' ? ' · ' + escapeHtml(origName) : '') + '</span>' +
+          changeKindChip(c.kind) + '</div>' +
+        '<div class="chg-detail">' + escapeHtml(detail) +
+        (c.reason ? '<span class="chg-reason">Důvod: ' + escapeHtml(c.reason) + '</span>' : '') + '</div>' +
+      '</div>');
+    });
+  });
+  if (!rows.length) return '';
+  return '<div class="card" style="margin-bottom:16px;border-color:rgba(239,68,68,.5)">' +
+    '<div class="card-title">' + ic('bell', 17) + ' Změny v rozvrhu</div>' +
+    '<div class="chg-list" style="margin-top:8px">' + rows.join('') + '</div>' +
+    '<button class="btn btn-soft btn-sm" style="width:100%;margin-top:12px" data-act="goto:#/student/zmenyrozvrh">Zobrazit všechny změny</button>' +
+  '</div>';
 }
 
 /* --- známky + předvídač --- */
