@@ -19,21 +19,22 @@ const DB_KEY_PREV = 'lukySchool.db.v13';
 const SES_KEY = 'lukySchool.session';
 const THEME_KEY = 'lukySchool.theme';
 const DB_TS_KEY = 'lukySchool.cloud.ts'; /* čas posledního lokálního uložení (cloud sync) */
-const DB_VERSION = 18;
+const DB_VERSION = 19;
 
 /* ---------- hashování hesel ----------
    Hesla se nikdy neukládají v čitelné podobě – v localStorage ani v cloudu.
-   Formát v databázi: "ss1$<salt>$<hash>", kde salt je 16 náhodných bajtů
-   (hex) a hash = SHA-256(salt + '$' + heslo). Hashování je synchronní
-   (vlastní SHA-256, FIPS 180-4), aby fungovalo i uvnitř migrace dat.
-   Heslo v čitelné podobě existuje jen chvíli v paměti – zobrazí se
-   jednorázově při vytvoření účtu / vygenerování nového hesla. */
-const SS_HASH_PREFIX = 'ss1';
-function ssSha256(str) {
-  const utf8 = unescape(encodeURIComponent(String(str)));
-  const len = utf8.length;
+   Aktuální formát: "ss2$<salt>$<iterace>$<hash>" – PBKDF2-HMAC-SHA-256 s
+   vysokým počtem iterací (SS_PBKDF2_ITER). Díky tomu se z uniklé databáze
+   nedají hesla hrubou silou počítat rychle (na rozdíl od holého SHA-256).
+   Starší formát "ss1$<salt>$<sha256>" zůstává čitelný pro přihlášení –
+   heslo se automaticky převede na ss2 při prvním přihlášení uživatele.
+   Nová/changed hesla se ukládají rovnou jako ss2 (asynchronně). */
+const SS_HASH_PREFIX = 'ss2';
+const SS_PBKDF2_ITER = 60000;
+function ssSha256Bytes(bytes) {
+  const len = bytes.length;
   const buf = new Uint8Array((((len + 8) >> 6) + 1) << 6);
-  for (let i = 0; i < len; i++) buf[i] = utf8.charCodeAt(i) & 0xff;
+  buf.set(bytes);
   buf[len] = 0x80;
   const dv = new DataView(buf.buffer);
   dv.setUint32(buf.length - 8, Math.floor((len * 8) / 4294967296));
@@ -70,7 +71,48 @@ function ssSha256(str) {
     h0 = (h0 + a) | 0; h1 = (h1 + b) | 0; h2 = (h2 + c) | 0; h3 = (h3 + d) | 0;
     h4 = (h4 + e) | 0; h5 = (h5 + f) | 0; h6 = (h6 + g) | 0; h7 = (h7 + h) | 0;
   }
-  return [h0, h1, h2, h3, h4, h5, h6, h7].map(x => ('00000000' + (x >>> 0).toString(16)).slice(-8)).join('');
+  const out = new Uint8Array(32);
+  [h0, h1, h2, h3, h4, h5, h6, h7].forEach((x, i) => {
+    out[i * 4] = (x >>> 24) & 255; out[i * 4 + 1] = (x >>> 16) & 255; out[i * 4 + 2] = (x >>> 8) & 255; out[i * 4 + 3] = x & 255;
+  });
+  return out;
+}
+function ssSha256(str) {
+  const utf8 = unescape(encodeURIComponent(String(str)));
+  const b = new Uint8Array(utf8.length);
+  for (let i = 0; i < utf8.length; i++) b[i] = utf8.charCodeAt(i) & 0xff;
+  return [...ssSha256Bytes(b)].map(x => ('0' + x.toString(16)).slice(-2)).join('');
+}
+/* PBKDF2-HMAC-SHA-256 (RFC 2898) – 1 blok (dkLen 32 B), synchronní implementace.
+   Vrátí hex. Vysoký počet iterací = lámání uniklých hashů je řádově pomalejší. */
+function ssPbkdf2Hex(password, saltHex, iterations) {
+  const toBytes = s => { const u = unescape(encodeURIComponent(String(s))); const b = new Uint8Array(u.length); for (let i = 0; i < u.length; i++) b[i] = u.charCodeAt(i) & 0xff; return b; };
+  const P = toBytes(password);
+  const S = new Uint8Array(Math.ceil(saltHex.length / 2));
+  for (let i = 0; i < S.length; i++) S[i] = parseInt(saltHex.substr(i * 2, 2), 16) || 0;
+  const block = new Uint8Array(S.length + 4);
+  block.set(S, 0);
+  block[S.length + 3] = 1;               /* INT(1) big-endian */
+  const ipad = new Uint8Array(64), opad = new Uint8Array(64);
+  const K = P.length > 64 ? ssSha256Bytes(P) : P;
+  for (let i = 0; i < 64; i++) { const k = i < K.length ? K[i] : 0; ipad[i] = k ^ 0x36; opad[i] = k ^ 0x5c; }
+  const inner = new Uint8Array(64 + 32), outer = new Uint8Array(64 + 32);
+  inner.set(ipad, 0); outer.set(opad, 0);
+  /* U_1 = HMAC(P, S || INT(1)) – zpráva jde do inner zřetelně, ne přes U */
+  const msg = new Uint8Array(64 + block.length);
+  msg.set(ipad, 0); msg.set(block, 64);
+  let U = ssSha256Bytes(msg);
+  outer.set(U, 64);
+  U = ssSha256Bytes(outer.subarray(0, 96));
+  const T = U.slice();
+  for (let it = 1; it < iterations; it++) {
+    inner.set(U, 64);
+    U = ssSha256Bytes(inner.subarray(0, 96));
+    outer.set(U, 64);
+    U = ssSha256Bytes(outer.subarray(0, 96));
+    for (let j = 0; j < 32; j++) T[j] ^= U[j];
+  }
+  return [...T].map(x => ('0' + x.toString(16)).slice(-2)).join('');
 }
 function ssSalt() {
   const b = new Uint8Array(16);
@@ -80,14 +122,38 @@ function ssSalt() {
   for (let i = 0; i < b.length; i++) s += ('0' + b[i].toString(16)).slice(-2);
   return s;
 }
-function isHashedPass(p) { return typeof p === 'string' && p.indexOf(SS_HASH_PREFIX + '$') === 0; }
-function hashPassword(plain) { const salt = ssSalt(); return SS_HASH_PREFIX + '$' + salt + '$' + ssSha256(salt + '$' + plain); }
+function isHashedPass(p) { return typeof p === 'string' && (p.indexOf('ss1$') === 0 || p.indexOf('ss2$') === 0); }
+function isSS2Pass(p) { return typeof p === 'string' && p.indexOf('ss2$') === 0; }
+/* hash nového hesla: ss2 = PBKDF2 s vysokým počtem iterací (synchronní –
+   implementace výše je čistý JS, trvá jen zlomek sekundy). */
+function hashPassword(plain) {
+  const salt = ssSalt();
+  return 'ss2$' + salt + '$' + SS_PBKDF2_ITER + '$' + ssPbkdf2Hex(String(plain), salt, SS_PBKDF2_ITER);
+}
+/* rychlý starý formát ss1 – POUZE pro migrace/seed (hashuje se hned při
+   načtení dat, čitelné heslo tam stejně už není). Po přihlášení se heslo
+   transparentně povýší na ss2 (upgradeUserPass). */
+function hashPasswordSS1(plain) { const salt = ssSalt(); return 'ss1$' + salt + '$' + ssSha256(salt + '$' + plain); }
 function verifyPassword(user, plain) {
   const p = user && user.pass;
   if (typeof p !== 'string') return false;
-  if (!isHashedPass(p)) return p === plain;   /* heslo z nutné importu/starší verze – porovnáme napřímo */
+  if (isSS2Pass(p)) {
+    const parts = p.split('$');
+    const iter = parseInt(parts[2], 10) || SS_PBKDF2_ITER;
+    return parts[3] === ssPbkdf2Hex(String(plain), parts[1], iter);
+  }
+  if (!isHashedPass(p)) return p === plain;   /* plain ze seedu/starší verze – porovnáme napřímo */
   const parts = p.split('$');
-  return parts[2] === ssSha256(parts[1] + '$' + plain);
+  return parts[2] === ssSha256(parts[1] + '$' + plain);   /* ss1 (starý formát) – při přihlášení se povýší na ss2 */
+}
+/* Transparentní upgrade starého ss1 hashe (nebo plain ze seedu) na ss2 PBKDF2 –
+   volá se po úspěšném přihlášení (potřebuje znát heslo, které právě ověřilo).
+   V DB_VERSION 19 se také zvedne verze databáze – viz migrateDB. */
+function upgradeUserPass(user, plainJustVerified) {
+  if (!user || !user.pass || isSS2Pass(user.pass)) return false;
+  user.pass = hashPassword(plainJustVerified);
+  saveDB();
+  return true;
 }
 /* Uchování VYGENEROVANÉHO hesla žáka/rodiče do doby, než si ho uživatel změní sám.
    Ukládá se ZAŠIFROVANĚ (XOR+base64, klíč odvozený od id účtu) – v localStorage
@@ -461,7 +527,7 @@ function buildSeed() {
     orgRequests: [],                    /* žádosti o založení: {id,first,last,orgName,phone,email,username,pass,status,ts} */
     orgNotices: [],                     /* oznámení admina zakladatelům: {id,orgId,text,ts,by} */
     classes: [],
-    users: [Object.assign(JSON.parse(JSON.stringify(ADMIN_USER)), { pass: hashPassword(ADMIN_USER.pass) })],
+    users: [Object.assign(JSON.parse(JSON.stringify(ADMIN_USER)), { pass: hashPasswordSS1(ADMIN_USER.pass) })],
     students: [],
     rooms: JSON.parse(JSON.stringify(DEFAULT_ROOMS)),
     subjects: {},
@@ -488,12 +554,12 @@ function buildSeed() {
     const orgId = 'org_testorg';
     seed.organizations.push({ id: orgId, name: 'testorg', first: 'Test', last: 'Kontakt', phone: '+420 900 000 000', email: 'testorg@example.com', createdAt: now, suspended: false });
     seed.users.push(
-      { id: 'u_testkontakt', username: 'testzakladatel', pass: hashPassword('TestZakladatel1'), role: 'ucitel', passChanged: false, name: 'Test Kontakt', note: 'Kontakt · testorg', isAdmin: false, isOrgContact: true, orgId },
-      { id: 'u_testucitel', username: 'testucitel', pass: hashPassword('TestUcitel1*'), role: 'ucitel', passChanged: false, name: 'Test Učitel', note: 'Třídní · testtrida', isAdmin: false, orgId }
+      { id: 'u_testkontakt', username: 'testzakladatel', pass: hashPasswordSS1('TestZakladatel1'), role: 'ucitel', passChanged: false, name: 'Test Kontakt', note: 'Kontakt · testorg', isAdmin: false, isOrgContact: true, orgId },
+      { id: 'u_testucitel', username: 'testucitel', pass: hashPasswordSS1('TestUcitel1*'), role: 'ucitel', passChanged: false, name: 'Test Učitel', note: 'Třídní · testtrida', isAdmin: false, orgId }
     );
     seed.classes.push({ id: 'testtrida', name: 'testtrida', orgId, teacherIds: ['u_testucitel'], mainTeacher: 'u_testucitel' });
     seed.students.push({ id: 's_testzak', first: 'Test', last: 'Žák', cls: 'testtrida', ivp: false, demo: false, orgId });
-    seed.users.push({ id: 'u_testzak', username: 'testzak', pass: hashPassword('TestZak1'), role: 'student', passChanged: false, name: 'Test Žák', note: 'testtrida', studentId: 's_testzak', isAdmin: false, orgId });
+    seed.users.push({ id: 'u_testzak', username: 'testzak', pass: hashPasswordSS1('TestZak1'), role: 'student', passChanged: false, name: 'Test Žák', note: 'testtrida', studentId: 's_testzak', isAdmin: false, orgId });
     seed.seen = { 'u-admin': null, u_testkontakt: null, u_testucitel: null, u_testzak: null };
   } catch (e) { console.warn('Seed testorg selhal', e); }
   return seed;
@@ -524,9 +590,10 @@ let db = null;
     if (parsed.v < 14) {
       /* v13 → v14: hashování hesel. Všechna dosud čitelná hesla (účty, čekající
          žádosti o organizaci i dosud nepředaná nová hesla k předání) se převedou
-         na salt + SHA-256 a už se nikdy neuloží v čitelné podobě. */
-      (parsed.users || []).forEach(u => { if (u.pass && !isHashedPass(u.pass)) u.pass = hashPassword(u.pass); });
-      (parsed.orgRequests || []).forEach(r => { if (r.pass && !isHashedPass(r.pass)) r.pass = hashPassword(r.pass); });
+         na salt + hash a už se nikdy neuloží v čitelné podobě. Rychlý ss1 –
+         při přihlášení se každý účet povýší na pomalé ss2 (PBKDF2). */
+      (parsed.users || []).forEach(u => { if (u.pass && !isHashedPass(u.pass)) u.pass = hashPasswordSS1(u.pass); });
+      (parsed.orgRequests || []).forEach(r => { if (r.pass && !isHashedPass(r.pass)) r.pass = hashPasswordSS1(r.pass); });
       /* fronta k předání už dál neobsahuje čitelné heslo – jen informaci pro třídního */
       (parsed.resetPass || []).forEach(r => { delete r.newPass; });
     }
@@ -542,6 +609,12 @@ let db = null;
       /* v17 → v18: oznámení admina zakladatelům organizací + pozastavení organizace */
       parsed.orgNotices = parsed.orgNotices || [];
       (parsed.organizations || []).forEach(o => { if (o.suspended === undefined) o.suspended = false; });
+    }
+    if (parsed.v < 19) {
+      /* v18 → v19: PBKDF2. Staré ss1 hashe (holý SHA-256) se zachovají a každý
+         účet se při svém příštím přihlášení transparentně povýší na ss2
+         (upgradeUserPass v core.js). Plain hesla tady nejsou, proto nelze
+         přehashovat hned – PBKDF2 potřebuje znát původní heslo. */
     }
     if (parsed.v < 17) {
       /* v16 → v17: končí hlavní škola (LukySchool). Admin už žádnou hlavní školu
@@ -644,7 +717,7 @@ function wipeSchool() {
     organizations: db.organizations || [],
     orgRequests: db.orgRequests || [],
     orgNotices: db.orgNotices || [],
-    classes: [], users: [Object.assign(JSON.parse(JSON.stringify(ADMIN_USER)), { pass: hashPassword(ADMIN_USER.pass) })],
+    classes: [], users: [Object.assign(JSON.parse(JSON.stringify(ADMIN_USER)), { pass: hashPasswordSS1(ADMIN_USER.pass) })],
     students: [], rooms: JSON.parse(JSON.stringify(DEFAULT_ROOMS)), subjects: {}, schedule: {}, columns: [], tasks: [], classbook: [],
     threads: {},
     subs: [], reservations: [], absReq: [], notifs: [],

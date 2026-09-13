@@ -552,7 +552,7 @@ onAct('form:sp-par-create', f => {
 
 /* ---------- přihlašovací údaje ----------
    Heslo se zobrazí JEDNOU – jen těsně po vytvoření/vygenerování (dočasná
-   kopie existuje jen v paměti). V databázi zůstává trvale jen salt + SHA-256. */
+   kopie existuje jen v paměti). V databázi zůstává trvale jen salt + PBKDF2 hash. */
 function showCreds(user) {
   const fresh = takePendingPass(user.id);           /* čerstvě vygenerované – ještě nebylo zobrazeno */
   const stored = visibleGenPass(user);              /* generované heslo žáka/rodiče – viditelné do vlastní změny */

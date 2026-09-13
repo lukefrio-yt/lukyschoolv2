@@ -72,8 +72,11 @@ třída → `studentsOfClass`, učitel → `myClasses()` atd.).
 
 ### Přihlašování dnes
 
-Účet = záznam v `db.users`. Heslo se ukládá **hashované** (`ss1$salt$hash`,
-SHA-256 s náhodným saltem) – v čitelné podobě existuje jen chvíli v paměti,
+Účet = záznam v `db.users`. Heslo se ukládá **hashované** – aktuální formát
+`ss2$salt$iterace$hash` = **PBKDF2-HMAC-SHA-256 s 60 000 iteracemi** a náhodným
+saltem (odolné proti hrubé silě při úniku databáze). Starší formát `ss1$…`
+(holý SHA-256) zůstává čitelný; každý účet se při svém příštím přihlášení
+transparentně povýší na ss2. V čitelné podobě existuje heslo jen chvíli v paměti,
 zobrazí se jednorázově při vytvoření účtu / vygenerování nového hesla. Relace je
 jen `lukySchool.session` s uživatelským jménem. Po přihlášení čte `currentUser()`.
 
@@ -100,6 +103,9 @@ stále zobrazuje jen jednorázově při vygenerování.
   Pozastavená organizace zobrazuje učitelům i kontaktu jen obrazovku
   s oznámením (přihlásit se dá, aplikace nefunguje); admin ruší tlačítkem
   „Zrušit pozastavení“.
+- **v19** – hesla se hashují **PBKDF2-HMAC-SHA-256** (`ss2$salt$60000$hash`,
+  ~300 ms/hash v prohlížeči) místo holého SHA-256. Staré ss1 hashe zůstávají
+  funkční; při přihlášení se transparentně povýší na ss2 (upgradeUserPass).
 - **Verze aplikace** – v záložce Data a release (vidí admin i kontakt) se
   zobrazuje **Beta 1.x** počítaná z počtu commitů repozitáře (marker
   `window.SS_COMMIT_COUNT` v `app.html` doplňuje deploy). Po 1.100 přechod
