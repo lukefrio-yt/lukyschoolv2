@@ -331,7 +331,16 @@ function route() {
     app.innerHTML = shellHTML(user, 'prehled');
     document.body.classList.remove('nav-open', 'dock-open');
     renderBell();
-    document.getElementById('view').innerHTML = mobileHomeHTML(user);
+    let homeHtml = mobileHomeHTML(user);
+    /* žák/rodič: upozornění na změny rozvrhu dnes/zítra nad dlaždicemi */
+    if ((user.role === 'student' || user.role === 'rodic') && typeof chgAlertHtml === 'function') {
+      const sid = user.role === 'student' ? user.studentId : parentCurChild();
+      const st = sid ? studentOf(sid) : null;
+      const alert = st ? chgAlertHtml(st.cls) : '';
+      if (alert) homeHtml = homeHtml.replace('</div>\n    <div class="m-grid">', '</div>' + alert + '<div class="m-grid">');
+      if (alert && homeHtml.indexOf('chg-item') === -1) homeHtml = homeHtml.replace('<div class="m-grid">', alert + '<div class="m-grid">');
+    }
+    document.getElementById('view').innerHTML = homeHtml;
     return;
   }
   app.innerHTML = shellHTML(user, useKey);
