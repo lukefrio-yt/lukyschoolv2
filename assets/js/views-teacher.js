@@ -520,7 +520,7 @@ function tPololetka() {
           '<th style="position:sticky;left:0;background:var(--surface);z-index:2;min-width:180px">Žák</th>' +
           subs.map(s => '<th style="min-width:88px;text-align:center" title="' + escapeHtml(SUBJECTS[s].name) + '">' + subjBadge(s, 24) +
             '<div style="font-size:10px;color:var(--muted);font-weight:600;margin-top:3px">' + escapeHtml(SUBJECTS[s].name) + '</div></th>').join('') +
-          '<th style="min-width:90px">Průměr</th><th style="min-width:120px">Stav</th></tr></thead><tbody>' +
+          '<th style="min-width:90px">Průměr</th><th style="min-width:120px">Stav</th>' + (closed ? '<th style="min-width:80px;text-align:center">Tisk</th>' : '') + '</tr></thead><tbody>' +
           sts.map(st => {
             const chk = rep.checked[st.id] || {};
             const sum = sumFor(st.id);
@@ -534,7 +534,8 @@ function tPololetka() {
                 gradeOpts(st.id, s, cellVal(st.id, s)) +
                 '<span style="font-size:10.5px;color:var(--muted)">' + (subjTitle(s, st.id).avg !== null ? 'Ø ' + subjTitle(s, st.id).avg.toFixed(2) : 'Bez známek') + '</span></div></td>').join('') +
               '<td class="num" style="color:' + avgColor(sum.avg) + ';font-weight:900">' + avgTxt(sum.avg) + (sum.n ? '' : '') + '</td>' +
-              '<td>' + (stSubjCnt === 0 ? '<span class="chip">Bez známek</span>' : cnt >= stSubjCnt ? '<span class="chip chip-ok">Hotovo</span>' : '<span class="chip chip-warn">' + cnt + '/' + stSubjCnt + '</span>') + '</td></tr>';
+              '<td>' + (stSubjCnt === 0 ? '<span class="chip">Bez známek</span>' : cnt >= stSubjCnt ? '<span class="chip chip-ok">Hotovo</span>' : '<span class="chip chip-warn">' + cnt + '/' + stSubjCnt + '</span>') + '</td>' +
+              (closed ? '<td style="text-align:center"><button class="btn btn-soft btn-sm" data-act="kls-pdf:' + st.id + '">Print</button></td>' : '') + '</tr>';
           }).join('') + '</tbody></table></div>' +
         (closed
           ? '<div class="small-note" style="margin-top:10px">Klasifikace je uzavřená – výsledek vidí žáci i rodiče</div>'
@@ -543,6 +544,73 @@ function tPololetka() {
     : '<div class="card"><div class="empty">' + (!sts.length ? '<b>Ve třídě zatím nejsou žáci</b>' : '<b>Třída zatím nemá předměty se známkami</b>Zapište nejdřív známky v Známkování (nebo nastavte rozvrh).') + '</div></div>');
 }
 onAct('kls-auto', () => { reportAutoFill(activeClsId(), KLS.sem); toast('Navržené známky doplněny – hraniční pásma zůstala k vašemu rozhodnutí', 'ok'); route(); });
+/* Vysvědčení PDF – tiskne POUZE učitel, pro žáka ze své třídy (žák/rodič tisk nemá) */
+onAct('kls-pdf:', el => {
+  const sid = el.getAttribute('data-act').slice(8);
+  const st = studentOf(sid);
+  if (!st || !myClasses().some(c => c.id === st.cls)) { toast('Žák není z vaší třídy', 'bad'); return; }
+  const sem = KLS.sem;
+  if (!classReport(st.cls, sem).closed) { toast('Pololetí není uzavřené', 'bad'); return; }
+  printVysvedceniFor(st, sem);
+});
+function printVysvedceniFor(st, sem) {
+  const rep = classReport(st.cls, sem);
+  const cls = classOf(st.cls);
+  const subjects = classSubjects(st.cls);
+  const school = schoolName();
+  const today = fmtDate(todayISO());
+  const rows = subjects.map(sub => {
+    const fin = ((rep.checked || {})[st.id] || {})[sub] || '';
+    return '<tr><td>' + escapeHtml(SUBJECTS[sub].name) + '</td><td class="g">' + escapeHtml(String(fin || '—')) + '</td></tr>';
+  }).join('');
+  const w = window.open('', '_blank', 'width=860,height=940');
+  if (!w) { toast('Povolte prosím vyskakovací okna pro tisk', 'bad'); return; }
+  w.document.write('<!DOCTYPE html><html lang="cs"><head><meta charset="UTF-8"><title>Vysvědčení – ' + escapeHtml(st.first + ' ' + st.last) + ' – ' + sem + '. pololetí</title>' +
+    '<style>' +
+      '* { box-sizing: border-box; margin: 0; padding: 0; }' +
+      'body { font-family: Georgia, "Times New Roman", serif; background: #EEF2F7; padding: 24px; color: #0F172A; }' +
+      '.paper { background: #fff; border: 2px solid #94A3B8; border-radius: 10px; max-width: 760px; margin: 0 auto; padding: 40px 48px; }' +
+      '.p-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 22px; }' +
+      '.p-brand { font-family: Arial, sans-serif; font-weight: 900; font-size: 20px; } .p-brand b { color: #3B82F6; }' +
+      '.p-school { font-family: Arial, sans-serif; font-size: 12.5px; color: #64748B; margin-top: 3px; }' +
+      '.p-meta { font-family: Arial, sans-serif; font-size: 12.5px; color: #475569; text-align: right; line-height: 1.6; }' +
+      'h1 { font-size: 26px; text-align: center; letter-spacing: 0.04em; margin-bottom: 6px; }' +
+      '.p-sub { text-align: center; color: #64748B; font-family: Arial, sans-serif; font-size: 13px; margin-bottom: 24px; }' +
+      '.p-stu { display: flex; gap: 8px; margin-bottom: 18px; font-size: 15.5px; }' +
+      '.p-stu b { min-width: 60px; }' +
+      'table { width: 100%; border-collapse: collapse; margin-bottom: 26px; }' +
+      'th, td { border: 1px solid #CBD5E1; padding: 8px 12px; font-size: 14.5px; text-align: left; }' +
+      'th { background: #F1F5F9; font-family: Arial, sans-serif; font-size: 12.5px; }' +
+      'td.g { width: 90px; text-align: center; font-weight: 700; font-size: 16px; }' +
+      '.p-signs { display: flex; justify-content: space-between; gap: 30px; margin-top: 40px; }' +
+      '.p-sign { flex: 1; text-align: center; font-family: Arial, sans-serif; font-size: 12px; color: #475569; }' +
+      '.p-line { border-top: 1.5px solid #94A3B8; margin-bottom: 6px; height: 34px; }' +
+      '.p-note { margin-top: 22px; font-family: Arial, sans-serif; font-size: 11px; color: #94A3B8; text-align: center; }' +
+      '.print-actions { max-width: 760px; margin: 0 auto 16px; display: flex; gap: 10px; justify-content: flex-end; }' +
+      '.print-actions button { padding: 10px 18px; border-radius: 9px; border: 0; font-weight: 800; font-size: 14px; cursor: pointer; background: #2563EB; color: #fff; font-family: Arial, sans-serif; }' +
+      '.print-actions button.ghost { background: #E2E8F0; color: #0F172A; }' +
+      '@media print { body { background: #fff; padding: 0; } .print-actions { display: none; } .paper { border: 0; } @page { margin: 14mm; } }' +
+    '</style></head><body>' +
+    '<div class="print-actions"><button class="ghost" onclick="window.close()">Zavřít</button><button onclick="window.print()">🖨️ Tisknout / Uložit jako PDF</button></div>' +
+    '<div class="paper">' +
+      '<div class="p-head">' +
+        '<div><div class="p-brand">School<b>Sys</b></div><div class="p-school">' + escapeHtml(school) + ' · ' + escapeHtml(cls ? cls.name : '') + '</div></div>' +
+        '<div class="p-meta">Školní rok ' + schoolYearLabel() + '<br>' + sem + '. pololetí<br>Vydáno: ' + today + '</div>' +
+      '</div>' +
+      '<h1>VYSVĚDČENÍ</h1>' +
+      '<div class="p-sub">na konci ' + sem + '. pololetí školního roku ' + schoolYearLabel() + '</div>' +
+      '<div class="p-stu"><b>Žák:</b> ' + escapeHtml(st.first + ' ' + st.last) + '</div>' +
+      '<table><thead><tr><th>Předmět</th><th style="text-align:center;width:90px">Známka</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+      '<div class="p-signs">' +
+        '<div class="p-sign"><div class="p-line"></div>Třídní učitel</div>' +
+        '<div class="p-sign"><div class="p-line"></div>Rodič</div>' +
+      '</div>' +
+      '<div class="p-note">Vytisknuto z aplikace SchoolSys</div>' +
+    '</div>' +
+    '<scr' + 'ipt>setTimeout(function(){ window.focus(); }, 300);</scr' + 'ipt>' +
+    '</body></html>');
+  w.document.close();
+}
 /* změna známky v tabulce: uložit a překreslit */
 document.addEventListener('change', e => {
   const sel = e.target.closest('.kls-g');

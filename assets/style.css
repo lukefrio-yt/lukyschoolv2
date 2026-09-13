@@ -875,3 +875,6 @@ body[data-mob="1"] .nav-backdrop { display: none !important; }
 .chg-date { font-weight: 800; font-size: 13.5px; }
 .chg-detail { margin-top: 6px; font-size: 14px; color: var(--text); line-height: 1.5; }
 .chg-reason { display: block; margin-top: 4px; font-size: 12.5px; color: var(--muted); }
+
+/* ---- Písmenná značka změny u hodiny v rozvrhu (S/O/M/P/Z) ---- */
+.l-ic.chg-mark { background: var(--bad); color: #fff; font-size: 12px; width: 22px; height: 22px; border-radius: 7px; }
