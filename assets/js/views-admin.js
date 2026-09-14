@@ -940,7 +940,7 @@ function spResets() {
       ? '<div class="list">' + reqs.map(r => {
           const acc = accByLogin(r.login);
           return '<div class="list-row">' +
-            '<span class="chip ' + (r.status === 'ceka' ? 'chip-accent' : '') + '">' + (r.status === 'ceka' ? 'čeká' : 'vyřízeno') + '</span>' +
+            '<span class="chip ' + (r.status === 'ceka' ? 'chip-accent' : '') + '">' + (r.status === 'ceka' ? 'Čeká' : 'Vyřízeno') + '</span>' +
             '<div class="grow"><div class="row-title"><code class="mono">' + escapeHtml(r.login) + '</code>' + (acc ? ' · ' + escapeHtml(acc.name) : '') + '</div>' +
             '<div class="row-sub">' + tsLabel(r.ts) + (r.status === 'vyrizeno' ? ' · nové heslo bylo předáno třídnímu učiteli' : '') + '</div></div>' +
             '<button class="btn btn-soft btn-sm" data-act="sp-req-open:' + r.id + '">' + ic(r.status === 'ceka' ? 'zap' : 'eye', 14) + ' ' + (r.status === 'ceka' ? 'Vyřídit' : 'Detail') + '</button>' +

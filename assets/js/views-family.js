@@ -458,7 +458,7 @@ function taskRow(t, sid) {
     subjBadge(t.subj || 'CJ', 34) +
     '<div class="grow"><div class="row-title" style="' + (d ? 'text-decoration:line-through' : '') + '">' + escapeHtml(t.title) + '</div>' +
     '<div class="row-sub">' + escapeHtml(subjName) + (t.note ? ' · ' + escapeHtml(t.note) : '') + '</div></div>' +
-    '<span class="chip ' + (d ? 'chip-ok' : late ? 'chip-bad' : 'chip-accent') + '">' + (d ? 'hotovo' : late ? 'po termínu' : (t.due === todayISO() ? 'na dnes' : 'do ' + fmtDate(t.due))) + '</span>' +
+    '<span class="chip ' + (d ? 'chip-ok' : late ? 'chip-bad' : 'chip-accent') + '">' + (d ? 'Hotovo' : late ? 'Po termínu' : (t.due === todayISO() ? 'Na dnes' : 'Do ' + fmtDate(t.due))) + '</span>' +
     '<button type="button" class="btn btn-ghost btn-sm" style="flex:0 0 auto" data-act="s-task-msg:' + t.id + '" title="Napsat učiteli ohledně tohoto úkolu">' + ic('chat', 13) + ' Napsat učiteli</button>' +
   '</div>';
 }
@@ -1504,7 +1504,7 @@ function planAkciView() {
     return '<div class="list-row" style="align-items:flex-start"><span class="ava" style="background:linear-gradient(135deg,#F59E0B,#D97706)">' + ic('flag', 15) + '</span>' +
       '<div class="grow"><div class="row-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' + escapeHtml(a.title) + (isPast ? '' : actionCountdownChip(days)) + '</div>' +
       (a.desc ? '<div style="margin-top:3px;white-space:pre-wrap">' + escapeHtml(a.desc) + '</div>' : '') +
-      '<div class="row-sub">' + fmtDate(a.date) + (isPast ? ' · proběhlo' : '') + (a.sid ? ' · akce jen pro ' + (isRod ? 'vaše dítě' : 'tebe') : ' · celá třída') + '</div>' +
+      '<div class="row-sub">' + fmtDate(a.date) + (isPast ? ' · Proběhlo' : '') + (a.sid ? ' · Akce jen pro ' + (isRod ? 'vaše dítě' : 'tebe') : ' · Celá třída') + '</div>' +
       (canAck
         ? (acked
           ? '<div class="ack-mine">' + ic('check', 13) + ' Potvrzeno – Učitel Ví, Že O Akci Víte</div>'

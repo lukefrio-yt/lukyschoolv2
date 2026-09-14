@@ -102,7 +102,7 @@ function tPrehled() {
     '<div class="page-acts"><button class="btn btn-ghost btn-sm" data-act="goto:#/ucitel/kniha">' + ic('clipboard', 15) + ' Zapsat hodinu</button>' +
     '<button class="btn btn-ghost btn-sm" data-act="goto:#/ucitel/dochazka">' + ic('calendar', 15) + ' Docházka</button></div></div>' +
   clsScopePills() +
-  '<div class="grid grid-4">' +
+  '<div class="grid grid-4 stat-grid">' +
     '<div class="stat"><span class="s-ic" style="background:rgba(59,130,246,.14);color:var(--accent)">' + ic('calendar', 20) + '</span><div><b>' + lessons.length + '</b><span>Hodin dnes</span></div></div>' +
     '<div class="stat"><span class="s-ic" style="background:rgba(245,158,11,.14);color:var(--warn)">' + ic('shield', 20) + '</span><div><b>' + pending.length + '</b><span>Omluvenek ke schválení</span></div></div>' +
     '<div class="stat"><span class="s-ic" style="background:rgba(16,185,129,.14);color:var(--ok)">' + ic('chat', 20) + '</span><div><b>' + unread + '</b><span>Nepřečtených zpráv</span></div></div>' +
@@ -201,7 +201,7 @@ function tDochazka() {
     '<div class="sub">Třída: ' + escapeHtml(cls.name) + '</div></div>' +
     '<div class="page-acts"><button class="btn btn-ghost btn-sm" data-act="goto:#/ucitel/kniha">' + ic('clipboard', 15) + ' Zapsat docházku</button></div></div>' +
   clsScopePills() +
-  '<div class="grid grid-4">' +
+  '<div class="grid grid-4 stat-grid">' +
     '<div class="stat"><span class="s-ic" style="background:rgba(59,130,246,.14);color:var(--accent)">' + ic('clipboard', 20) + '</span><div><b>' + lessons.length + '</b><span>Zapsaných hodin</span></div></div>' +
     '<div class="stat"><span class="s-ic" style="background:rgba(245,158,11,.14);color:var(--warn)">' + ic('alert', 20) + '</span><div><b>' + withMiss + '</b><span>Žáků s absencí</span></div></div>' +
     '<div class="stat"><span class="s-ic" style="background:rgba(16,185,129,.14);color:var(--ok)">' + ic('calendar', 20) + '</span><div><b>' + sumMiss + '</b><span>Zameškaných hodin</span></div></div>' +
@@ -503,7 +503,7 @@ function tPololetka() {
     '<button class="tab' + (sem === 2 ? ' active' : '') + '" data-act="kls-sem:2">2. pololetí</button></div>';
   return '' +
   '<div class="page-head"><div><h1>Pololetní klasifikace</h1>' +
-    '<div class="sub">' + escapeHtml(cls.name) + ' | Pol. klasifikace za ' + semLabel(sem) + (closed ? ' – uzavřeno ' + fmtDate(rep.closedAt) : ' (nikdo ho zatím nevidí)') + '</div></div>' +
+    '<div class="sub">' + escapeHtml(cls.name) + ' | Pol. klasifikace za ' + semLabel(sem) + (closed ? ' – Uzavřeno ' + fmtDate(rep.closedAt) : ' (nikdo ho zatím nevidí)') + '</div></div>' +
     '<div class="page-acts">' +
       (closed
         ? '<button class="btn btn-soft btn-sm" data-act="kls-open">' + ic('edit', 15) + ' Znovu otevřít k opravě</button>'
@@ -778,15 +778,13 @@ function cbAttendanceCard(cid, date, period, subjAuto) {
   return '<div class="card" style="margin-top:16px">' +
     '<div class="card-title">' + ic('calendar', 16) + ' Docházka této hodiny' +
       '<span style="margin-left:auto;display:flex;gap:8px;align-items:center">' +
-        '<span class="small-note" style="margin:0;font-weight:600">' + fmtDateLong(date) + ' · ' + (period + 1) + '. hod.' + (subjAuto ? ' · ' + SUBJECTS[subjAuto].name : '') + '</span>' +
         '<button class="btn btn-soft btn-sm" data-act="cb-all-pres">' + ic('check', 14) + ' Všichni přítomni</button>' +
       '</span></div>' +
     atLegend() +
     '<div class="tbl-wrap"><table class="tbl"><thead><tr>' +
       '<th style="min-width:170px">Žák</th>' +
-      '<th style="min-width:190px">Účast – klepnutím nastavíte</th>' +
-      '<th>Význam</th>' +
-      '<th style="text-align:right;min-width:150px">Omluveno? <span class="small-note" style="margin:0;font-weight:500">(auto · jen učitel)</span></th>' +
+      '<th style="min-width:190px">Účast</th>' +
+      '<th style="text-align:right;min-width:150px">Omluveno?</th>' +
     '</tr></thead><tbody>' +
     sts.map(s => {
       const e = cbEffStatus(s.id, date, period);
@@ -799,8 +797,7 @@ function cbAttendanceCard(cid, date, period, subjAuto) {
         '<td><div class="at-set">' + ATT_ICONS.map(([tok, tip]) => {
           const clsTok = { P: 'p', X: 'x', D: 'd' }[tok] || 'p';
           return '<button type="button" class="at-btn ' + clsTok + (e === tok ? ' on' : '') + '" data-act="cb-att:' + s.id + ':' + tok + '" title="' + tip + '">' + ATT_GLYPH[tok] + '</button>';
-        }).join('') + '</div></td>' +
-        '<td><span class="att-txt" style="color:' + col + '">' + txt + '</span></td>' +
+        }).join('') +        '</div></td>' +
         '<td style="text-align:right">' + (mark
           ? (mark === 'N'
               ? '<span class="chip chip-bad" style="font-size:11px" title="Nemá omluvenku, přesto má být ve škole">✗ neomluveno</span>'
@@ -995,7 +992,7 @@ function tZpravy() {
               '<span class="ava" style="width:34px;height:34px;font-size:13px;flex:0 0 auto">' + escapeHtml(((whoName || kidName || '?').charAt(0))) + '</span>' +
               '<div class="grow" style="min-width:0">' +
                 '<div class="row-title" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(title) +
-                  (closed ? ' <span class="chip chip-bad" style="padding:0 6px;font-size:9.5px">uzavřeno</span>' : '') + '</div>' +
+                  (closed ? ' <span class="chip chip-bad" style="padding:0 6px;font-size:9.5px">Uzavřeno</span>' : '') + '</div>' +
                 '<div class="row-sub" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(subTxt) + (t.taskId ? ' · <span style="color:var(--warn)">úkol</span>' : '') + '</div>' +
               '</div>' +
               '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex:0 0 auto">' + unreadDot(un) +
@@ -1017,8 +1014,8 @@ function tZpravy() {
             const ctTeach = curThread.teacherId ? ((db.users.find(x => x.id === curThread.teacherId) || {}).name || '') : '';
             return '<div class="card-title" style="margin-bottom:8px">' + ic('chat', 16) + ' Rozhovor: ' + escapeHtml(ctTitle) +
               (curThread.taskId ? ' <span class="chip chip-warn" style="padding:0 7px;font-size:10px">úkol</span>' : '') +
-              (ctClosed ? ' <span class="chip chip-bad" style="padding:0 7px;font-size:10px">uzavřeno</span>' : '') +
-              (ctTeach ? '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">pro: ' + escapeHtml(ctTeach) + '</span>' : '') + '</div>';
+              (ctClosed ? ' <span class="chip chip-bad" style="padding:0 7px;font-size:10px">Uzavřeno</span>' : '') +
+              (ctTeach ? '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">Pro ' + escapeHtml(ctTeach) + '</span>' : '') + '</div>';
           })() +
           '<div class="thread" style="max-height:220px;overflow:auto">' + curThread.msgs.map(m => {
             const me = m.from === u.id;
@@ -1431,7 +1428,7 @@ function tPredmety() {
     '<div class="sub">Základní i vlastní předměty – všechny jdou upravovat (název, zkratka, barva) i mazat</div></div></div>' +
   '<div class="grid grid-2">' +
     '<div class="card"><div class="card-title">' + ic('book', 16) + ' Vlastní předmět (' + custom.length + ')' +
-      '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">objeví se v rozvrhu i u známkování</span></div>' +
+      '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">Objeví se v rozvrhu i u známkování</span></div>' +
       '<form data-form="sub-add" style="margin-bottom:14px">' +
         '<div class="field-row">' +
           '<div class="field"><label>Název předmětu</label><input name="name" maxlength="40" placeholder="Např. Programování, Španělština…" required></div>' +
@@ -1562,7 +1559,7 @@ function tUcebny() {
     '<div class="sub">Učebny školy s krátkou zkratkou – ta se zobrazí v rozvrhu místo celého názvu</div></div></div>' +
     '<div class="grid grid-2">' +
       '<div class="card"><div class="card-title">' + ic('plus', 16) + ' Nová učebna (' + rooms.length + ')' +
-        '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">zkratka se ukáže v rozvrhu</span></div>' +
+        '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">Zkratka se ukáže v rozvrhu</span></div>' +
         '<form data-form="rm-add" style="margin-bottom:14px">' +
           '<div class="field-row">' +
             '<div class="field"><label>Název učebny</label><input name="name" maxlength="40" placeholder="Např. Tělocvična, Chemická laboratoř…" required></div>' +
@@ -1580,7 +1577,7 @@ function tUcebny() {
           : '<div class="empty"><b>Zatím žádné učebny</b>Přidejte první učebnu – pak ji přiřadíte hodinám v rozvrhu.</div>') +
       '</div>' +
       '<div class="card"><div class="card-title">' + ic('clock', 16) + ' Jak to vypadá v rozvrhu' +
-        '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">ukázka</span></div>' +
+        '<span style="margin-left:auto;font-size:12px;color:var(--muted);font-weight:600">Ukázka</span></div>' +
         '<div class="small-note" style="margin:0 0 12px">V rozvrhu se zobrazí jen barevná zkratka učebny</div>' +
         '<div class="empty"><b>V rozvrhu se píše zkratka</b>Žák i učitel uvidí u hodiny místo celého názvu barevnou zkratku – celé jméno se ukáže po najetí myší.</div>' +
       '</div>' +
@@ -1678,17 +1675,17 @@ function tUkoly() {
     return '<div class="card"><div class="list-row" style="border:none;padding:0;background:none">' +
       subjBadge(t.subj || 'CJ', 36) +
       '<div class="grow"><div class="row-title">' + escapeHtml(t.title) +
-        (t.sid ? ' <span class="chip chip-info" style="padding:0 7px;font-size:10px">pro ' + escapeHtml(studentFull(t.sid)) + '</span>' : ' <span class="chip chip-accent" style="padding:0 7px;font-size:10px">celá třída</span>') + '</div>' +
+        (t.sid ? ' <span class="chip chip-info" style="padding:0 7px;font-size:10px">Pro ' + escapeHtml(studentFull(t.sid)) + '</span>' : ' <span class="chip chip-accent" style="padding:0 7px;font-size:10px">Celá třída</span>') + '</div>' +
         '<div class="row-sub">' + escapeHtml(SUBJECTS[t.subj] ? SUBJECTS[t.subj].name : '') +
           (t.note ? ' · ' + escapeHtml(t.note) : '') + '</div></div>' +
-      '<div style="text-align:right"><span class="chip ' + (doneN === cnt ? 'chip-ok' : late ? 'chip-bad' : 'chip-warn') + '">' + (doneN === cnt ? 'splněno' : late ? 'po termínu' : 'do ' + fmtDate(t.due)) + '</span>' +
+      '<div style="text-align:right"><span class="chip ' + (doneN === cnt ? 'chip-ok' : late ? 'chip-bad' : 'chip-warn') + '">' + (doneN === cnt ? 'Splněno' : late ? 'Po termínu' : 'Do ' + fmtDate(t.due)) + '</span>' +
       '<div style="font-size:11px;color:var(--muted);margin-top:4px">' + doneN + '/' + cnt + ' ' + csPlural(cnt, 'žák', 'žáci', 'žáků') + '</div></div>' +
       '<button class="icon-btn sm" data-act="tk-del:' + t.id + '" style="color:var(--bad)" title="Smazat úkol">' + ic('trash', 15) + '</button></div>' +
       '<div class="tbl-wrap"><table class="tbl" style="min-width:420px"><thead><tr><th>Žák</th><th>Stav – klepnutím přepnete</th></tr></thead><tbody>' +
         taskStudents(t).map(s => {
           const d = !!(t.done && t.done[s.id]);
           return '<tr style="cursor:pointer" data-act="tk-toggle:' + t.id + ':' + s.id + '"><td><div style="display:flex;align-items:center;gap:8px">' + teacherAva(s, 26) + '<b>' + escapeHtml(s.last + ' ' + s.first) + '</b></div></td>' +
-            '<td><span class="chip ' + (d ? 'chip-ok' : '') + '">' + (d ? ic('check', 12) + ' splněno' : 'čeká') + '</span></td></tr>';
+            '<td><span class="chip ' + (d ? 'chip-ok' : '') + '">' + (d ? ic('check', 12) + ' Splněno' : 'Čeká') + '</span></td></tr>';
         }).join('') + '</tbody></table></div>' +
       '</div>';
   };
@@ -2339,7 +2336,7 @@ function tPlanAkci() {
   const past = acts.filter(a => daysUntilAction(a.date) < 0);
   const row = (a, isPast) => {
     const days = daysUntilAction(a.date);
-    const target = a.sid ? 'jen: ' + studentFull(a.sid) : 'celá třída';
+    const target = a.sid ? 'Jen: ' + studentFull(a.sid) : 'Celá třída';
     const inf = ackActionInfo(a, cid);
     const ackLine = inf.total
       ? '<div class="ack-box' + (inf.acked.length ? ' ack-ok' : '') + '">' +
