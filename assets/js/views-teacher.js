@@ -1836,7 +1836,6 @@ function printStudentCreds(studentAccId) {
   if (!st || !allowed) { toast('Žák není z vaší třídy ani organizace', 'bad'); return; }
   const parAcc = parentOfStudent(st.id);
   const cls = classOf(st.cls);
-  const school = schoolName();
   const card = (title, subtitle, acc, pass) => {
     const passHtml = pass
       ? '<div class="pc-row"><span>Heslo</span><code>' + escapeHtml(pass) + '</code></div>'
@@ -1846,7 +1845,7 @@ function printStudentCreds(studentAccId) {
         '<div class="pc-logo">' +
           '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10 12 5 2 10l10 5 10-5z"/><path d="M6 12v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5"/></svg>' +
         '</div>' +
-        '<div><div class="pc-brand">School<b>Sys</b></div><div class="pc-school">' + escapeHtml(school) + (cls && cls.name ? ' · třída ' + escapeHtml(cls.name) : '') + '</div></div>' +
+        '<div><div class="pc-brand">School<b>Sys</b></div><div class="pc-school">' + (cls && cls.name ? 'Třída ' + escapeHtml(cls.name) : '') + '</div></div>' +
       '</div>' +
       '<h2>' + escapeHtml(title) + '</h2>' +
       (subtitle ? '<div class="pc-sub">' + escapeHtml(subtitle) + '</div>' : '') +
