@@ -19,7 +19,7 @@ const DB_KEY_PREV = 'lukySchool.db.v13';
 const SES_KEY = 'lukySchool.session';
 const THEME_KEY = 'lukySchool.theme';
 const DB_TS_KEY = 'lukySchool.cloud.ts'; /* čas posledního lokálního uložení (cloud sync) */
-const DB_VERSION = 19;
+const DB_VERSION = 20;
 
 /* ---------- hashování hesel ----------
    Hesla se nikdy neukládají v čitelné podobě – v localStorage ani v cloudu.
@@ -516,13 +516,10 @@ const ADMIN_USER = {
 };
 function buildSeed() {
   const now = nowISO();
-  /* Testovací organizace v seedu (necháno k vyzkoušení – admin ji může smazat):
-     testorg → třída testtrida (třídní testucitel) → žák Test Žák (testzak).
-     Uživatelé si třídy/loginy dotvoří přes Správu organizace (PC) resp. Známkování/Údaje. */
   const seed = {
     v: DB_VERSION,
     meta: { seededAt: now, schoolYear: schoolYearLabel() },
-    schoolName: 'LukySchool',           /* název hlavní (vlastní) školy – nadále se nepoužívá, admin žádnou hlavní školu nemá */
+    schoolName: 'SchoolSys',            /* název hlavní (vlastní) školy – nadále se nepoužívá, admin žádnou hlavní školu nemá */
     organizations: [],                  /* cizí organizace: {id,name,first,last,phone,email,contactId,createdAt,suspended} */
     orgRequests: [],                    /* žádosti o založení: {id,first,last,orgName,phone,email,username,pass,status,ts} */
     orgNotices: [],                     /* oznámení admina zakladatelům: {id,orgId,text,ts,by} */
@@ -549,19 +546,6 @@ function buildSeed() {
     actions: [], /* plán akcí: {id,cls,sid?,title,desc,date,by,ts} */
     seen: { 'u-admin': null }
   };
-  /* naplnění testovací organizace (struktura identická aplikačním tvůrcům) */
-  try {
-    const orgId = 'org_testorg';
-    seed.organizations.push({ id: orgId, name: 'testorg', first: 'Test', last: 'Kontakt', phone: '+420 900 000 000', email: 'testorg@example.com', createdAt: now, suspended: false });
-    seed.users.push(
-      { id: 'u_testkontakt', username: 'testzakladatel', pass: hashPasswordSS1('TestZakladatel1'), role: 'ucitel', passChanged: false, name: 'Test Kontakt', note: 'Kontakt · testorg', isAdmin: false, isOrgContact: true, orgId },
-      { id: 'u_testucitel', username: 'testucitel', pass: hashPasswordSS1('TestUcitel1*'), role: 'ucitel', passChanged: false, name: 'Test Učitel', note: 'Třídní · testtrida', isAdmin: false, orgId }
-    );
-    seed.classes.push({ id: 'testtrida', name: 'testtrida', orgId, teacherIds: ['u_testucitel'], mainTeacher: 'u_testucitel' });
-    seed.students.push({ id: 's_testzak', first: 'Test', last: 'Žák', cls: 'testtrida', ivp: false, demo: false, orgId });
-    seed.users.push({ id: 'u_testzak', username: 'testzak', pass: hashPasswordSS1('TestZak1'), role: 'student', passChanged: false, name: 'Test Žák', note: 'testtrida', studentId: 's_testzak', isAdmin: false, orgId });
-    seed.seen = { 'u-admin': null, u_testkontakt: null, u_testucitel: null, u_testzak: null };
-  } catch (e) { console.warn('Seed testorg selhal', e); }
   return seed;
 }
 
@@ -583,7 +567,7 @@ let db = null;
     if (parsed.v < 13) {
       /* v12 → v13: multi-organizace. Hlavní škola dostane název LukySchool,
          přibudou organizace + žádosti o založení. Data hlavní školy zůstávají. */
-      parsed.schoolName = parsed.schoolName || 'LukySchool';
+      parsed.schoolName = parsed.schoolName || 'SchoolSys';
       parsed.organizations = parsed.organizations || [];
       parsed.orgRequests = parsed.orgRequests || [];
     }
@@ -615,6 +599,34 @@ let db = null;
          účet se při svém příštím přihlášení transparentně povýší na ss2
          (upgradeUserPass v core.js). Plain hesla tady nejsou, proto nelze
          přehashovat hned – PBKDF2 potřebuje znát původní heslo. */
+    }
+    if (parsed.v < 20) {
+      /* v19 → v20: release clean-up – odstranění testovací organizace testorg
+         (třída testtrida, účty testucitel/testzak/testrodic/testzakladatel a
+         veškerá jejich data). Do seedu už testorg nepatří, tady se vyčistí i
+         stávající nasazené databáze (localStorage i cloud). */
+      const TEST_ORG = 'org_testorg';
+      const testCls = new Set((parsed.classes || []).filter(c => c.id === 'testtrida' || c.orgId === TEST_ORG).map(c => c.id));
+      const testSids = new Set((parsed.students || []).filter(s => s.id === 's_testzak' || s.orgId === TEST_ORG).map(s => s.id));
+      parsed.users = (parsed.users || []).filter(u => !(!u.isRoot && (u.orgId === TEST_ORG || ['testucitel', 'testzak', 'testrodic', 'testzakladatel'].indexOf(u.username) !== -1)));
+      parsed.organizations = (parsed.organizations || []).filter(o => o.id !== TEST_ORG);
+      parsed.classes = (parsed.classes || []).filter(c => !testCls.has(c.id));
+      parsed.students = (parsed.students || []).filter(s => !testSids.has(s.id));
+      ['schedule', 'subjects'].forEach(k => { if (parsed[k]) testCls.forEach(id => { parsed[k] && delete parsed[k][id]; }); });
+      parsed.columns = (parsed.columns || []).filter(c => !testCls.has(c.cls));
+      parsed.classbook = (parsed.classbook || []).filter(r => !testCls.has(r.cls));
+      parsed.tasks = (parsed.tasks || []).filter(t => !testCls.has(t.cls));
+      parsed.subs = (parsed.subs || []).filter(t => !testCls.has(t.cls));
+      parsed.changes = (parsed.changes || []).filter(c => !testCls.has(c.cls));
+      parsed.actions = (parsed.actions || []).filter(a => !testCls.has(a.cls));
+      parsed.reservations = (parsed.reservations || []).filter(t => !testCls.has(t.cls));
+      parsed.absReq = (parsed.absReq || []).filter(t => !testCls.has(t.cls));
+      parsed.records = (parsed.records || []).filter(r => !testSids.has(r.sid));
+      parsed.notes = (parsed.notes || []).filter(r => !testSids.has(r.sid));
+      if (parsed.reports) testCls.forEach(id => { delete parsed.reports[id]; });
+      if (parsed.threads) Object.keys(parsed.threads).forEach(k => { const t = parsed.threads[k]; if (t && (t.orgId === TEST_ORG || (t.childId && testSids.has(t.childId)))) delete parsed.threads[k]; });
+      if (parsed.orgNotices) parsed.orgNotices = parsed.orgNotices.filter(n => n.orgId !== TEST_ORG);
+      if (parsed.resetReq) parsed.resetReq = parsed.resetReq.filter(r => !(r.login && ['testucitel', 'testzak', 'testrodic', 'testzakladatel'].indexOf(String(r.login).toLowerCase()) !== -1));
     }
     if (parsed.v < 17) {
       /* v16 → v17: končí hlavní škola (LukySchool). Admin už žádnou hlavní školu
@@ -713,7 +725,7 @@ function wipeSchool() {
   db = {
     v: DB_VERSION,
     meta: { seededAt: nowISO(), schoolYear: schoolYearLabel() },
-    schoolName: db.schoolName || 'LukySchool',
+    schoolName: db.schoolName || 'SchoolSys',
     organizations: db.organizations || [],
     orgRequests: db.orgRequests || [],
     orgNotices: db.orgNotices || [],
@@ -773,7 +785,7 @@ function currentStudentId() {
    Hlavní škola (LukySchool) má orgId === undefined/null. Cizí organizace
    mají vlastní orgId na třídách, žácích i účtech. Zakladatel aplikace
    (admin / isRoot) vidí všechno, ostatní jen svou organizaci. */
-function schoolName() { return db.schoolName || 'LukySchool'; }
+function schoolName() { return db.schoolName || 'SchoolSys'; }
 function organizationsList() { return db.organizations || (db.organizations = []); }
 function orgRequestsList() { return db.orgRequests || (db.orgRequests = []); }
 function orgById(id) { return organizationsList().find(o => o.id === id) || null; }
