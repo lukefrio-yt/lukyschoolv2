@@ -3,3 +3,8 @@ node_modules/
 *.log
 Thumbs.db
 .DS_Store
+
+/* citlivé dokumenty – jen lokálně, do repa nepatří (public repo) */
+DATABAZE.md
+SPAUSTENI.md
+supabase.sql
