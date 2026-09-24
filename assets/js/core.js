@@ -117,6 +117,8 @@ function toast(msg, kind) {
   if (!box) { box = document.createElement('div'); box.id = 'toasts'; document.body.appendChild(box); }
   const t = document.createElement('div');
   t.className = 'toast' + (kind ? ' ' + kind : '');
+  t.setAttribute('role', kind === 'bad' ? 'alert' : 'status');
+  t.setAttribute('aria-live', kind === 'bad' ? 'assertive' : 'polite');
   t.innerHTML = msg;
   box.appendChild(t);
   setTimeout(() => { t.style.transition = 'opacity .3s'; t.style.opacity = '0'; setTimeout(() => t.remove(), 320); }, 3400);
@@ -124,18 +126,37 @@ function toast(msg, kind) {
 function openModal(innerHTML, wide) {
   let root = document.getElementById('modal-root');
   if (!root) { root = document.createElement('div'); root.id = 'modal-root'; document.body.appendChild(root); }
-  root.innerHTML = '<div class="overlay" data-act="close-modal"><div class="modal' + (wide ? ' wide' : '') + '" data-stop>' + innerHTML + '</div></div>';
+  modalReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  root.innerHTML = '<div class="overlay" data-act="close-modal"><div class="modal' + (wide ? ' wide' : '') + '" role="dialog" aria-modal="true" tabindex="-1" data-stop>' + innerHTML + '</div></div>';
   const overlay = root.firstElementChild;
+  const modal = overlay.querySelector('.modal');
+  const title = modal.querySelector('h3');
+  if (title) {
+    title.id = 'modal-title-' + Date.now();
+    modal.setAttribute('aria-labelledby', title.id);
+  } else {
+    modal.setAttribute('aria-label', 'Dialog');
+  }
+  document.body.classList.add('modal-open');
+  const focusable = modal.querySelector('[autofocus], button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
+  (focusable || modal).focus();
   overlay.addEventListener('click', ev => { if (ev.target === overlay || ev.target.getAttribute('data-close')) closeModal(); });
 }
 function closeModal() {
   const root = document.getElementById('modal-root');
+  const hadModal = !!(root && root.firstElementChild);
   if (root) root.innerHTML = '';
+  document.body.classList.remove('modal-open');
+  if (hadModal && modalReturnFocus && document.contains(modalReturnFocus)) {
+    try { modalReturnFocus.focus(); } catch (_) {}
+  }
+  modalReturnFocus = null;
 }
+let modalReturnFocus = null;
 onAct('close-modal', () => closeModal());
 
 /* ---------- navigace (hash) ---------- */
-function gotoHash(h) { location.hash = h; route(); window.scrollTo({ top: 0 }); }
+function gotoHash(h) { closeModal(); location.hash = h; route(); window.scrollTo({ top: 0 }); }
 
 const VIEWS = {}; // role -> { key: renderFn }
 function registerView(role, key, fn) { (VIEWS[role] = VIEWS[role] || {})[key] = fn; }
@@ -475,7 +496,20 @@ onAct('logout', () => { logout(); location.hash = ''; renderLogin(); toast('Byl 
 /* mobilní zásuvka s navigací – otevře ji ☰ vedle loga */
 onAct('nav-menu', () => document.body.classList.add('nav-open'));
 onAct('nav-close', () => document.body.classList.remove('nav-open'));
-document.addEventListener('keydown', e => { if (e.key === 'Escape') document.body.classList.remove('nav-open'); });
+document.addEventListener('keydown', e => {
+  const modal = document.querySelector('#modal-root .modal');
+  if (modal && e.key === 'Tab') {
+    const focusable = Array.from(modal.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (!first) { e.preventDefault(); modal.focus(); return; }
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+  if (e.key !== 'Escape') return;
+  if (modal) { closeModal(); return; }
+  document.body.classList.remove('nav-open');
+});
 
 /* ---------- hesla: změna vlastního + zapomenuté heslo ---------- */
 /* Politika: min. 8 znaků, min. 1 velké + 1 malé písmeno + 1 číslo;
@@ -495,8 +529,8 @@ function passFieldsHtml(hidden, role) {
     '<div class="field"><label>Nové heslo</label><div class="pass-wrap"><input name="new1" autocomplete="new-password" required maxlength="64" placeholder="' + hint + '">' + eye + '</div></div>' +
     '<div class="field"><label>Potvrzení hesla</label><div class="pass-wrap"><input name="new2" autocomplete="new-password" required maxlength="64" placeholder="stejné heslo znovu">' + passEyeHtml('new2') + '</div></div>';
 }
-function passEyeHtml(nameAttr) {
-  return '<button type="button" class="pass-eye" data-act="pass-eye" title="Zobrazit / skrýt heslo">' + ic('eye', 16) + '</button>';
+function passEyeHtml(nameAttr, disabled) {
+  return '<button type="button" class="pass-eye" data-act="pass-eye" data-pass-input="' + nameAttr + '" title="Zobrazit / skrýt heslo" aria-label="Zobrazit nebo skrýt heslo"' + (disabled ? ' disabled' : '') + '>' + ic('eye', 16) + '</button>';
 }
 document.addEventListener('click', e => {
   const b = e.target.closest('.pass-eye');
@@ -637,33 +671,86 @@ const ORGREQ_FIELDS = ['first', 'last', 'orgName', 'phone', 'email', 'username',
 function draftOrgReqGet() { try { return JSON.parse(localStorage.getItem('ss.orgreq.draft') || 'null'); } catch (e) { return null; } }
 function draftOrgReqSet(d) { try { const c = Object.assign({}, d); delete c.pass; /* heslo se v draftu ukládat nikdy nebude */ localStorage.setItem('ss.orgreq.draft', JSON.stringify(c)); } catch (e) { /* noop */ } }
 function draftOrgReqClear() { try { localStorage.removeItem('ss.orgreq.draft'); } catch (e) { /* noop */ } }
+function orgReqErrorMarkup(key) {
+  return '<span class="field-error" id="orgreq-' + key + '-error" data-org-error="' + key + '" role="alert" hidden></span>';
+}
+function setOrgReqErrors(form, errors) {
+  form.querySelectorAll('[data-org-field]').forEach(input => {
+    const key = input.name;
+    const message = errors[key] || '';
+    const field = input.closest('.field');
+    const error = form.querySelector('[data-org-error="' + key + '"]');
+    if (message) input.setAttribute('aria-invalid', 'true');
+    else input.removeAttribute('aria-invalid');
+    if (field) field.classList.toggle('has-error', !!message);
+    if (error) { error.textContent = message; error.hidden = !message; }
+  });
+  const firstKey = Object.keys(errors)[0];
+  if (firstKey) {
+    const input = form.querySelector('[name="' + firstKey + '"]');
+    if (input) {
+      input.focus();
+      input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+}
+function clearOrgReqFieldError(form, key) {
+  const input = form.querySelector('[name="' + key + '"]');
+  const error = form.querySelector('[data-org-error="' + key + '"]');
+  if (input) {
+    input.removeAttribute('aria-invalid');
+    const field = input.closest('.field');
+    if (field) field.classList.remove('has-error');
+  }
+  if (error) { error.textContent = ''; error.hidden = true; }
+}
+function orgReqErrors(d) {
+  const errors = {};
+  if (!d.first) errors.first = 'Zadejte jméno zakladatele.';
+  if (!d.last) errors.last = 'Zadejte příjmení zakladatele.';
+  if (!d.orgName) errors.orgName = 'Zadejte název organizace.';
+  if (!d.phone) errors.phone = 'Zadejte telefon na kontakt.';
+  else if (!/^[\d+().\s-]{7,32}$/.test(d.phone) || (d.phone.match(/\d/g) || []).length < 7) errors.phone = 'Zadejte platné telefonní číslo.';
+  if (!d.email) errors.email = 'Zadejte email na kontakt.';
+  else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.email)) errors.email = 'Zadejte platný email.';
+  if (!d.username) errors.username = 'Zvolte uživatelské jméno pro kontakt.';
+  else if (d.username.length < 3) errors.username = 'Uživatelské jméno musí mít alespoň 3 znaky.';
+  else if (!/^[A-Za-z0-9._-]+$/.test(d.username)) errors.username = 'Použijte písmena, číslice, tečku, podtržítko nebo pomlčku.';
+  const passwordError = passErr(d.pass, 'orgcontact');
+  if (passwordError) errors.pass = passwordError;
+  if (d.username && usernameTaken(d.username)) errors.username = 'Toto uživatelské jméno je už zabrané.';
+  if (d.username && orgRequestsList().some(r => r.status === 'ceka' && r.username.toLowerCase() === d.username.toLowerCase())) errors.username = 'Pro toto uživatelské jméno už čeká žádost na vyřízení.';
+  return errors;
+}
 function orgReqRender(mode, draft) {
   const app = document.getElementById('app');
   document.body.classList.remove('nav-open', 'dock-open');
   const d = draft || {};
-  const val = k => d[k] ? escapeHtml(String(d[k])) : '';
+  const val = k => d[k] != null && d[k] !== '' ? escapeHtml(String(d[k])) : '';
   const pcOnly = mode !== 'mobile';
+  const disabled = pcOnly ? '' : ' disabled';
+  const formClass = pcOnly ? 'org-req-form' : 'org-req-form org-req-disabled';
   app.innerHTML =
     '<div class="login-wrap"><div class="login-card card">' +
       '<div class="login-brand"><span class="brand"><span class="logo" style="width:44px;height:44px;border-radius:13px;font-size:22px">' + ic('home', 20) + '</span><span class="brand-name" style="font-size:26px">School<small style="color:var(--accent)">Sys</small></span></span></div>' +
       '<h1>Založit organizaci 🏫</h1>' +
       '<p class="login-sub">Odešlete žádost správci SchoolSys – po schválení dostanete vlastní správu tříd a loginů.</p>' +
       (!pcOnly
-        ? '<div class="card" style="border-color:var(--warn);margin-bottom:14px"><b>🖥️ Pouze na počítači</b><p class="small-note" style="margin:6px 0 0">Žádost lze odeslat jen z počítače</p></div>'
+        ? '<div class="card org-req-device-note" role="status"><b>🖥️ Pouze na počítači</b><p class="small-note" style="margin:6px 0 0">Žádost lze odeslat jen z počítače. Pole níže jsou proto neupravitelná.</p></div>'
         : '') +
-      '<form data-form="org-request"' + (pcOnly ? '' : ' data-disabled="1"') + '>' +
+      '<form data-form="org-request" class="' + formClass + '"' + (pcOnly ? '' : ' data-disabled="1" aria-disabled="true"') + ' novalidate>' +
         '<div class="field-row">' +
-          '<div class="field"><label>Jméno zakladatele *</label><input name="first" required maxlength="40" value="' + val('first') + '" placeholder="Jan"' + (pcOnly ? '' : ' disabled') + '></div>' +
-          '<div class="field"><label>Příjmení zakladatele *</label><input name="last" required maxlength="40" value="' + val('last') + '" placeholder="Novák"' + (pcOnly ? '' : ' disabled') + '></div>' +
+          '<div class="field"><label for="orgreq-first">Jméno zakladatele *</label><input id="orgreq-first" name="first" data-org-field required maxlength="40" autocomplete="given-name" value="' + val('first') + '" placeholder="Jan" aria-describedby="orgreq-first-error"' + disabled + '>' + orgReqErrorMarkup('first') + '</div>' +
+          '<div class="field"><label for="orgreq-last">Příjmení zakladatele *</label><input id="orgreq-last" name="last" data-org-field required maxlength="40" autocomplete="family-name" value="' + val('last') + '" placeholder="Novák" aria-describedby="orgreq-last-error"' + disabled + '>' + orgReqErrorMarkup('last') + '</div>' +
         '</div>' +
-        '<div class="field"><label>Jméno organizace *</label><input name="orgName" required maxlength="60" value="' + val('orgName') + '" placeholder="např. ZŠ Hvezda"' + (pcOnly ? '' : ' disabled') + '></div>' +
+        '<div class="field"><label for="orgreq-orgName">Jméno organizace *</label><input id="orgreq-orgName" name="orgName" data-org-field required maxlength="60" autocomplete="organization" value="' + val('orgName') + '" placeholder="např. ZŠ Hvezda" aria-describedby="orgreq-orgName-error"' + disabled + '>' + orgReqErrorMarkup('orgName') + '</div>' +
         '<div class="field-row">' +
-          '<div class="field"><label>Telefon na kontakt *</label><input name="phone" required value="' + val('phone') + '" placeholder="+420 …"' + (pcOnly ? '' : ' disabled') + '></div>' +
-          '<div class="field"><label>Email na kontakt *</label><input name="email" type="email" required value="' + val('email') + '" placeholder="kontakt@organizace.cz"' + (pcOnly ? '' : ' disabled') + '></div>' +
+          '<div class="field"><label for="orgreq-phone">Telefon na kontakt *</label><input id="orgreq-phone" name="phone" data-org-field type="tel" inputmode="tel" autocomplete="tel" required maxlength="32" value="' + val('phone') + '" placeholder="+420 …" aria-describedby="orgreq-phone-error"' + disabled + '>' + orgReqErrorMarkup('phone') + '</div>' +
+          '<div class="field"><label for="orgreq-email">Email na kontakt *</label><input id="orgreq-email" name="email" data-org-field type="email" autocomplete="email" required maxlength="120" value="' + val('email') + '" placeholder="kontakt@organizace.cz" aria-describedby="orgreq-email-error"' + disabled + '>' + orgReqErrorMarkup('email') + '</div>' +
         '</div>' +
         '<div class="field-row">' +
-          '<div class="field"><label>Uživatelské jméno pro kontakt *</label><input name="username" required maxlength="30" value="' + val('username') + '" placeholder="např. jan.novak" style="font-family:monospace"' + (pcOnly ? '' : ' disabled') + '></div>' +
-          '<div class="field"><label>Heslo pro kontakt *</label><div class="pass-wrap"><input name="pass" type="password" required value="" placeholder="min. 8 znaků, velké + malé písmeno, číslice, speciální znak"' + (pcOnly ? '' : ' disabled') + '>' + passEyeHtml('pass') + '</div></div>' +
+          '<div class="field"><label for="orgreq-username">Uživatelské jméno pro kontakt *</label><input id="orgreq-username" name="username" data-org-field required maxlength="30" pattern="[A-Za-z0-9._-]{3,30}" autocomplete="username" value="' + val('username') + '" placeholder="např. jan.novak" style="font-family:monospace" aria-describedby="orgreq-username-error"' + disabled + '>' + orgReqErrorMarkup('username') + '</div>' +
+          '<div class="field"><label for="orgreq-pass">Heslo pro kontakt *</label><div class="pass-wrap"><input id="orgreq-pass" name="pass" data-org-field type="password" autocomplete="new-password" required maxlength="64" value="" placeholder="min. 8 znaků, velké + malé písmeno, číslice, speciální znak" aria-describedby="orgreq-pass-error"' + disabled + '>' + passEyeHtml('pass', !pcOnly) + '</div>' + orgReqErrorMarkup('pass') + '</div>' +
         '</div>' +
         '<p class="small-note" style="margin:4px 0 10px">Přihlášení až po schválení žádosti (jen na PC)</p>' +
         (pcOnly ? '<button class="btn btn-primary" style="width:100%">' + ic('send', 16) + ' Odeslat žádost správci</button>' : '') +
@@ -673,30 +760,33 @@ function orgReqRender(mode, draft) {
     '</div></div>';
 }
 function routeOrgRequest() {
-  const pc = !isAppMode();
-  orgReqRender(pc ? 'pc' : 'mobile', pc ? draftOrgReqGet() : null);
-  if (!pc) draftOrgReqClear();
+  orgReqRender(isAppMode() ? 'mobile' : 'pc', draftOrgReqGet());
 }
 function normalizeOrgReq(d) {
   const out = {};
   ORGREQ_FIELDS.forEach(k => { out[k] = String(d && d[k] || '').trim(); });
   return out;
 }
+document.addEventListener('input', e => {
+  const form = e.target.closest('form[data-form="org-request"]');
+  if (!form || !e.target.matches('[data-org-field]')) return;
+  clearOrgReqFieldError(form, e.target.name);
+  draftOrgReqSet(Object.fromEntries(new FormData(form).entries()));
+});
 onAct('form:org-request', f => {
+  if (f.dataset.disabled) return;
   const d = normalizeOrgReq(Object.fromEntries(new FormData(f).entries()));
-  /* limity znaků */
-  d.first = d.first.slice(0, 40); d.last = d.last.slice(0, 40);
-  d.orgName = d.orgName.slice(0, 60); d.username = d.username.slice(0, 30);
-  if (!d.first || !d.last || !d.orgName || !d.phone || !d.email) { toast('Vyplňte prosím všechna pole žádosti', 'bad'); return; }
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.email)) { toast('Zadejte platný email', 'bad'); return; }
-  if (!d.username) { toast('Zvolte uživatelské jméno pro kontakt', 'bad'); return; }
-  const err = passErr(d.pass, 'orgcontact');
-  if (err) { toast(err, 'bad'); return; }
-  if (usernameTaken(d.username)) { toast('Uživatelské jméno „' + escapeHtml(d.username) + '“ je už zabrané', 'bad'); return; }
-  if (d.username.length < 3) { toast('Uživatelské jméno musí mít alespoň 3 znaky', 'bad'); return; }
-  if (orgRequestsList().some(r => r.status === 'ceka' && r.username.toLowerCase() === d.username.toLowerCase())) {
-    toast('Pro toto uživatelské jméno už čeká žádost na vyřízení', 'bad'); return;
+  d.first = d.first.slice(0, 40);
+  d.last = d.last.slice(0, 40);
+  d.orgName = d.orgName.slice(0, 60);
+  d.username = d.username.slice(0, 30);
+  const errors = orgReqErrors(d);
+  if (Object.keys(errors).length) {
+    setOrgReqErrors(f, errors);
+    toast('Zkontrolujte označená pole žádosti', 'bad');
+    return;
   }
+  setOrgReqErrors(f, {});
   const req = {
     id: uid(), first: d.first, last: d.last, orgName: d.orgName, phone: d.phone, email: d.email,
     username: d.username, pass: hashPassword(d.pass), status: 'ceka', ts: nowISO()
@@ -704,12 +794,11 @@ onAct('form:org-request', f => {
   orgRequestsList().push(req);
   draftOrgReqClear();
   saveDB();
-  /* notifikace pro zakladatele aplikace (isRoot/admin) */
   (db.users || []).filter(u => u.isRoot || u.isAdmin).forEach(u => {
     db.notifs.push({ userId: u.id, type: 'orgreq', text: 'Nová žádost o organizaci: ' + req.orgName + ' (' + req.username + ')', ts: nowISO(), route: 'sprava' });
   });
   saveDB();
-  route();
+  gotoHash('#/login');
   openModal(
     '<h3>' + ic('check', 18) + ' Žádost odeslána</h3>' +
     '<p class="small-note" style="margin-bottom:12px">Žádost pro organizaci <b>' + escapeHtml(req.orgName) + '</b> byla odeslána správci SchoolSys. Až ji schválí, přihlásíte se na PC kontaktním účtem <code class="mono">' + escapeHtml(req.username) + '</code>.</p>' +
