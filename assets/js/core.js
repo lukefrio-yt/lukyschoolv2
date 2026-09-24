@@ -294,6 +294,8 @@ function shellHTML(user, activeKey) {
 /* ---------- router ---------- */
 function route() {
   const user = currentUser();
+  /* výchozí heslo admina: dokud si ho nezmění, není povolen žádný pohled do aplikace */
+  if (user && user.mustChangePass) { forcePassChangeModal(user); return; }
   /* režim „aplikace“ se řídí šířkou + rolí (žák/rodič na telefonu i tabletu) */
   const mob = isAppMode() && !!user; // telefon/tablet = launcher pro všechny role (i učitele)
   document.body.dataset.mob = (mob ? '1' : '0');
@@ -397,6 +399,13 @@ function tryLogin(user, pass) {
     return true;
   }
   saveSession({ user: u.username });
+  /* výchozí heslo admina (ze seedu): po přihlášení vynutíme jeho změnu */
+  if (u.mustChangePass) {
+    location.hash = '#/login';
+    route();
+    forcePassChangeModal(u);
+    return true;
+  }
   location.hash = '#/' + (u.isAdmin ? 'admin' : u.role) + '/' + defKeyFor(u);
   route();
   return true;
@@ -504,6 +513,35 @@ function applyPassError(p1, p2, role) {
   if (p1 !== p2) { toast('Hesla se neshodují', 'bad'); return true; }
   return false;
 }
+/* Vynucená změna výchozího hesla admina – bez vyplnění nelze aplikaci používat */
+function forcePassChangeModal(u) {
+  openModal(
+    '<h3>' + ic('lock', 16) + ' Nastavte si vlastní heslo</h3>' +
+    '<p class="small-note" style="margin-bottom:12px">Přihlásili jste se výchozím heslem správce. Z bezpečnostních důvodů si teď nastavte vlastní heslo – bez toho aplikaci nepoužijete.</p>' +
+    '<form data-form="force-pass-change">' + passFieldsHtml('') +
+      '<button class="btn btn-primary">Uložit nové heslo</button>' +
+    '</form>');
+  const form = document.querySelector('[data-form=force-pass-change]');
+  if (form) form.dataset.uid = u.id;
+}
+onAct('form:force-pass-change', f => {
+  const fd = new FormData(f);
+  const u = (db.users || []).find(x => x.id === f.dataset.uid) || currentUser();
+  if (!u) return;
+  const p1 = String(fd.get('new1') || ''), p2 = String(fd.get('new2') || '');
+  const err = passErr(p1, u.role);
+  if (err) { toast(err, 'bad'); return; }
+  if (p1 !== p2) { toast('Hesla se neshodují', 'bad'); return; }
+  u.pass = hashPassword(p1);
+  delete u.mustChangePass;
+  u.passChanged = true;
+  saveDB();
+  closeModal();
+  toast('Heslo uloženo ✓ Nyní se přihlaste novým heslem', 'ok');
+  logout();
+  location.hash = '#/login';
+  route();
+});
 onAct('ch-pass', () => {
   const u = currentUser();
   if (!u) return;

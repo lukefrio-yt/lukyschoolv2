@@ -19,7 +19,7 @@ const DB_KEY_PREV = 'lukySchool.db.v13';
 const SES_KEY = 'lukySchool.session';
 const THEME_KEY = 'lukySchool.theme';
 const DB_TS_KEY = 'lukySchool.cloud.ts'; /* čas posledního lokálního uložení (cloud sync) */
-const DB_VERSION = 20;
+const DB_VERSION = 21;
 
 /* ---------- hashování hesel ----------
    Hesla se nikdy neukládají v čitelné podobě – v localStorage ani v cloudu.
@@ -510,8 +510,13 @@ const DEFAULT_ROOMS = [
   { id: 'rm-lab', name: 'Laboratoř přírodopisu' },
   { id: 'rm-jazyk', name: 'Jazyková učebna' }
 ];
+/* Heslo admina NIKDY necestuje ve zdrojovém kódu – zde je pouze předpočítaný
+   PBKDF2 hash (ss2, 60 000 iterací). Výchozí heslo zná jen zakladatel aplikace
+   a musí si ho hned po prvním přihlášení změnit (vynuceno na loginu). */
 const ADMIN_USER = {
-  id: 'u-admin', username: 'admin', pass: 'REDAKTOVANE-VYCHOZI-HESLO', role: 'ucitel', isAdmin: true, isRoot: true,
+  id: 'u-admin', username: 'admin',
+  pass: 'ss2$b5ce55f8819906cf4040545a75e234df$60000$0733413d8af4abf34dd76e7dfe8f2c53955495d4d21c21515794c85a219d2a87',
+  role: 'ucitel', isAdmin: true, isRoot: true, mustChangePass: true,
   name: 'Zakladatel SchoolSys', note: 'zakladatel · plná správa'
 };
 function buildSeed() {
@@ -524,7 +529,7 @@ function buildSeed() {
     orgRequests: [],                    /* žádosti o založení: {id,first,last,orgName,phone,email,username,pass,status,ts} */
     orgNotices: [],                     /* oznámení admina zakladatelům: {id,orgId,text,ts,by} */
     classes: [],
-    users: [Object.assign(JSON.parse(JSON.stringify(ADMIN_USER)), { pass: hashPasswordSS1(ADMIN_USER.pass) })],
+    users: [JSON.parse(JSON.stringify(ADMIN_USER))],
     students: [],
     rooms: JSON.parse(JSON.stringify(DEFAULT_ROOMS)),
     subjects: {},
@@ -554,7 +559,7 @@ let db = null;
 /* migrace starších verzí:
    v11 → v12 (release): končí demo verze. Stará data (demo žáci, třídy,
    rozvrhy, zprávy) se NEPŘEVÁDĚJÍ – škola se vyčistí a zůstane jen
-   zakladatelský účet admin (nové heslo REDAKTOVANE-VYCHOZI-HESLO). Všechno se staví znovu ve Správě.
+   zakladatelský účet admin (výchozí heslo zná jen zakladatel – ve zdrojáku je jen hash). Všechno se staví znovu ve Správě.
    Další verze (>= 12) už migrují běžně, bez mazání. */function migrateDB(parsed) {
   /* posun školního roku, pokud data pocházejí z předchozího roku */
   if (parsed && parsed.meta && parsed.meta.schoolYear && parsed.meta.schoolYear !== schoolYearLabel()) {
@@ -665,6 +670,14 @@ let db = null;
         });
       });
     }
+    if (parsed.v < 21) {
+      /* v20 → v21: výchozí heslo admina už není ve zdrojovém kódu (jen hash).
+         Adminovi, který si heslo ještě nikdy nezměnil, se při příštím
+         přihlášení vynutí jeho změna (mustChangePass → core.js). */
+      (parsed.users || []).forEach(u => {
+        if (u.isRoot && u.isAdmin && !u.passChanged) u.mustChangePass = true;
+      });
+    }
     parsed.v = DB_VERSION;
   }
   return parsed;
@@ -729,7 +742,7 @@ function wipeSchool() {
     organizations: db.organizations || [],
     orgRequests: db.orgRequests || [],
     orgNotices: db.orgNotices || [],
-    classes: [], users: [Object.assign(JSON.parse(JSON.stringify(ADMIN_USER)), { pass: hashPasswordSS1(ADMIN_USER.pass) })],
+    classes: [], users: [JSON.parse(JSON.stringify(ADMIN_USER))],
     students: [], rooms: JSON.parse(JSON.stringify(DEFAULT_ROOMS)), subjects: {}, schedule: {}, columns: [], tasks: [], classbook: [],
     threads: {},
     subs: [], reservations: [], absReq: [], notifs: [],
