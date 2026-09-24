@@ -347,7 +347,7 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 
 .att-pill.e { background: rgba(6,182,212,0.14); color: var(--info); }
 
 /* forms */
-.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; margin-bottom: 12px; }
 .field label { font-size: 13px; font-weight: 700; color: var(--muted); }
 .field input, .field select, .field textarea, input.txt, select.sel, textarea.ta {
   background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
@@ -455,8 +455,8 @@ textarea.ta { min-height: 44px; }
 .zk-avgbar b { font-size: 16px; }
 @media (max-width: 980px) { .zk-grid3 { grid-template-columns: 1fr; } }
 /* ---- Heslo s okem ---- */
-.pass-wrap { position: relative; display: flex; }
-.pass-wrap input { flex: 1; padding-right: 44px !important; }
+.pass-wrap { position: relative; display: flex; width: 100%; min-width: 0; }
+.pass-wrap input { flex: 1 1 0; min-width: 0; width: 100%; padding-right: 44px !important; }
 .pass-eye { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: none; border: 0; cursor: pointer; color: var(--muted); display: grid; place-items: center; width: 44px; min-width: 44px; height: 44px; min-height: 44px; border-radius: 8px; }
 .pass-eye:hover:not(:disabled) { color: var(--accent); background: var(--surface-2); }
 .pass-eye:disabled { cursor: not-allowed; opacity: 0.45; }
